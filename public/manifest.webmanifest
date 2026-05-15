@@ -1,0 +1,19 @@
+{
+  "name": "OmniDashboard",
+  "short_name": "Dashboard",
+  "description": "Install the store dashboard for quick mobile admin access.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/pwa/dashboard-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

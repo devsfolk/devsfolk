@@ -1,0 +1,9 @@
+{
+  "name": "OmniStore - SuperPlatform",
+  "description": "A comprehensive e-commerce platform with multi-device layout customization, advanced cart system, and flexible order management via WhatsApp or a built-in dashboard.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
