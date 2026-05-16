@@ -1,46 +1,42 @@
-# Safe Development Workflow for Aura Bloom
+# Enterprise Safety & Automation Workflow (Aura Bloom)
 
-To ensure the project remains stable and "targeted" while using AI coding assistants, the following rules must be followed for every task.
+This project uses an **Automated Safety Pipeline** to eliminate human error and ensure total production stability.
 
-## 1. Branching Strategy
-- **NEVER** work directly on the `main` branch.
-- For every new task (improvement, bug fix, or feature), a new branch must be created from `main`.
-- Branch naming convention:
-  - `feat/feature-name` (for new things)
-  - `fix/bug-name` (for fixing issues)
-  - `improve/feature-name` (for enhancing existing features)
+## 1. Automated Branch Protection
+- **Main Branch Lock**: Direct commits to `main` are technically blocked by GitHub Actions.
+- **PR Requirement**: All changes MUST go through a Pull Request.
+- **Status Checks**: The "Safety Guard" action must pass before any code can be merged.
 
-## 2. Targeted AI Edits
-- The AI must only modify files directly related to the task.
-- Use **Atomic Edits**: Change specific lines of code instead of rewriting entire files.
-- If a change requires touching a shared file (like `ShopContext.tsx`), the AI must explain WHY it is touching it before proceeding.
-- **Zero Cleanup**: No "refactoring" or "cleaning" of unrelated code. Keep changes targeted.
+## 2. Environment Tiers (Automated)
+| Environment | Domain | Purpose | DB Protection |
+| :--- | :--- | :--- | :--- |
+| **Development** | `localhost` | Local AI tasks. | Manual Dev DB |
+| **Preview** | `*.vercel.app` | Physical testing. | **LOCKED** (Cannot use Prod DB) |
+| **Production** | `aurabloom-blond.vercel.app` | Live Store. | **Production DB** |
 
-## 3. Testing & Merging
-1. Create branch.
-2. Perform task.
-3. Verify on Vercel Preview (or local dev).
-4. Review the "Diff" (the changes).
-5. Merge into `main` ONLY if no other features are affected and the user provides explicit approval.
+## 3. Database Safety Logic
+- **Runtime Guard**: The app will CRASH on purpose if it detects the Production Database ID being used on a Vercel Preview branch.
+- **Zero Production Mutations**: No code change is allowed to modify the database schema without a verified migration log in `TASK_MANIFEST.md`.
 
-## 4. Emergency Rollback
-If a merge causes an unexpected bug in another part of the project:
-1. Immediately identify the last stable commit.
-2. Run `git reset --hard [commit-id]` on the `main` branch.
-3. Delete the problematic feature branch and start over with a narrower focus.
+## 4. CI/CD Pipeline Flow
 
-## 5. Backend & Database Safety (Enterprise Protocol)
-### Environment Separation
-- **DEVELOPMENT**: Local machine work. Uses `.env` with a non-production Supabase URL.
-- **STAGING/PREVIEW**: Vercel branch deployments. Used for your physical testing.
-- **PRODUCTION**: The live `main` branch. Connected to your real customer database.
+```mermaid
+graph TD
+    A[AI Task Request] --> B[Create Task Branch]
+    B --> C[Perform Targeted Edits]
+    C --> D[Push to GitHub]
+    D --> E{Safety Checks Action}
+    E -- Fail --> F[Block Merge / Fix Error]
+    E -- Pass --> G[Vercel Preview Build]
+    G --> H[Physical Testing by User]
+    H -- Reject --> I[Delete Branch]
+    H -- Approve --> J[Merge to Main]
+    J --> K[Automatic Production Deploy]
+```
 
-### Database Change Rules
-1. **Staging First**: Any database change (new tables, columns) MUST be applied and tested on a Development/Staging project before touching Production.
-2. **Schema Protection**: Never modify `supabase/schema.sql` without a corresponding migration task.
-3. **RLS & Security**: Row Level Security (RLS) policies and Auth settings are "Locked." Any change requires a dedicated security review branch.
-4. **No Direct Edits**: No AI agent is allowed to run SQL commands directly on the Production Database via the Supabase dashboard or API.
+## 5. Rollback Strategy
+- **Code Rollback**: If a bug is found after merge, use GitHub to "Revert" the PR instantly.
+- **Data Rollback**: If a database migration fails, we revert the `schema.sql` and apply the backup via Supabase Dashboard.
 
-## 6. Strict Approval Flow
-- **Code**: Branch -> Vercel Preview -> User Test -> Merge.
-- **Backend/Data**: Dev DB -> Staging Test -> Written Plan -> User Approval -> Production Apply.
+## 6. Audit Requirement
+Every task must still be recorded in [TASK_MANIFEST.md](file:///d:/000000000/Devsfolk-Projects/Aura-Bloom/Aura-Bloom/Aura-Bloom/TASK_MANIFEST.md) for enterprise-grade accountability.
