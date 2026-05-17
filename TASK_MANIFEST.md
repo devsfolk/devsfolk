@@ -82,7 +82,7 @@
 ---
 
 ## Current Active Task
-### [IN IMPLEMENTATION] Task 5: Semi-Automatic Bank Transfer Payment System
+### [COMPLETED] Task 5: Semi-Automatic Bank Transfer Payment System
 - **Date**: 2026-05-17
 - **Branch**: `feat/semi-automatic-bank-transfer-payment`
 - **Description**: Implemented a semi-automatic payment gateway supporting direct bank transfers and digital wallets, using client-side OCR scan technology (Tesseract.js) to scan and verify customer receipt screenshots against order details and totals.
@@ -92,3 +92,12 @@
   - `src/pages/dashboard/GeneralSettings.tsx`: Designed premium, beautifully guided configuration settings for Bank Details and QR Code uploads.
   - `src/pages/storefront/CheckoutPage.tsx`: Designed an interactive Bank Transfer expansion box with copy features, dynamic Tesseract engine loader, canvas compression, laser-scan visualizer, auto-verification result cards, and lightbox preview.
   - `src/pages/dashboard/OrdersPage.tsx`: Updated presentation cards, added shield badging, auto-verified vs manual review labels, lightbox zoomed views, and a one-click manual payment approval action.
+- **Vercel Sandbox URLs**:
+  - Storefront: [https://aurabloom-git-feat-semi-automatic-bank-transfer-payment-devsfolks-projects.vercel.app](https://aurabloom-git-feat-semi-automatic-bank-transfer-payment-devsfolks-projects.vercel.app)
+  - Dashboard: [https://aurabloom-git-feat-semi-automatic-bank-transfer-payment-devsfolks-projects.vercel.app/dashboard](https://aurabloom-git-feat-semi-automatic-bank-transfer-payment-devsfolks-projects.vercel.app/dashboard)
+- **Verification**: Verified settings inputs, client-side OCR upload and verification flow, admin table view shield badging, manual review/paid visual labels, details screenshot preview with custom lightbox zoom, and order status updates are all working perfectly.
+
+---
+
+## Current Active Task
+*No active task. Waiting for user instruction.*
