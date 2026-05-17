@@ -50,4 +50,13 @@
 ---
 
 ## Current Active Task
-*No active task. Waiting for user verification of Task 2.*
+
+### [IN-PROGRESS] Task 3: Add WhatsApp Social Link
+- **Date**: 2026-05-17
+- **Branch**: `feat/whatsapp-social-link`
+- **Description**: Added WhatsApp as a recognized social platform in the footer and dashboard settings.
+- **Files Modified**: 
+  - `src/pages/dashboard/GeneralSettings.tsx`: Added WhatsApp icon handling to social preview.
+  - `src/components/layout/StoreLayout.tsx`: Imported MessageSquare icon and added WhatsApp mapping for the footer render.
+  - `src/context/ShopContext.tsx`: Added `social-whatsapp` to the default template settings.
+- **Verification**: The user should be able to see the WhatsApp option in General Settings and the corresponding icon in the storefront footer.

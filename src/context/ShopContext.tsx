@@ -91,6 +91,7 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     { id: 'social-instagram', platform: 'Instagram', url: '', enabled: false },
     { id: 'social-facebook', platform: 'Facebook', url: '', enabled: false },
     { id: 'social-youtube', platform: 'YouTube', url: '', enabled: false },
+    { id: 'social-whatsapp', platform: 'WhatsApp', url: '', enabled: false },
   ],
   desktop: { ...DEFAULT_DEVICE_CONFIG, productGridCols: 4 },
   tablet: { ...DEFAULT_DEVICE_CONFIG, productGridCols: 2, headerStyle: 'minimal' },

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '../../context/ShopContext';
-import { ShoppingCart, Menu, Search, Store, Heart, Globe, Instagram, Facebook, Youtube, Twitter, Linkedin } from 'lucide-react';
+import { ShoppingCart, Menu, Search, Store, Heart, Globe, Instagram, Facebook, Youtube, Twitter, Linkedin, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,8 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         return Twitter;
       case 'linkedin':
         return Linkedin;
+      case 'whatsapp':
+        return MessageSquare;
       default:
         return Globe;
     }

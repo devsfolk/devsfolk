@@ -38,6 +38,8 @@ export const GeneralSettings: React.FC = () => {
         return Twitter;
       case 'linkedin':
         return Linkedin;
+      case 'whatsapp':
+        return MessageSquare; // Using MessageSquare as a fallback for WhatsApp
       default:
         return Globe;
     }
