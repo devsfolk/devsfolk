@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '../../context/ShopContext';
-import { ShoppingCart, Menu, Search, Store, Heart, Globe, Instagram, Facebook, Youtube, Twitter, Linkedin, MessageSquare } from 'lucide-react';
+import { ShoppingCart, Menu, Search, Store, Heart, Globe, Instagram, Facebook, Youtube, Twitter, Linkedin } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
@@ -46,10 +47,24 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       case 'linkedin':
         return Linkedin;
       case 'whatsapp':
-        return MessageSquare;
+        return WhatsAppIcon;
       default:
         return Globe;
     }
+  };
+
+  const formatSocialUrl = (platform: string, url: string) => {
+    if (platform.trim().toLowerCase() === 'whatsapp') {
+      const cleanNumber = url.replace(/[^0-9]/g, '');
+      if (cleanNumber.length >= 10 && !url.includes('wa.me') && !url.includes('whatsapp.com')) {
+        return `https://wa.me/${cleanNumber}`;
+      }
+    }
+    // Auto-prepend https:// if missing
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
+      return `https://${url}`;
+    }
+    return url;
   };
 
   const renderHeader = () => {
@@ -243,7 +258,7 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                   return (
                     <a
                       key={link.id}
-                      href={link.url}
+                      href={formatSocialUrl(link.platform, link.url)}
                       target="_blank"
                       rel="noreferrer"
                       aria-label={link.platform}

@@ -51,12 +51,12 @@
 
 ## Current Active Task
 
-### [IN-PROGRESS] Task 3: Add WhatsApp Social Link
+### [IN-PROGRESS] Task 3.1: Fix WhatsApp Icon and Redirect
 - **Date**: 2026-05-17
-- **Branch**: `feat/whatsapp-social-link`
-- **Description**: Added WhatsApp as a recognized social platform in the footer and dashboard settings.
+- **Branch**: `fix/whatsapp-icon-and-redirect`
+- **Description**: Replaced generic icon with a custom WhatsApp SVG and added auto-formatting for phone numbers to redirect to WhatsApp.
 - **Files Modified**: 
-  - `src/pages/dashboard/GeneralSettings.tsx`: Added WhatsApp icon handling to social preview.
-  - `src/components/layout/StoreLayout.tsx`: Imported MessageSquare icon and added WhatsApp mapping for the footer render.
-  - `src/context/ShopContext.tsx`: Added `social-whatsapp` to the default template settings.
-- **Verification**: The user should be able to see the WhatsApp option in General Settings and the corresponding icon in the storefront footer.
+  - `src/components/icons/WhatsAppIcon.tsx`: Created custom WhatsApp SVG.
+  - `src/components/layout/StoreLayout.tsx`: Added formatSocialUrl to auto-convert phone numbers to wa.me links. Used custom icon.
+  - `src/pages/dashboard/GeneralSettings.tsx`: Used custom icon in the preview.
+- **Verification**: The user should verify the real WhatsApp icon appears and clicking it redirects to WhatsApp even if they just typed a phone number.

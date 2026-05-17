@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Globe, Shield, CreditCard, MessageSquare, Bell, User, Truck, ShieldCheck, RotateCcw, Zap, Gift, BadgeCheck, CreditCard as CreditCardIcon, Plus, Trash2, Instagram, Facebook, Youtube, Twitter, Linkedin } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FeatureIcon, SocialLink, StoreFeature } from '@/types';
@@ -39,7 +40,7 @@ export const GeneralSettings: React.FC = () => {
       case 'linkedin':
         return Linkedin;
       case 'whatsapp':
-        return MessageSquare; // Using MessageSquare as a fallback for WhatsApp
+        return WhatsAppIcon;
       default:
         return Globe;
     }
