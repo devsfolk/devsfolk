@@ -165,7 +165,20 @@
   - Dashboard: [https://aurabloom-git-feat-project-branding-devsfolk-devsfolks-projects.vercel.app/dashboard](https://aurabloom-git-feat-project-branding-devsfolk-devsfolks-projects.vercel.app/dashboard)
 - **Verification**: Verified npm build outputs compile under devsfolk. Verified footer links redirect correctly to the home promotion domain. Verified console logs report devsfolk syncer messages, and push notification triggers report new orders under DevsFolk branding without legacy cache data loss.
 
+### [IN PROGRESS] Task 10: Cross-Platform PWA Dashboard Install Banner (iOS Safari & Android/Desktop Native Prompts)
+- **Date**: 2026-05-18
+- **Branch**: `feat/pwa-install-banner`
+- **Description**: Checked and refactored the PWA Install system. Found that the PWA install option was previously hidden inside General Settings, which was not discoverable or responsive for rapid mobile/tablet admin access. Rebranded the manifest short name to "DevsFolk Dashboard" and created a global, premium, dismissible, and cross-platform `PWAInstallBanner` component mounted on all dashboard routes. Integrates automatic `beforeinstallprompt` interception for native one-tap install, and adds a custom step-by-step iOS Safari Share menu prompt so the option is fully available and functional across all three device categories (mobile, tablet, desktop).
+- **Files Modified**: 
+  - `public/manifest.webmanifest`: Updated PWA name descriptor to DevsFolk Dashboard.
+  - `src/components/pwa/PWAInstallBanner.tsx`: Built the premium, glassmorphic, slide-in PWA installer supporting automatic hooks, custom iOS guidelines, dismiss states with localStorage cooldown, and beautiful entrance micro-animations.
+  - `src/components/layout/DashboardLayout.tsx`: Hooked the install banner globally at the viewport layout layer.
+- **Vercel Sandbox URLs**:
+  - Storefront: [https://aurabloom-git-feat-pwa-install-banner-devsfolks-projects.vercel.app](https://aurabloom-git-feat-pwa-install-banner-devsfolks-projects.vercel.app)
+  - Dashboard: [https://aurabloom-git-feat-pwa-install-banner-devsfolks-projects.vercel.app/dashboard](https://aurabloom-git-feat-pwa-install-banner-devsfolks-projects.vercel.app/dashboard)
+- **Verification**: Verified compilation build runs correctly. Verified that when running outside standalone mode, the banner slides in elegantly at the bottom of the screen. Tested dismissing saves a cooldown cookie to localStorage, and iOS simulation renders custom manual menu action items correctly.
+
 ---
 
 ## Current Active Task
-*No active task. Waiting for user instruction.*
+*Refactoring the PWA Install Banner to be fully cross-platform and highly responsive.*
