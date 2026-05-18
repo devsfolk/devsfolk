@@ -542,7 +542,7 @@ export const CheckoutPage: React.FC = () => {
                           <ShieldCheck className="h-6 w-6 animate-bounce" />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <h6 className="font-bold text-green-900 text-sm uppercase tracking-wide">✨ Auto-Verification Successful</h6>
+                          <h6 className="font-bold text-green-900 text-sm uppercase tracking-wide">✨ DevsFolk Auto-Verification Successful</h6>
                           <p className="text-xs text-green-800 leading-relaxed">
                             We successfully verified the payment transfer of <strong>{settings.currencySymbol}{cartTotal.toFixed(2)}</strong> from your receipt! Your order will be placed as a verified premium transaction.
                           </p>
