@@ -246,6 +246,43 @@ export const GeneralSettings: React.FC = () => {
                 </div>
                 <p className="text-[10px] text-gray-500 italic px-1">Whichever field is selected will become mandatory at checkout, while the other remains optional. Both fields will always be visible to customers.</p>
               </div>
+
+              {/* Phone Format Selection */}
+              <div className="grid gap-4 border-t pt-6">
+                <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Allowed Customer Phone Format</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[
+                    { id: 'pakistan', label: '🇵🇰 Pakistan', desc: '+92 3xx...' },
+                    { id: 'usa', label: '🇺🇸 USA/Canada', desc: '+1 (xxx)...' },
+                    { id: 'uk', label: '🇬🇧 UK Mobile', desc: '+44 7xxx...' },
+                    { id: 'any', label: '🌐 Any Global', desc: '10-15 digits' },
+                    { id: 'custom', label: '⚙️ Custom Format', desc: 'Specify placeholder' }
+                  ].map(option => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleUpdate({ phoneFormat: option.id })}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${(settings.phoneFormat || 'pakistan') === option.id ? 'border-black bg-black text-white' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                    >
+                      <div className="font-bold text-xs leading-none">{option.label}</div>
+                      <div className="text-[8px] opacity-70 mt-1.5 leading-none">{option.desc}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {settings.phoneFormat === 'custom' && (
+                  <div className="grid gap-2 animate-in fade-in duration-200">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Custom Format Placeholder (e.g. +13055550199)</Label>
+                    <Input 
+                      value={settings.customPhonePlaceholder || ''}
+                      onChange={(e) => handleUpdate({ customPhonePlaceholder: e.target.value })}
+                      placeholder="+13055550199"
+                      className="rounded-xl h-11 md:h-12 text-sm"
+                    />
+                    <p className="text-[10px] text-gray-500 italic px-1">Write an example of the exact format you want to enforce. Customers will be forced to match the digits count and prefix structure of this format.</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 

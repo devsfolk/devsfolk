@@ -228,12 +228,47 @@ export const CheckoutPage: React.FC = () => {
     }
 
     if (formData.customerPhone.trim()) {
-      const cleanedPhone = formData.customerPhone.replace(/[\s\-\(\)]/g, '');
-      const phoneRegex = /^(\+92|92|0)?3[0-9]{9}$/; // Pakistani format: e.g. +92 300 1234567, 0300 1234567
-      const genericPhoneRegex = /^\+?[0-9]{10,15}$/; // General format
+      const format = settings.phoneFormat || 'pakistan';
+      const customPlaceholder = settings.customPhonePlaceholder || '';
+      
+      const cleaned = formData.customerPhone.replace(/[\s\-\(\)]/g, '');
+      let isValid = false;
 
-      if (!phoneRegex.test(cleanedPhone) && !genericPhoneRegex.test(cleanedPhone)) {
-        alert('Please enter a valid phone number (e.g. 0300 1234567 or +92 300 1234567).');
+      if (format === 'pakistan') {
+        const regex = /^(\+92|92|0)?3[0-9]{9}$/;
+        isValid = regex.test(cleaned);
+      } else if (format === 'usa') {
+        const regex = /^(\+?1)?[2-9][0-9]{9}$/;
+        isValid = regex.test(cleaned);
+      } else if (format === 'uk') {
+        const regex = /^(\+?44|0)?7[0-9]{9}$/;
+        isValid = regex.test(cleaned);
+      } else if (format === 'custom' && customPlaceholder) {
+        const cleanedPlaceholder = customPlaceholder.replace(/[\s\-\(\)]/g, '');
+        const hasPlus = customPlaceholder.startsWith('+');
+        const placeholderDigits = cleanedPlaceholder.replace(/[^0-9]/g, '');
+        
+        if (hasPlus) {
+          const phoneHasPlus = formData.customerPhone.trim().startsWith('+');
+          const cleanedDigits = cleaned.replace(/[^0-9]/g, '');
+          isValid = phoneHasPlus && cleanedDigits.length === placeholderDigits.length;
+        } else {
+          const cleanedDigits = cleaned.replace(/[^0-9]/g, '');
+          isValid = cleanedDigits.length === placeholderDigits.length;
+        }
+      } else {
+        const genericRegex = /^\+?[0-9]{10,15}$/;
+        isValid = genericRegex.test(cleaned);
+      }
+
+      if (!isValid) {
+        let errorMsg = 'Please enter a valid phone number.';
+        if (format === 'pakistan') errorMsg = 'Please enter a valid Pakistani phone number (e.g. 0300 1234567).';
+        else if (format === 'usa') errorMsg = 'Please enter a valid USA/Canada phone number (e.g. +1 (305) 555-0199).';
+        else if (format === 'uk') errorMsg = 'Please enter a valid UK phone number (e.g. +44 7911 123456).';
+        else if (format === 'custom' && customPlaceholder) errorMsg = `Please enter a phone number in the format: ${customPlaceholder}`;
+        
+        alert(errorMsg);
         return;
       }
     }
@@ -346,7 +381,14 @@ export const CheckoutPage: React.FC = () => {
                 <Input 
                   id="customerPhone" 
                   name="customerPhone" 
-                  placeholder="e.g. 0300 1234567 or +92 300 1234567" 
+                  placeholder={(() => {
+                    const format = settings.phoneFormat || 'pakistan';
+                    if (format === 'pakistan') return 'e.g. 0300 1234567 or +92 300 1234567';
+                    if (format === 'usa') return 'e.g. +1 (305) 555-0199 or 305-555-0199';
+                    if (format === 'uk') return 'e.g. +44 7911 123456 or 07911 123456';
+                    if (format === 'custom' && settings.customPhonePlaceholder) return `e.g. ${settings.customPhonePlaceholder}`;
+                    return 'e.g. +1 305 555 0199';
+                  })()}
                   value={formData.customerPhone}
                   onChange={handleChange}
                 />

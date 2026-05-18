@@ -73,6 +73,8 @@ const DEFAULT_SETTINGS: ThemeSettings = {
   whatsappNumber: '1234567890',
   orderMode: 'WEBSITE',
   contactRequired: 'phone',
+  phoneFormat: 'pakistan',
+  customPhonePlaceholder: '',
   paymentSettings: {
     stripe: { enabled: false, apiKey: '', secretKey: '' },
     paypal: { enabled: false, clientId: '' },

@@ -254,12 +254,11 @@ export const OrdersPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Order Detail Modal */}
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent className="sm:max-w-2xl rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="sm:max-w-2xl rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl max-h-[90vh] flex flex-col">
           {selectedOrder && (
-            <div className="flex flex-col">
-              <div className="p-6 md:p-8 bg-gray-50 border-b flex justify-between items-center">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 md:p-8 bg-gray-50 border-b flex justify-between items-center shrink-0">
                 <div>
                   <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Order Details</h2>
                   <div className="flex items-center gap-2 mt-1">
@@ -276,7 +275,7 @@ export const OrdersPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto flex-1 max-h-[calc(90vh-140px)]">
                 <div className="space-y-6">
                   {selectedOrder.paymentMethod === 'WHATSAPP' && selectedOrder.status === 'PENDING' && (
                     <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-xl">
@@ -441,7 +440,7 @@ export const OrdersPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="p-6 bg-white border-t flex justify-end">
+              <div className="p-6 bg-white border-t flex justify-end shrink-0">
                 <Button variant="outline" className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-10 px-6" onClick={() => setSelectedOrder(null)}>
                   Close Details
                 </Button>

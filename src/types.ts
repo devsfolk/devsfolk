@@ -99,6 +99,8 @@ export interface ThemeSettings {
   logoUrl?: string;
   heroBannerUrl?: string;
   contactRequired?: 'phone' | 'email';
+  phoneFormat?: 'pakistan' | 'usa' | 'uk' | 'any' | 'custom';
+  customPhonePlaceholder?: string;
   // Device specific layouts
   desktop: DeviceConfig;
   tablet: DeviceConfig;
