@@ -130,6 +130,22 @@
   - Dashboard: [https://aurabloom-git-feat-customer-order-history-devsfolks-projects.vercel.app/dashboard](https://aurabloom-git-feat-customer-order-history-devsfolks-projects.vercel.app/dashboard)
 - **Verification**: Verified order persistence to localStorage, collapsible item lists, status steps rendering, secure sync matching logic, reorder utility, and fully responsive layouts.
 
+### [COMPLETED] Task 8: DevsFolk Bespoke Customizer (Colors, Ratios, & Initial Visible Counts)
+- **Date**: 2026-05-18
+- **Branch**: `feat-devsfolk-theme-controls`
+- **Description**: Enabled deep layout customizability in the default DevsFolk theme. Added parameters for custom storefront backgrounds, navbar background, and footer background colors. Added adjustable category image aspect ratios (Square, Standard Portrait, Cinematic Portrait, Standard Landscape, Cinematic Landscape) and initial visible category counts (1 to 5, or All) to lock custom viewport grids.
+- **Files Modified**: 
+  - `src/types.ts`: Extended `ThemeSettings` with bespoke DevsFolk customizer parameters.
+  - `src/context/ShopContext.tsx`: Initialized custom settings parameters in `DEFAULT_SETTINGS`.
+  - `src/lib/templates.ts`: Added default parameters to `devsfolk` template registration.
+  - `src/components/layout/StoreLayout.tsx`: Hooked background, navbar, and footer color overrides when DevsFolk template is active.
+  - `src/pages/storefront/Home.tsx`: Set category item dimensions dynamically based on visible count settings, integrated custom aspect ratios, and added storefront background color overrides.
+  - `src/pages/dashboard/DesignSettings.tsx`: Designed the gorgeous "DevsFolk Style" tab, integrating premium color pickers, reset buttons, ratio previews, visible count sliders, and interactive activation banners.
+- **Vercel Sandbox URLs**:
+  - Storefront: [https://aurabloom-git-feat-devsfolk-theme-controls-devsfolks-projects.vercel.app](https://aurabloom-git-feat-devsfolk-theme-controls-devsfolks-projects.vercel.app)
+  - Dashboard: [https://aurabloom-git-feat-devsfolk-theme-controls-devsfolks-projects.vercel.app/dashboard](https://aurabloom-git-feat-devsfolk-theme-controls-devsfolks-projects.vercel.app/dashboard)
+- **Verification**: Verified color selectors update backgrounds dynamically across the store wrapper, navbar, and footer. Verified image ratios instantly morph element aspect ratios, and grid items resize to fit the precise designated count on page load.
+
 ---
 
 ## Current Active Task
