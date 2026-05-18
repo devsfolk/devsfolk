@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useShop } from '@/context/ShopContext';
 import { useNavigate } from 'react-router-dom';
+import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { settings, isAdmin, logout, loading } = useShop();
@@ -174,6 +175,8 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             {children}
           </div>
         </main>
+
+        <PWAInstallBanner />
       </div>
     </div>
   );
