@@ -112,7 +112,7 @@ export const CartPage: React.FC = () => {
             </div>
 
             <p className="text-[8px] md:text-[10px] text-gray-400 mb-6 text-center uppercase font-bold tracking-widest opacity-60">
-              Secure Checkout Powered by OmniDashboard
+              Secure Checkout Powered by DevsFolk
             </p>
 
             <Button 

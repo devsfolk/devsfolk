@@ -36,7 +36,7 @@ export const LoginPage: React.FC = () => {
            <div className="w-16 h-16 bg-black rounded-3xl flex items-center justify-center text-white mx-auto mb-4 shadow-2xl">
               <Store className="h-8 w-8" />
            </div>
-           <h1 className="text-2xl font-black uppercase tracking-tight">OmniAdmin</h1>
+           <h1 className="text-2xl font-black uppercase tracking-tight">DevsFolk Admin</h1>
            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Manage Your Empire</p>
         </div>
 

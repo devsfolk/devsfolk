@@ -61,8 +61,8 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     <div className="flex flex-col h-full">
       <div className="p-6">
         <Link to="/dashboard" className="flex items-center gap-2 font-bold text-xl">
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white text-xs">OS</div>
-          OmniDashboard
+          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white text-xs font-black">DF</div>
+          DevsFolk Dashboard
         </Link>
       </div>
       
@@ -130,7 +130,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             ) : (
-              <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center text-white text-[10px] font-black">OS</div>
+              <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center text-white text-[10px] font-black">DF</div>
             )}
             <div>
               {isSubPage && (

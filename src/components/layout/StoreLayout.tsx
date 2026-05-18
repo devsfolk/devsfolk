@@ -277,14 +277,9 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             <div className="text-xs text-gray-400 flex items-center flex-wrap gap-1.5 mt-1 justify-center md:justify-end">
               <span>© {new Date().getFullYear()} {settings.shopName}.</span>
               <span className="text-gray-300 hidden md:inline">|</span>
-              <a 
-                href="https://devsfolk.com" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="font-black tracking-wider text-[10px] uppercase text-indigo-500 hover:text-indigo-600 transition-colors"
-              >
+              <span className="font-black tracking-wider text-[10px] uppercase text-indigo-500">
                 Powered by DevsFolk
-              </a>
+              </span>
             </div>
           </div>
         </div>
