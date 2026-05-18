@@ -26,8 +26,12 @@ export const TEMPLATES: Template[] = [
       devsfolkBgColor: '#ffffff',
       devsfolkNavbarColor: '#ffffff',
       devsfolkFooterColor: '#f9fafb',
-      devsfolkCatRatio: 'square',
-      devsfolkInitialCategoriesCount: 1,
+      devsfolkCatRatioDesktop: 'square',
+      devsfolkCatRatioTablet: 'square',
+      devsfolkCatRatioMobile: 'square',
+      devsfolkInitialCategoriesCountDesktop: 4,
+      devsfolkInitialCategoriesCountTablet: 3,
+      devsfolkInitialCategoriesCountMobile: 1,
       desktop: {
         headerStyle: 'standard', // Custom logic for Search in Center
         headerTheme: 'light',

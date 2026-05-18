@@ -68,6 +68,18 @@ export const Home: React.FC = () => {
       ? { backgroundColor: settings.devsfolkBgColor } 
       : {};
 
+    // Device-specific collection image ratio and visible counts
+    let devsfolkCatRatioValue = settings.devsfolkCatRatioDesktop || 'square';
+    let devsfolkInitialCountValue: number | 'all' = settings.devsfolkInitialCategoriesCountDesktop || 4;
+
+    if (device === 'tablet') {
+      devsfolkCatRatioValue = settings.devsfolkCatRatioTablet || 'square';
+      devsfolkInitialCountValue = settings.devsfolkInitialCategoriesCountTablet || 3;
+    } else if (device === 'mobile') {
+      devsfolkCatRatioValue = settings.devsfolkCatRatioMobile || 'square';
+      devsfolkInitialCountValue = settings.devsfolkInitialCategoriesCountMobile || 1;
+    }
+
     const ratioMap = {
       'square': 'aspect-square',
       'portrait': 'aspect-[3/4]',
@@ -75,16 +87,25 @@ export const Home: React.FC = () => {
       'landscape': 'aspect-[4/3]',
       'landscape-wide': 'aspect-[16/9]'
     };
-    const catRatioClass = ratioMap[settings.devsfolkCatRatio || 'square'] || 'aspect-square';
+    const catRatioClass = ratioMap[devsfolkCatRatioValue] || 'aspect-square';
 
-    const initialCategoriesCount = settings.devsfolkInitialCategoriesCount || 1;
-    const desktopItemWidth = initialCategoriesCount === 'all'
+    const desktopItemWidth = devsfolkInitialCountValue === 'all'
       ? 'w-[140px] md:w-[220px]'
-      : `calc((100% - (16px * (${initialCategoriesCount} - 1))) / ${initialCategoriesCount})`;
+      : `calc((100% - (16px * (${devsfolkInitialCountValue} - 1))) / ${devsfolkInitialCountValue})`;
 
-    const mobileItemWidth = initialCategoriesCount === 'all'
+    const mobileItemWidth = devsfolkInitialCountValue === 'all'
       ? 'w-[100px]'
-      : `calc((100% - (8px * (${initialCategoriesCount} - 1))) / ${initialCategoriesCount})`;
+      : `calc((100% - (8px * (${devsfolkInitialCountValue} - 1))) / ${devsfolkInitialCountValue})`;
+
+    const tabletItemWidth = devsfolkInitialCountValue === 'all'
+      ? 'w-[120px] sm:w-[180px]'
+      : `calc((100% - (12px * (${devsfolkInitialCountValue} - 1))) / ${devsfolkInitialCountValue})`;
+
+    const activeItemWidth = device === 'mobile' 
+      ? mobileItemWidth 
+      : device === 'tablet' 
+        ? tabletItemWidth 
+        : desktopItemWidth;
 
     const gallery = config.gallery || [];
     const currentSlide = gallery.length > 0 ? gallery[activeSlideIndex % gallery.length] : null;
@@ -143,8 +164,8 @@ export const Home: React.FC = () => {
                      <Link 
                       key={cat.id} 
                       to={`/category/${cat.slug}`}
-                      className={`flex-shrink-0 snap-start group ${isDevsFolk && initialCategoriesCount === 'all' ? (device === 'mobile' ? 'w-[100px]' : 'w-[140px] md:w-[220px]') : ''}`}
-                      style={isDevsFolk && initialCategoriesCount !== 'all' ? { width: device === 'mobile' ? mobileItemWidth : desktopItemWidth } : {}}
+                      className={`flex-shrink-0 snap-start group ${isDevsFolk && devsfolkInitialCountValue === 'all' ? (device === 'mobile' ? 'w-[100px]' : 'w-[140px] md:w-[220px]') : ''}`}
+                      style={isDevsFolk && devsfolkInitialCountValue !== 'all' ? { width: activeItemWidth } : {}}
                      >
                         <div className={`${catRatioClass} ${isDevsFolk && device === 'mobile' ? 'rounded-2xl' : 'rounded-[2rem]'} overflow-hidden bg-gray-50 mb-2 border-2 border-transparent group-hover:border-black transition-all`}>
                            <img src={cat.imageUrl} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />

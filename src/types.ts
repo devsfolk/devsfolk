@@ -105,8 +105,12 @@ export interface ThemeSettings {
   devsfolkBgColor?: string;
   devsfolkNavbarColor?: string;
   devsfolkFooterColor?: string;
-  devsfolkCatRatio?: 'square' | 'portrait' | 'portrait-tall' | 'landscape' | 'landscape-wide';
-  devsfolkInitialCategoriesCount?: 1 | 2 | 3 | 4 | 5 | 'all';
+  devsfolkCatRatioDesktop?: 'square' | 'portrait' | 'portrait-tall' | 'landscape' | 'landscape-wide';
+  devsfolkCatRatioTablet?: 'square' | 'portrait' | 'portrait-tall' | 'landscape' | 'landscape-wide';
+  devsfolkCatRatioMobile?: 'square' | 'portrait' | 'portrait-tall' | 'landscape' | 'landscape-wide';
+  devsfolkInitialCategoriesCountDesktop?: 1 | 2 | 3 | 4 | 5 | 'all';
+  devsfolkInitialCategoriesCountTablet?: 1 | 2 | 3 | 4 | 5 | 'all';
+  devsfolkInitialCategoriesCountMobile?: 1 | 2 | 3 | 4 | 5 | 'all';
   // Device specific layouts
   desktop: DeviceConfig;
   tablet: DeviceConfig;

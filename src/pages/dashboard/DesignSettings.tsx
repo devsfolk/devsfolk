@@ -1020,22 +1020,79 @@ export const DesignSettings: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="p-5 md:p-6 space-y-4">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Image Aspect Ratio Pattern</Label>
-                    <Select 
-                      value={settings.devsfolkCatRatio || 'square'} 
-                      onValueChange={(v) => handleUpdate('devsfolkCatRatio', v as any)}
-                    >
-                      <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="square">Square (1:1 Ratio) — Default Classic</SelectItem>
-                        <SelectItem value="portrait">Standard Portrait (3:4 Ratio) — Professional</SelectItem>
-                        <SelectItem value="portrait-tall">Cinematic Portrait (9:16 Ratio) — Premium Tall</SelectItem>
-                        <SelectItem value="landscape">Standard Landscape (4:3 Ratio) — Horizontal</SelectItem>
-                        <SelectItem value="landscape-wide">Cinematic Landscape (16:9 Ratio) — Ultra Wide</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Tabs defaultValue="desktop" className="w-full">
+                      <TabsList className="grid grid-cols-3 bg-gray-100/80 p-1 rounded-xl mb-4">
+                        <TabsTrigger value="desktop" className="text-xs font-black rounded-lg py-1.5 flex items-center justify-center gap-1">
+                          <Monitor className="h-3.5 w-3.5" />
+                          <span>Desktop</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="tablet" className="text-xs font-black rounded-lg py-1.5 flex items-center justify-center gap-1">
+                          <Tablet className="h-3.5 w-3.5" />
+                          <span>Tablet</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="mobile" className="text-xs font-black rounded-lg py-1.5 flex items-center justify-center gap-1">
+                          <Smartphone className="h-3.5 w-3.5" />
+                          <span>Mobile</span>
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="desktop" className="space-y-2 mt-0">
+                        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Desktop Aspect Ratio</Label>
+                        <Select 
+                          value={settings.devsfolkCatRatioDesktop || 'square'} 
+                          onValueChange={(v) => handleUpdate('devsfolkCatRatioDesktop', v as any)}
+                        >
+                          <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="square">Square (1:1 Ratio) — Default Classic</SelectItem>
+                            <SelectItem value="portrait">Standard Portrait (3:4 Ratio) — Professional</SelectItem>
+                            <SelectItem value="portrait-tall">Cinematic Portrait (9:16 Ratio) — Premium Tall</SelectItem>
+                            <SelectItem value="landscape">Standard Landscape (4:3 Ratio) — Horizontal</SelectItem>
+                            <SelectItem value="landscape-wide">Cinematic Landscape (16:9 Ratio) — Ultra Wide</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+
+                      <TabsContent value="tablet" className="space-y-2 mt-0">
+                        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tablet Aspect Ratio</Label>
+                        <Select 
+                          value={settings.devsfolkCatRatioTablet || 'square'} 
+                          onValueChange={(v) => handleUpdate('devsfolkCatRatioTablet', v as any)}
+                        >
+                          <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="square">Square (1:1 Ratio) — Default Classic</SelectItem>
+                            <SelectItem value="portrait">Standard Portrait (3:4 Ratio) — Professional</SelectItem>
+                            <SelectItem value="portrait-tall">Cinematic Portrait (9:16 Ratio) — Premium Tall</SelectItem>
+                            <SelectItem value="landscape">Standard Landscape (4:3 Ratio) — Horizontal</SelectItem>
+                            <SelectItem value="landscape-wide">Cinematic Landscape (16:9 Ratio) — Ultra Wide</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+
+                      <TabsContent value="mobile" className="space-y-2 mt-0">
+                        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mobile Aspect Ratio</Label>
+                        <Select 
+                          value={settings.devsfolkCatRatioMobile || 'square'} 
+                          onValueChange={(v) => handleUpdate('devsfolkCatRatioMobile', v as any)}
+                        >
+                          <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="square">Square (1:1 Ratio) — Default Classic</SelectItem>
+                            <SelectItem value="portrait">Standard Portrait (3:4 Ratio) — Professional</SelectItem>
+                            <SelectItem value="portrait-tall">Cinematic Portrait (9:16 Ratio) — Premium Tall</SelectItem>
+                            <SelectItem value="landscape">Standard Landscape (4:3 Ratio) — Horizontal</SelectItem>
+                            <SelectItem value="landscape-wide">Cinematic Landscape (16:9 Ratio) — Ultra Wide</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+                    </Tabs>
                   </CardContent>
                 </Card>
 
@@ -1053,24 +1110,83 @@ export const DesignSettings: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="p-5 md:p-6 space-y-4">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Initial Item Visible Count</Label>
-                    <Select 
-                      value={(settings.devsfolkInitialCategoriesCount || 1).toString()} 
-                      onValueChange={(v) => handleUpdate('devsfolkInitialCategoriesCount', v === 'all' ? 'all' : parseInt(v) as any)}
-                    >
-                      <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 Collection Visible (Slide Overflows)</SelectItem>
-                        <SelectItem value="2">2 Collections Visible (Side-by-Side)</SelectItem>
-                        <SelectItem value="3">3 Collections Visible (Compact Grid)</SelectItem>
-                        <SelectItem value="4">4 Collections Visible (Desktop Optimal)</SelectItem>
-                        <SelectItem value="5">5 Collections Visible (Panoramic Fit)</SelectItem>
-                        <SelectItem value="all">Display All / Default Scaling (Scrollable)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-gray-400 leading-relaxed pl-1">
+                    <Tabs defaultValue="desktop" className="w-full">
+                      <TabsList className="grid grid-cols-3 bg-gray-100/80 p-1 rounded-xl mb-4">
+                        <TabsTrigger value="desktop" className="text-xs font-black rounded-lg py-1.5 flex items-center justify-center gap-1">
+                          <Monitor className="h-3.5 w-3.5" />
+                          <span>Desktop</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="tablet" className="text-xs font-black rounded-lg py-1.5 flex items-center justify-center gap-1">
+                          <Tablet className="h-3.5 w-3.5" />
+                          <span>Tablet</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="mobile" className="text-xs font-black rounded-lg py-1.5 flex items-center justify-center gap-1">
+                          <Smartphone className="h-3.5 w-3.5" />
+                          <span>Mobile</span>
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="desktop" className="space-y-2 mt-0">
+                        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Desktop Item Visible Count</Label>
+                        <Select 
+                          value={(settings.devsfolkInitialCategoriesCountDesktop || 4).toString()} 
+                          onValueChange={(v) => handleUpdate('devsfolkInitialCategoriesCountDesktop', v === 'all' ? 'all' : parseInt(v) as any)}
+                        >
+                          <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 Collection Visible</SelectItem>
+                            <SelectItem value="2">2 Collections Visible</SelectItem>
+                            <SelectItem value="3">3 Collections Visible</SelectItem>
+                            <SelectItem value="4">4 Collections Visible</SelectItem>
+                            <SelectItem value="5">5 Collections Visible</SelectItem>
+                            <SelectItem value="all">Display All (Scrollable)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+
+                      <TabsContent value="tablet" className="space-y-2 mt-0">
+                        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Tablet Item Visible Count</Label>
+                        <Select 
+                          value={(settings.devsfolkInitialCategoriesCountTablet || 3).toString()} 
+                          onValueChange={(v) => handleUpdate('devsfolkInitialCategoriesCountTablet', v === 'all' ? 'all' : parseInt(v) as any)}
+                        >
+                          <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 Collection Visible</SelectItem>
+                            <SelectItem value="2">2 Collections Visible</SelectItem>
+                            <SelectItem value="3">3 Collections Visible</SelectItem>
+                            <SelectItem value="4">4 Collections Visible</SelectItem>
+                            <SelectItem value="5">5 Collections Visible</SelectItem>
+                            <SelectItem value="all">Display All (Scrollable)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+
+                      <TabsContent value="mobile" className="space-y-2 mt-0">
+                        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Mobile Item Visible Count</Label>
+                        <Select 
+                          value={(settings.devsfolkInitialCategoriesCountMobile || 1).toString()} 
+                          onValueChange={(v) => handleUpdate('devsfolkInitialCategoriesCountMobile', v === 'all' ? 'all' : parseInt(v) as any)}
+                        >
+                          <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 Collection Visible</SelectItem>
+                            <SelectItem value="2">2 Collections Visible</SelectItem>
+                            <SelectItem value="3">3 Collections Visible</SelectItem>
+                            <SelectItem value="4">4 Collections Visible</SelectItem>
+                            <SelectItem value="5">5 Collections Visible</SelectItem>
+                            <SelectItem value="all">Display All (Scrollable)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+                    </Tabs>
+                    <p className="text-[10px] text-gray-400 leading-relaxed pl-1 mt-2">
                       Enforcing a fixed count allocates perfect grid widths to items inside the category slider, guiding the customer to swipe horizontal categories intuitively.
                     </p>
                   </CardContent>
