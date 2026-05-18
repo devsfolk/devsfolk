@@ -98,6 +98,7 @@ export interface ThemeSettings {
   orderMode: OrderMode;
   logoUrl?: string;
   heroBannerUrl?: string;
+  contactRequired?: 'phone' | 'email';
   // Device specific layouts
   desktop: DeviceConfig;
   tablet: DeviceConfig;
@@ -175,4 +176,5 @@ export interface Order {
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'ABANDONED';
   createdAt: number;
   paymentMethod?: string;
+  notes?: string;
 }

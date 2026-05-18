@@ -72,6 +72,7 @@ const DEFAULT_SETTINGS: ThemeSettings = {
   currencySymbol: '$',
   whatsappNumber: '1234567890',
   orderMode: 'WEBSITE',
+  contactRequired: 'phone',
   paymentSettings: {
     stripe: { enabled: false, apiKey: '', secretKey: '' },
     paypal: { enabled: false, clientId: '' },

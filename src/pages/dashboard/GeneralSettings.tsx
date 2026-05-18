@@ -225,6 +225,27 @@ export const GeneralSettings: React.FC = () => {
                   <p className="text-[10px] text-gray-500 italic px-1">Include country code without special characters.</p>
                 </div>
               )}
+
+              <div className="grid gap-4 border-t pt-6">
+                <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Required Customer Contact Field</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { id: 'phone', label: 'Phone Number Required', desc: 'Customer phone is mandatory, email is optional.' },
+                    { id: 'email', label: 'Email Address Required', desc: 'Customer email is mandatory, phone is optional.' }
+                  ].map(option => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleUpdate({ contactRequired: option.id })}
+                      className={`p-4 rounded-2xl border-2 text-left transition-all ${(settings.contactRequired || 'phone') === option.id ? 'border-black bg-black text-white' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                    >
+                      <div className="font-bold text-sm leading-tight">{option.label}</div>
+                      <div className="text-[10px] opacity-70 mt-1 leading-tight">{option.desc}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 italic px-1">Whichever field is selected will become mandatory at checkout, while the other remains optional. Both fields will always be visible to customers.</p>
+              </div>
             </CardContent>
           </Card>
 

@@ -60,9 +60,10 @@ export const CheckoutPage: React.FC = () => {
     customerEmail: '',
     customerPhone: '',
     customerAddress: '',
+    notes: '',
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -207,9 +208,48 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const handleSubmit = (mode: 'WHATSAPP' | 'WEBSITE') => {
-    if (!formData.customerName || !formData.customerPhone || !formData.customerAddress) {
-      alert('Please fill in all required fields');
+    if (!formData.customerName || !formData.customerAddress) {
+      alert('Please fill in all required fields (Name and Shipping Address).');
       return;
+    }
+
+    const reqContact = settings.contactRequired || 'phone';
+
+    // Ensure at least one contact method is provided
+    if (!formData.customerPhone.trim() && !formData.customerEmail.trim()) {
+      alert('Please provide at least one contact method (Phone Number or Email Address).');
+      return;
+    }
+
+    // Phone validation & checking rules
+    if (reqContact === 'phone' && !formData.customerPhone.trim()) {
+      alert('Phone Number is required.');
+      return;
+    }
+
+    if (formData.customerPhone.trim()) {
+      const cleanedPhone = formData.customerPhone.replace(/[\s\-\(\)]/g, '');
+      const phoneRegex = /^(\+92|92|0)?3[0-9]{9}$/; // Pakistani format: e.g. +92 300 1234567, 0300 1234567
+      const genericPhoneRegex = /^\+?[0-9]{10,15}$/; // General format
+
+      if (!phoneRegex.test(cleanedPhone) && !genericPhoneRegex.test(cleanedPhone)) {
+        alert('Please enter a valid phone number (e.g. 0300 1234567 or +92 300 1234567).');
+        return;
+      }
+    }
+
+    // Email validation rules
+    if (reqContact === 'email' && !formData.customerEmail.trim()) {
+      alert('Email Address is required.');
+      return;
+    }
+
+    if (formData.customerEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.customerEmail.trim())) {
+        alert('Please enter a valid email address.');
+        return;
+      }
     }
 
     if (mode === 'WEBSITE' && !paymentMethod) {
@@ -291,7 +331,7 @@ export const CheckoutPage: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customerEmail">Email Address</Label>
+                <Label htmlFor="customerEmail">Email Address {settings.contactRequired === 'email' ? '*' : '(Optional)'}</Label>
                 <Input 
                   id="customerEmail" 
                   name="customerEmail" 
@@ -302,14 +342,13 @@ export const CheckoutPage: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customerPhone">Phone Number *</Label>
+                <Label htmlFor="customerPhone">Phone Number {settings.contactRequired === 'phone' || !settings.contactRequired ? '*' : '(Optional)'}</Label>
                 <Input 
                   id="customerPhone" 
                   name="customerPhone" 
-                  placeholder="+1 (555) 000-0000" 
+                  placeholder="e.g. 0300 1234567 or +92 300 1234567" 
                   value={formData.customerPhone}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="space-y-2">
@@ -321,6 +360,17 @@ export const CheckoutPage: React.FC = () => {
                   value={formData.customerAddress}
                   onChange={handleChange}
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Delivery Note (Optional)</Label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  placeholder="Special instructions for delivery (e.g. deliver after 4 PM, call before arrival, leave at the gate...)"
+                  value={formData.notes}
+                  onChange={handleChange}
+                  className="flex min-h-[90px] w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all resize-none shadow-sm"
                 />
               </div>
             </CardContent>

@@ -379,6 +379,14 @@ export const OrdersPage: React.FC = () => {
                       {selectedOrder.customerAddress}
                     </p>
                   </div>
+                  {selectedOrder.notes && (
+                    <div>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Delivery Note</h3>
+                      <p className="text-xs text-amber-700 leading-relaxed bg-amber-50/50 p-3 rounded-xl border border-amber-100/70 font-medium">
+                        {selectedOrder.notes}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Update Status</h3>
                     <div className="flex flex-wrap gap-2">
