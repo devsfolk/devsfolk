@@ -132,7 +132,7 @@
 
 ### [COMPLETED] Task 8: DevsFolk Bespoke Customizer (Colors, Device-Specific Ratios, & Device-Specific Counts)
 - **Date**: 2026-05-18
-- **Branch**: `feat-devsfolk-theme-controls`
+- **Branch**: `feat-devsfolk-theme-controls` (Merged)
 - **Description**: Enabled deep layout customizability in the default DevsFolk theme. Added parameters for custom storefront backgrounds, navbar background, and footer background colors. Added adjustable category image aspect ratios (Square, Standard Portrait, Cinematic Portrait, Standard Landscape, Cinematic Landscape) and initial visible category counts (1 to 5, or All) separate for **desktop**, **tablet**, and **mobile** independently to lock custom viewport grids.
 - **Files Modified**: 
   - `src/types.ts`: Extended `ThemeSettings` with separate desktop/tablet/mobile bespoke DevsFolk customizer parameters.
