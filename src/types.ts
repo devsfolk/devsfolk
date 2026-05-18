@@ -101,6 +101,12 @@ export interface ThemeSettings {
   contactRequired?: 'phone' | 'email';
   phoneFormat?: 'pakistan' | 'usa' | 'uk' | 'any' | 'custom';
   customPhonePlaceholder?: string;
+  // DevsFolk Customizable Options
+  devsfolkBgColor?: string;
+  devsfolkNavbarColor?: string;
+  devsfolkFooterColor?: string;
+  devsfolkCatRatio?: 'square' | 'portrait' | 'portrait-tall' | 'landscape' | 'landscape-wide';
+  devsfolkInitialCategoriesCount?: 1 | 2 | 3 | 4 | 5 | 'all';
   // Device specific layouts
   desktop: DeviceConfig;
   tablet: DeviceConfig;

@@ -75,6 +75,11 @@ const DEFAULT_SETTINGS: ThemeSettings = {
   contactRequired: 'phone',
   phoneFormat: 'pakistan',
   customPhonePlaceholder: '',
+  devsfolkBgColor: '#ffffff',
+  devsfolkNavbarColor: '#ffffff',
+  devsfolkFooterColor: '#f9fafb',
+  devsfolkCatRatio: 'square',
+  devsfolkInitialCategoriesCount: 1,
   paymentSettings: {
     stripe: { enabled: false, apiKey: '', secretKey: '' },
     paypal: { enabled: false, clientId: '' },

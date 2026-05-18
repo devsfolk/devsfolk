@@ -23,6 +23,11 @@ export const TEMPLATES: Template[] = [
       secondaryColor: '#f3f4f6',
       fontSans: 'Inter',
       fontDisplay: 'Outfit',
+      devsfolkBgColor: '#ffffff',
+      devsfolkNavbarColor: '#ffffff',
+      devsfolkFooterColor: '#f9fafb',
+      devsfolkCatRatio: 'square',
+      devsfolkInitialCategoriesCount: 1,
       desktop: {
         headerStyle: 'standard', // Custom logic for Search in Center
         headerTheme: 'light',

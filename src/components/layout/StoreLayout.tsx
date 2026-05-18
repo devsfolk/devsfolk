@@ -100,8 +100,12 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       </Link>
     );
 
+    const customHeaderStyle = (isDevsFolk && settings.devsfolkNavbarColor) 
+      ? { backgroundColor: settings.devsfolkNavbarColor } 
+      : {};
+
     return (
-      <header className={headerClasses}>
+      <header className={headerClasses} style={customHeaderStyle}>
         <div className="container mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between gap-2 md:gap-4">
           <div className={`flex items-center gap-2 md:gap-4 ${isDevsFolk ? 'w-auto md:w-1/4' : ''}`}>
             {(isDevsFolk || isMinimal || device === 'mobile') && (
@@ -211,15 +215,20 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const currentBg = (isDevsFolk && settings.devsfolkBgColor) ? settings.devsfolkBgColor : settings.backgroundColor;
+  const customFooterStyle = (isDevsFolk && settings.devsfolkFooterColor)
+    ? { backgroundColor: settings.devsfolkFooterColor }
+    : {};
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: settings.backgroundColor }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: currentBg }}>
       {renderHeader()}
 
       <main className="flex-1">
         {children}
       </main>
 
-      <footer className={`border-t bg-gray-50 ${settings.activeTemplate === 'devsfolk' ? 'py-6 px-4 mb-0' : 'pt-12 pb-24 md:pb-12'}`}>
+      <footer className={`border-t bg-gray-50 ${settings.activeTemplate === 'devsfolk' ? 'py-6 px-4 mb-0' : 'pt-12 pb-24 md:pb-12'}`} style={customFooterStyle}>
         <div className={`container mx-auto px-4 ${settings.activeTemplate === 'devsfolk' ? 'flex flex-col md:flex-row items-center justify-between gap-4' : 'grid grid-cols-1 md:grid-cols-4 gap-8'}`}>
           <div>
             <h3 className="text-lg font-bold">{settings.shopName}</h3>

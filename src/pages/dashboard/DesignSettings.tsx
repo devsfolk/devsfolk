@@ -123,6 +123,10 @@ export const DesignSettings: React.FC = () => {
               <Sparkles className="h-4 w-4 md:h-3.5 md:w-3.5 mb-1 md:mb-0 md:mr-2" />
               <span>Themes</span>
             </TabsTrigger>
+            <TabsTrigger value="devsfolk" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-0.5 py-2.5 md:py-0 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-widest min-h-[56px] md:min-h-14 border border-indigo-100/50 hover:bg-indigo-50/20">
+              <Sparkles className="h-4 w-4 md:h-3.5 md:w-3.5 mb-1 md:mb-0 md:mr-2 text-indigo-500 animate-pulse" />
+              <span>DevsFolk Style</span>
+            </TabsTrigger>
             <TabsTrigger value="sections" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-0.5 py-2.5 md:py-0 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-widest min-h-[56px] md:min-h-14">
               <Layers className="h-4 w-4 md:h-3.5 md:w-3.5 mb-1 md:mb-0 md:mr-2" />
               <span>Sections</span>
@@ -892,6 +896,202 @@ export const DesignSettings: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="devsfolk">
+          {settings.activeTemplate === 'devsfolk' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 pb-10">
+              {/* Bespoke Colors Card */}
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
+                <CardHeader className="p-5 md:p-6 bg-gradient-to-r from-indigo-50/50 to-purple-50/20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500 text-white flex items-center justify-center">
+                      <Palette className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">DevsFolk Brand Colors</CardTitle>
+                      <CardDescription className="text-xs">Customize the core canvas backgrounds for your theme.</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6 p-5 md:p-6">
+                  {/* Background Color */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Storefront Background</Label>
+                      <Button 
+                        variant="link" 
+                        className="text-[10px] h-auto p-0 font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-600" 
+                        onClick={() => handleUpdate('devsfolkBgColor', '#ffffff')}
+                      >
+                        Reset Default
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        value={settings.devsfolkBgColor || '#ffffff'} 
+                        onChange={(e) => handleUpdate('devsfolkBgColor', e.target.value)}
+                        className="w-11 h-11 md:w-12 md:h-12 p-1 rounded-xl shrink-0 cursor-pointer"
+                      />
+                      <Input 
+                        type="text" 
+                        value={settings.devsfolkBgColor || '#ffffff'} 
+                        onChange={(e) => handleUpdate('devsfolkBgColor', e.target.value)}
+                        className="h-11 md:h-12 rounded-xl flex-1 font-mono text-sm"
+                        placeholder="#ffffff"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Navbar Background */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Navbar Background</Label>
+                      <Button 
+                        variant="link" 
+                        className="text-[10px] h-auto p-0 font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-600" 
+                        onClick={() => handleUpdate('devsfolkNavbarColor', '#ffffff')}
+                      >
+                        Reset Default
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        value={settings.devsfolkNavbarColor || '#ffffff'} 
+                        onChange={(e) => handleUpdate('devsfolkNavbarColor', e.target.value)}
+                        className="w-11 h-11 md:w-12 md:h-12 p-1 rounded-xl shrink-0 cursor-pointer"
+                      />
+                      <Input 
+                        type="text" 
+                        value={settings.devsfolkNavbarColor || '#ffffff'} 
+                        onChange={(e) => handleUpdate('devsfolkNavbarColor', e.target.value)}
+                        className="h-11 md:h-12 rounded-xl flex-1 font-mono text-sm"
+                        placeholder="#ffffff"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Footer Background */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Footer Background</Label>
+                      <Button 
+                        variant="link" 
+                        className="text-[10px] h-auto p-0 font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-600" 
+                        onClick={() => handleUpdate('devsfolkFooterColor', '#f9fafb')}
+                      >
+                        Reset Default
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        value={settings.devsfolkFooterColor || '#f9fafb'} 
+                        onChange={(e) => handleUpdate('devsfolkFooterColor', e.target.value)}
+                        className="w-11 h-11 md:w-12 md:h-12 p-1 rounded-xl shrink-0 cursor-pointer"
+                      />
+                      <Input 
+                        type="text" 
+                        value={settings.devsfolkFooterColor || '#f9fafb'} 
+                        onChange={(e) => handleUpdate('devsfolkFooterColor', e.target.value)}
+                        className="h-11 md:h-12 rounded-xl flex-1 font-mono text-sm"
+                        placeholder="#f9fafb"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Layout Customizations Card */}
+              <div className="space-y-6 md:space-y-8">
+                {/* Category Ratios Card */}
+                <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
+                  <CardHeader className="p-5 md:p-6 bg-gradient-to-r from-purple-50/50 to-indigo-50/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-purple-500 text-white flex items-center justify-center">
+                        <ImageIcon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Collection Image Ratio</CardTitle>
+                        <CardDescription className="text-xs">Adjust image dimensions to perfectly frame category layouts.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-5 md:p-6 space-y-4">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Image Aspect Ratio Pattern</Label>
+                    <Select 
+                      value={settings.devsfolkCatRatio || 'square'} 
+                      onValueChange={(v) => handleUpdate('devsfolkCatRatio', v as any)}
+                    >
+                      <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="square">Square (1:1 Ratio) — Default Classic</SelectItem>
+                        <SelectItem value="portrait">Standard Portrait (3:4 Ratio) — Professional</SelectItem>
+                        <SelectItem value="portrait-tall">Cinematic Portrait (9:16 Ratio) — Premium Tall</SelectItem>
+                        <SelectItem value="landscape">Standard Landscape (4:3 Ratio) — Horizontal</SelectItem>
+                        <SelectItem value="landscape-wide">Cinematic Landscape (16:9 Ratio) — Ultra Wide</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
+
+                {/* Visible Categories Limit Card */}
+                <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
+                  <CardHeader className="p-5 md:p-6 bg-gradient-to-r from-pink-50/50 to-indigo-50/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-pink-500 text-white flex items-center justify-center">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Visible Collections Count</CardTitle>
+                        <CardDescription className="text-xs">Choose how many categories are visible on page load.</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-5 md:p-6 space-y-4">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Initial Item Visible Count</Label>
+                    <Select 
+                      value={(settings.devsfolkInitialCategoriesCount || 1).toString()} 
+                      onValueChange={(v) => handleUpdate('devsfolkInitialCategoriesCount', v === 'all' ? 'all' : parseInt(v) as any)}
+                    >
+                      <SelectTrigger className="h-11 md:h-12 rounded-xl text-sm font-bold border-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Collection Visible (Slide Overflows)</SelectItem>
+                        <SelectItem value="2">2 Collections Visible (Side-by-Side)</SelectItem>
+                        <SelectItem value="3">3 Collections Visible (Compact Grid)</SelectItem>
+                        <SelectItem value="4">4 Collections Visible (Desktop Optimal)</SelectItem>
+                        <SelectItem value="5">5 Collections Visible (Panoramic Fit)</SelectItem>
+                        <SelectItem value="all">Display All / Default Scaling (Scrollable)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-gray-400 leading-relaxed pl-1">
+                      Enforcing a fixed count allocates perfect grid widths to items inside the category slider, guiding the customer to swipe horizontal categories intuitively.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200 mx-2 md:mx-0">
+              <Sparkles className="h-14 w-14 text-indigo-500 mb-6 animate-bounce" />
+              <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight mb-2">DevsFolk Customizer Locked</h3>
+              <p className="text-xs md:text-sm text-gray-500 max-w-md mb-8 leading-relaxed">
+                Activate the <strong>DevsFolk Theme</strong> in the Themes tab to unlock these premium color palettes, image size ratios, and viewport count settings.
+              </p>
+              <Button 
+                onClick={() => applyTemplate('devsfolk')}
+                className="h-11 md:h-12 px-6 md:px-8 rounded-full font-black uppercase tracking-widest text-[9px] md:text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl transition-transform hover:scale-105"
+              >
+                Activate DevsFolk Theme
+              </Button>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

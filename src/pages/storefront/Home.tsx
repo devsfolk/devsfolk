@@ -64,6 +64,28 @@ export const Home: React.FC = () => {
 
     const isDevsFolk = settings.activeTemplate === 'devsfolk';
 
+    const devsfolkBgStyle = isDevsFolk && settings.devsfolkBgColor 
+      ? { backgroundColor: settings.devsfolkBgColor } 
+      : {};
+
+    const ratioMap = {
+      'square': 'aspect-square',
+      'portrait': 'aspect-[3/4]',
+      'portrait-tall': 'aspect-[9/16]',
+      'landscape': 'aspect-[4/3]',
+      'landscape-wide': 'aspect-[16/9]'
+    };
+    const catRatioClass = ratioMap[settings.devsfolkCatRatio || 'square'] || 'aspect-square';
+
+    const initialCategoriesCount = settings.devsfolkInitialCategoriesCount || 1;
+    const desktopItemWidth = initialCategoriesCount === 'all'
+      ? 'w-[140px] md:w-[220px]'
+      : `calc((100% - (16px * (${initialCategoriesCount} - 1))) / ${initialCategoriesCount})`;
+
+    const mobileItemWidth = initialCategoriesCount === 'all'
+      ? 'w-[100px]'
+      : `calc((100% - (8px * (${initialCategoriesCount} - 1))) / ${initialCategoriesCount})`;
+
     const gallery = config.gallery || [];
     const currentSlide = gallery.length > 0 ? gallery[activeSlideIndex % gallery.length] : null;
     const mainImage = config.imageUrl || currentSlide || (gallery.length > 0 ? gallery[0] : null);
@@ -76,7 +98,8 @@ export const Home: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-12'} bg-white relative group overflow-hidden`}
+            className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-12'} relative group overflow-hidden`}
+            style={devsfolkBgStyle}
           >
              <div className="container mx-auto px-4 relative">
                 <div className={`flex items-center justify-between ${isDevsFolk && device === 'mobile' ? 'mb-4' : 'mb-8'}`}>
@@ -120,9 +143,10 @@ export const Home: React.FC = () => {
                      <Link 
                       key={cat.id} 
                       to={`/category/${cat.slug}`}
-                      className={`flex-shrink-0 ${isDevsFolk && device === 'mobile' ? 'w-[100px]' : 'w-[140px] md:w-[220px]'} snap-start group`}
+                      className={`flex-shrink-0 snap-start group ${isDevsFolk && initialCategoriesCount === 'all' ? (device === 'mobile' ? 'w-[100px]' : 'w-[140px] md:w-[220px]') : ''}`}
+                      style={isDevsFolk && initialCategoriesCount !== 'all' ? { width: device === 'mobile' ? mobileItemWidth : desktopItemWidth } : {}}
                      >
-                        <div className={`aspect-square ${isDevsFolk && device === 'mobile' ? 'rounded-2xl' : 'rounded-[2rem]'} overflow-hidden bg-gray-50 mb-2 border-2 border-transparent group-hover:border-black transition-all`}>
+                        <div className={`${catRatioClass} ${isDevsFolk && device === 'mobile' ? 'rounded-2xl' : 'rounded-[2rem]'} overflow-hidden bg-gray-50 mb-2 border-2 border-transparent group-hover:border-black transition-all`}>
                            <img src={cat.imageUrl} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                         </div>
                         <h4 className={`text-center font-bold uppercase tracking-wide ${isDevsFolk && device === 'mobile' ? 'text-[9px]' : 'text-sm md:text-md'}`}>{cat.name}</h4>
@@ -230,8 +254,12 @@ export const Home: React.FC = () => {
 
       case 'CATEGORIES':
         if (!deviceConfig.showCategories) return null;
+        const categoryLinkClass = isDevsFolk 
+          ? `group relative block w-full ${catRatioClass} ${device === 'mobile' ? 'rounded-2xl' : 'rounded-[2rem]'} overflow-hidden shadow-lg transition-all hover:shadow-2xl`
+          : `group relative block ${device === 'mobile' ? 'h-48 rounded-2xl' : 'h-72 md:h-[450px] rounded-[2rem]'} overflow-hidden shadow-lg transition-all hover:shadow-2xl`;
+
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-6 px-2' : 'py-24'} bg-gray-50`}>
+          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-6 px-2' : 'py-24'} bg-gray-50`} style={devsfolkBgStyle}>
             <div className="container mx-auto px-4 md:px-6">
               <div className={`text-center ${isDevsFolk && device === 'mobile' ? 'mb-6' : 'mb-16'}`}>
                 <h2 className={`${isDevsFolk && device === 'mobile' ? 'text-lg' : 'text-4xl'} font-black uppercase tracking-tight mb-2`} style={{ fontFamily: settings.fontDisplay }}>{section.title}</h2>
@@ -248,7 +276,7 @@ export const Home: React.FC = () => {
                   >
                     <Link 
                       to={`/category/${cat.slug}`}
-                      className={`group relative block ${isDevsFolk && device === 'mobile' ? 'h-48 rounded-2xl' : 'h-72 md:h-[450px] rounded-[2rem]'} overflow-hidden shadow-lg transition-all hover:shadow-2xl`}
+                      className={categoryLinkClass}
                     >
                       <img src={cat.imageUrl} loading="lazy" alt={cat.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
@@ -269,7 +297,7 @@ export const Home: React.FC = () => {
       case 'FEATURED_PRODUCTS':
         if (!deviceConfig.showFeatured) return null;
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'} bg-white`}>
+          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'} bg-white`} style={devsfolkBgStyle}>
             <div className="container mx-auto px-6">
               <div className={`flex ${isDevsFolk && device === 'mobile' ? 'justify-start' : 'flex-col md:flex-row justify-between items-end'} gap-6 ${isDevsFolk && device === 'mobile' ? 'mb-4' : 'mb-16'}`}>
                 {!isDevsFolk && (
@@ -384,7 +412,7 @@ export const Home: React.FC = () => {
 
       case 'ABOUT':
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'} bg-white`}>
+          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'}`} style={devsfolkBgStyle}>
             <div className="container mx-auto px-6">
               <div className={`grid grid-cols-1 md:grid-cols-2 ${isDevsFolk && device === 'mobile' ? 'gap-6' : 'gap-16'} items-center`}>
                 <div className={`${isDevsFolk && device === 'mobile' ? 'space-y-4' : 'space-y-8'}`}>
