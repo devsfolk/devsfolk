@@ -110,7 +110,7 @@ export const OrdersPage: React.FC = () => {
           // Vibrate phone & show push notification
           if ('Notification' in window && Notification.permission === 'granted') {
             try {
-              new Notification('🚨 New Order Received! (DevsFolk OmniStore)', {
+              new Notification('🚨 New Order Received! (DevsFolk)', {
                 body: `Customer: ${latestOrder.customerName}\nTotal: ${settings.currencySymbol}${latestOrder.total.toFixed(2)}\nPlatform: ${latestOrder.paymentMethod === 'WHATSAPP' ? 'WhatsApp' : 'Website'}`,
                 icon: '/favicon.ico',
                 vibrate: [200, 100, 200, 100, 200]

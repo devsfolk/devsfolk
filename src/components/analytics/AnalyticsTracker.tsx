@@ -9,8 +9,8 @@ declare global {
   }
 }
 
-const GA_SCRIPT_ID = 'omnistore-ga-script';
-const GA_CONFIG_SCRIPT_ID = 'omnistore-ga-config';
+const GA_SCRIPT_ID = 'devsfolk-ga-script';
+const GA_CONFIG_SCRIPT_ID = 'devsfolk-ga-config';
 
 export const AnalyticsTracker: React.FC = () => {
   const { settings } = useShop();

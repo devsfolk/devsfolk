@@ -14,7 +14,7 @@ const CACHE_RESET_VERSION = '2026-05-15-1';
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     void (async () => {
-      const shouldResetCaches = localStorage.getItem('omnistore-cache-reset-version') !== CACHE_RESET_VERSION;
+      const shouldResetCaches = localStorage.getItem('devsfolk-cache-reset-version') !== CACHE_RESET_VERSION;
 
       if (shouldResetCaches) {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -22,10 +22,10 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
         if ('caches' in window) {
           const keys = await caches.keys();
-          await Promise.all(keys.filter((key) => key.startsWith('omnistore-')).map((key) => caches.delete(key)));
+          await Promise.all(keys.filter((key) => key.startsWith('devsfolk-')).map((key) => caches.delete(key)));
         }
 
-        localStorage.setItem('omnistore-cache-reset-version', CACHE_RESET_VERSION);
+        localStorage.setItem('devsfolk-cache-reset-version', CACHE_RESET_VERSION);
       }
 
       let hasReloaded = false;

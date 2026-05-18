@@ -1,6 +1,6 @@
-# OmniStore
+# DevsFolk
 
-OmniStore is a customizable multi-business storefront and admin dashboard built with React and Vite. The goal is to use one product foundation for multiple client types such as beauty brands, perfume sellers, mobile shops, and other retail businesses without redesigning the UI for each project.
+DevsFolk is a customizable multi-business storefront and admin dashboard built with React and Vite. The goal is to use one product foundation for multiple client types such as beauty brands, perfume sellers, mobile shops, and other retail businesses without redesigning the UI for each project.
 
 ## Current Direction
 

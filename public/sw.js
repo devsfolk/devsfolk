@@ -1,5 +1,5 @@
-const SHELL_CACHE = 'omnistore-shell-v2';
-const RUNTIME_CACHE = 'omnistore-runtime-v2';
+const SHELL_CACHE = 'devsfolk-shell-v2';
+const RUNTIME_CACHE = 'devsfolk-runtime-v2';
 const APP_SHELL = ['/', '/dashboard', '/manifest.webmanifest', '/pwa/dashboard-icon.svg'];
 
 self.addEventListener('install', (event) => {

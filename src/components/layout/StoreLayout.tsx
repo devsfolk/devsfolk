@@ -274,7 +274,18 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                 })}
               </div>
             )}
-            <div className="text-xs text-gray-400">© {new Date().getFullYear()} {settings.shopName}.</div>
+            <div className="text-xs text-gray-400 flex items-center flex-wrap gap-1.5 mt-1 justify-center md:justify-end">
+              <span>© {new Date().getFullYear()} {settings.shopName}.</span>
+              <span className="text-gray-300 hidden md:inline">|</span>
+              <a 
+                href="https://devsfolk.com" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="font-black tracking-wider text-[10px] uppercase text-indigo-500 hover:text-indigo-600 transition-colors"
+              >
+                Powered by DevsFolk
+              </a>
+            </div>
           </div>
         </div>
       </footer>

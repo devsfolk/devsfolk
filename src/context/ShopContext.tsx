@@ -170,28 +170,41 @@ const SAMPLE_PRODUCTS: Product[] = [
   { id: 'p_lux_2', categoryId: 'cat_luxury', name: 'Imperial Caviar Cream', slug: 'imperial-caviar-cream', description: 'Revitalizing moisturizer that harnesses the power of black caviar to firm and lift.', price: 245, images: ['https://images.unsplash.com/photo-1550524513-3bfc90df48da?auto=format&fit=crop&q=80&w=800'], stock: 8, isFeatured: true, order: 1, createdAt: Date.now() },
 ];
 
-const SETTINGS_STORAGE_KEY = 'omnistore_settings';
-const PRODUCTS_STORAGE_KEY = 'omnistore_products';
-const CATEGORIES_STORAGE_KEY = 'omnistore_categories';
-const ORDERS_STORAGE_KEY = 'omnistore_orders';
-const PENDING_ORDERS_STORAGE_KEY = 'omnistore_pending_orders';
-const REVIEWS_STORAGE_KEY = 'omnistore_reviews';
-const CART_STORAGE_KEY = 'omnistore_cart';
-const WISHLIST_STORAGE_KEY = 'omnistore_wishlist';
+const SETTINGS_STORAGE_KEY = 'devsfolk_settings';
+const PRODUCTS_STORAGE_KEY = 'devsfolk_products';
+const CATEGORIES_STORAGE_KEY = 'devsfolk_categories';
+const ORDERS_STORAGE_KEY = 'devsfolk_orders';
+const PENDING_ORDERS_STORAGE_KEY = 'devsfolk_pending_orders';
+const REVIEWS_STORAGE_KEY = 'devsfolk_reviews';
+const CART_STORAGE_KEY = 'devsfolk_cart';
+const WISHLIST_STORAGE_KEY = 'devsfolk_wishlist';
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 const readLocalJson = <T,>(key: string, fallback: T): T => {
   const saved = localStorage.getItem(key);
-  if (!saved) {
-    return fallback;
+  if (saved) {
+    try {
+      return JSON.parse(saved) as T;
+    } catch {
+      return fallback;
+    }
   }
 
-  try {
-    return JSON.parse(saved) as T;
-  } catch {
-    return fallback;
+  // Seamless legacy key migration
+  const legacyKey = key.replace('devsfolk_', 'omnistore_');
+  const legacySaved = localStorage.getItem(legacyKey);
+  if (legacySaved) {
+    try {
+      localStorage.setItem(key, legacySaved);
+      localStorage.removeItem(legacyKey);
+      return JSON.parse(legacySaved) as T;
+    } catch {
+      return fallback;
+    }
   }
+
+  return fallback;
 };
 
 const normalizeHexColor = (value: string) => {
@@ -419,11 +432,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loading = dataLoading || authLoading;
 
   const reportSyncSuccess = (message: string) => {
-    console.info(`[OmniStore Sync] ${message}`);
+    console.info(`[DevsFolk Sync] ${message}`);
   };
 
   const reportSyncError = (message: string, error?: unknown) => {
-    console.error(`[OmniStore Sync] ${message}`, error);
+    console.error(`[DevsFolk Sync] ${message}`, error);
   };
 
   const syncCatalogFromSupabase = async () => {

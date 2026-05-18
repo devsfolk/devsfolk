@@ -1,8 +1,8 @@
-# OmniStore Project Documentation
+# DevsFolk Project Documentation
 
 ## Overview
 
-OmniStore is a reusable multi-business storefront and admin dashboard built for selling the same product to different business owners with business-specific branding, products, categories, and order preferences.
+DevsFolk is a reusable multi-business storefront and admin dashboard built for selling the same product to different business owners with business-specific branding, products, categories, and order preferences.
 
 Current live business example:
 - `junfragrance.com`
@@ -158,5 +158,5 @@ Recommended SEO next steps:
 
 ## Repository
 
-- GitHub: `https://github.com/devsfolk/OmniStore`
+- GitHub: `https://github.com/devsfolk/Aura-Bloom-Main`
 
