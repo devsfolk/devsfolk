@@ -1111,6 +1111,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: Date.now(),
     };
 
+    // Save to local device order history
+    try {
+      const storedHistory = JSON.parse(localStorage.getItem('customer_order_ids') || '[]');
+      if (Array.isArray(storedHistory)) {
+        if (!storedHistory.includes(newOrder.id)) {
+          localStorage.setItem('customer_order_ids', JSON.stringify([...storedHistory, newOrder.id]));
+        }
+      } else {
+        localStorage.setItem('customer_order_ids', JSON.stringify([newOrder.id]));
+      }
+    } catch {
+      localStorage.setItem('customer_order_ids', JSON.stringify([newOrder.id]));
+    }
+
     const updatedOrders = [newOrder, ...orders];
     const updatedProducts = products.map((product) => {
       const cartItem = cart.find((item) => item.productId === product.id);

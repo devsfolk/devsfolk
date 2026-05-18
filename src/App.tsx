@@ -25,8 +25,8 @@ const SalesPage = lazy(() => import('@/pages/storefront/SalesPage').then((module
 const OrderTrackingPage = lazy(() =>
   import('@/pages/storefront/OrderTrackingPage').then((module) => ({ default: module.OrderTrackingPage })),
 );
-const WishlistPage = lazy(() =>
-  import('@/pages/storefront/WishlistPage').then((module) => ({ default: module.WishlistPage })),
+const OrderHistoryPage = lazy(() =>
+  import('@/pages/storefront/OrderHistoryPage').then((module) => ({ default: module.OrderHistoryPage })),
 );
 
 const Overview = lazy(() => import('@/pages/dashboard/Overview').then((module) => ({ default: module.Overview })));
@@ -63,7 +63,8 @@ export default function App() {
             <Route path="/cart" element={<StoreLayout><CartPage /></StoreLayout>} />
             <Route path="/checkout" element={<StoreLayout><CheckoutPage /></StoreLayout>} />
             <Route path="/track-order" element={<StoreLayout><OrderTrackingPage /></StoreLayout>} />
-            <Route path="/wishlist" element={<StoreLayout><WishlistPage /></StoreLayout>} />
+            <Route path="/order-history" element={<StoreLayout><OrderHistoryPage /></StoreLayout>} />
+            <Route path="/wishlist" element={<Navigate to="/order-history" replace />} />
 
             {/* Dashboard Routes */}
             <Route path="/dashboard/login" element={<LoginPage />} />

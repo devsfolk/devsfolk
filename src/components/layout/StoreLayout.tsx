@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '../../context/ShopContext';
-import { ShoppingCart, Menu, Search, Store, Heart, Globe, Instagram, Facebook, Youtube, Twitter, Linkedin } from 'lucide-react';
+import { ShoppingCart, Menu, Search, Store, ClipboardList, Globe, Instagram, Facebook, Youtube, Twitter, Linkedin } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -183,14 +183,9 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           )}
 
           <div className={`flex items-center gap-1 md:gap-3 ${isDevsFolk ? 'w-auto md:w-1/4 justify-end' : ''}`}>
-            <Link to="/wishlist" className="relative group">
+            <Link to="/order-history" className="relative group" title="Order History">
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 md:h-10 md:w-10">
-                <Heart className={`h-5 w-5 md:h-6 md:w-6 ${wishlist.length > 0 ? 'fill-red-500 text-red-500' : ''}`} />
-                {wishlist.length > 0 && (
-                  <span className="absolute top-0 right-0 w-4 h-4 md:w-5 md:h-5 rounded-full text-[9px] md:text-[10px] font-bold flex items-center justify-center text-white shadow-lg bg-red-500">
-                    {wishlist.length}
-                  </span>
-                )}
+                <ClipboardList className="h-5 w-5 md:h-6 md:w-6" />
               </Button>
             </Link>
             <Link to="/cart" className="relative group">
@@ -238,7 +233,7 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             <Link to="/categories">Shop</Link>
             <Link to="/sales">Sale</Link>
             <Link to="/track-order">Track Order</Link>
-            <Link to="/wishlist">Wishlist</Link>
+            <Link to="/order-history">Order History</Link>
           </div>
 
           {settings.activeTemplate !== 'devsfolk' && (
