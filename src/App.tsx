@@ -1,3 +1,4 @@
+// Aura Bloom - Platform Scaling & Multi-Tenant Developer Console
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ShopProvider } from '@/context/ShopContext';
