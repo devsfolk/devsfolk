@@ -44,6 +44,7 @@ const DesignSettings = lazy(() =>
 );
 const OrdersPage = lazy(() => import('@/pages/dashboard/OrdersPage').then((module) => ({ default: module.OrdersPage })));
 const LoginPage = lazy(() => import('@/pages/dashboard/LoginPage').then((module) => ({ default: module.LoginPage })));
+const ReviewsManagement = lazy(() => import('@/pages/dashboard/ReviewsManagement').then((module) => ({ default: module.ReviewsManagement })));
 
 const RouteFallback = () => <div className="min-h-screen bg-white" />;
 
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/dashboard/products" element={<DashboardLayout><ProductManagement /></DashboardLayout>} />
             <Route path="/dashboard/categories" element={<DashboardLayout><CategoryManagement /></DashboardLayout>} />
             <Route path="/dashboard/orders" element={<DashboardLayout><OrdersPage /></DashboardLayout>} />
+            <Route path="/dashboard/reviews" element={<DashboardLayout><ReviewsManagement /></DashboardLayout>} />
             <Route path="/dashboard/design" element={<DashboardLayout><DesignSettings /></DashboardLayout>} />
             <Route path="/dashboard/settings" element={<DashboardLayout><GeneralSettings /></DashboardLayout>} />
 

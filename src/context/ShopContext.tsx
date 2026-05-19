@@ -39,6 +39,7 @@ interface ShopContextType {
   loading: boolean;
   reviews: Review[];
   addReview: (review: Omit<Review, 'id' | 'createdAt'>) => void;
+  deleteReview: (id: string) => void;
   wishlist: string[];
   toggleWishlist: (productId: string) => void;
   isAdmin: boolean;
@@ -1102,6 +1103,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteReview = (id: string) => {
+    const updated = reviews.filter((rev) => rev.id !== id);
+    setReviews(updated);
+    localStorage.setItem(REVIEWS_STORAGE_KEY, JSON.stringify(updated));
+
+    if (supabase) {
+      void supabase.from('reviews').delete().eq('id', id).then(({ error }) => {
+        if (error) {
+          console.error('Failed to delete review from Supabase:', error.message);
+        }
+      });
+    }
+  };
+
   const toggleWishlist = (productId: string) => {
     setWishlist((current) => {
       const updated = current.includes(productId)
@@ -1249,6 +1264,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loading,
       reviews,
       addReview,
+      deleteReview,
       wishlist,
       toggleWishlist,
       isAdmin,

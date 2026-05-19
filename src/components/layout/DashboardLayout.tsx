@@ -10,7 +10,8 @@ import {
   Menu, 
   ChevronLeft,
   LogOut,
-  ExternalLink
+  ExternalLink,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -51,6 +52,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     { name: 'Products', href: '/dashboard/products', icon: Package },
     { name: 'Categories', href: '/dashboard/categories', icon: Layers },
     { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
+    { name: 'Reviews', href: '/dashboard/reviews', icon: MessageSquare },
     { name: 'Design', href: '/dashboard/design', icon: Palette },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
