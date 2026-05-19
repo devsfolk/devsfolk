@@ -8,15 +8,10 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 
 export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { settings, cart, products, wishlist } = useShop();
+  const { settings, cart, products, wishlist, loading } = useShop();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [device, setDevice] = React.useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [searchQuery, setSearchQuery] = React.useState('');
-
-  const searchResults = React.useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5);
-  }, [searchQuery, products]);
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -28,6 +23,41 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Soft elegant ambient background glows */}
+        <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] animate-pulse duration-[4000ms]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-purple-500/10 rounded-full blur-[100px] animate-pulse duration-[6000ms]" />
+
+        <div className="relative z-10 flex flex-col items-center gap-6">
+          {/* High-End Minimalist Logo Skeleton Ring */}
+          <div className="relative w-16 h-16 flex items-center justify-center animate-pulse">
+            <div className="absolute inset-0 rounded-full border border-indigo-500/20" />
+            <div className="absolute inset-0 rounded-full border-t border-indigo-500 animate-spin" />
+            <div className="w-10 h-10 bg-gradient-to-tr from-slate-900 to-slate-800 rounded-xl flex items-center justify-center shadow-2xl border border-slate-800">
+              <span className="text-[10px] font-black text-indigo-400 tracking-tighter uppercase leading-none">DF</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-black tracking-[0.3em] uppercase text-slate-400 animate-pulse">
+              Authenticating Storefront
+            </span>
+            <span className="text-[9px] font-medium tracking-widest text-slate-500 uppercase">
+              Preparing premium retail console
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const searchResults = React.useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5);
+  }, [searchQuery, products]);
 
   const deviceConfig = settings[device];
   const isDevsFolk = settings.activeTemplate === 'devsfolk';
