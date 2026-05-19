@@ -460,12 +460,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Cache basic brand metadata for immediate load rendering
       try {
+        const url = import.meta.env.VITE_SUPABASE_URL || '';
+        const key = `devsfolk_shop_meta_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const shopMeta = {
           shopName: remoteSettings.shopName,
           logoUrl: remoteSettings.logoUrl,
           primaryColor: remoteSettings.primaryColor,
         };
-        localStorage.setItem('devsfolk_shop_meta', JSON.stringify(shopMeta));
+        localStorage.setItem(key, JSON.stringify(shopMeta));
       } catch (e) {
         console.error('Failed to cache storefront metadata:', e);
       }
@@ -902,12 +904,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Update basic brand metadata cache
     try {
+      const url = import.meta.env.VITE_SUPABASE_URL || '';
+      const key = `devsfolk_shop_meta_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const shopMeta = {
         shopName: updated.shopName,
         logoUrl: updated.logoUrl,
         primaryColor: updated.primaryColor,
       };
-      localStorage.setItem('devsfolk_shop_meta', JSON.stringify(shopMeta));
+      localStorage.setItem(key, JSON.stringify(shopMeta));
     } catch (e) {
       console.error('Failed to cache storefront metadata:', e);
     }

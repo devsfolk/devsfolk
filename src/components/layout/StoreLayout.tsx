@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 
 export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { settings, cart, products, wishlist, loading } = useShop();
+  const { settings, cart, products, wishlist, dataLoading } = useShop();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [device, setDevice] = React.useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -24,10 +24,12 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Instantly extract cached store name and logo for fast brand loading
+  // Instantly extract cached store name and logo specific to this database connection
   const cachedMeta = React.useMemo(() => {
     try {
-      const stored = localStorage.getItem('devsfolk_shop_meta');
+      const url = import.meta.env.VITE_SUPABASE_URL || '';
+      const key = `devsfolk_shop_meta_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
@@ -38,7 +40,7 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   const loadingLogoUrl = cachedMeta?.logoUrl || null;
   const loadingPrimaryColor = cachedMeta?.primaryColor || '#6366f1';
 
-  if (loading) {
+  if (dataLoading) {
     return (
       <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
         {/* Soft elegant ambient background glows */}
@@ -89,12 +91,9 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             />
           </div>
 
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[9px] font-black tracking-[0.3em] uppercase text-slate-400 animate-pulse">
-              Loading Boutique Catalog
-            </span>
-            <span className="text-[8px] font-medium tracking-widest text-slate-600 uppercase">
-              Connecting to secure database
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] font-black tracking-[0.25em] uppercase text-slate-400 animate-pulse">
+              Loading {loadingShopName}...
             </span>
           </div>
         </div>
