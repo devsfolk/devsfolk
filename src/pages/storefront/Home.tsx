@@ -51,7 +51,18 @@ export const Home: React.FC = () => {
     document.title = `${settings.shopName} | ${settings.shopDescription}`;
   }, [settings.shopName, settings.shopDescription]);
 
-  const deviceConfig = settings[device];
+  const deviceConfig = settings[device] || {
+    headerStyle: 'standard',
+    headerTheme: 'glass',
+    isHeaderSticky: true,
+    heroStyle: 'banner',
+    productGridCols: 3,
+    productCardStyle: 'grid',
+    showCategories: true,
+    showFeatured: true,
+    showNewsletter: true,
+    footerStyle: 'detailed',
+  };
 
   const renderSection = (section: StoreSection) => {
     if (!section.enabled) return null;
