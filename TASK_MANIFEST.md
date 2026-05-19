@@ -1,4 +1,4 @@
-# Task Manifest & Audit Log
+# Task Manifest & Audit Log (Hydration v2 Branch Active)
 
 > [!IMPORTANT]
 > **MANDATORY PROTOCOL:** The AI assistant MUST read this entire file before starting ANY task. 
