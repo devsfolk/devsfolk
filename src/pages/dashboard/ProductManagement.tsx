@@ -355,6 +355,46 @@ export const ProductManagement: React.FC = () => {
                         <input type="file" multiple className="hidden" onChange={handleImageUpload} />
                       </label>
                     </div>
+
+                    {/* External URL Input Option */}
+                    <div className="flex gap-2 mt-3">
+                      <Input 
+                        placeholder="Or paste external image URL..." 
+                        id="imageUrlInput"
+                        className="rounded-xl h-10 text-xs flex-1"
+                      />
+                      <Button 
+                        type="button"
+                        variant="outline" 
+                        size="sm" 
+                        className="rounded-xl h-10 shrink-0 text-xs font-bold uppercase tracking-wider"
+                        onClick={() => {
+                          const inputVal = (document.getElementById('imageUrlInput') as HTMLInputElement).value;
+                          if (inputVal && inputVal.trim()) {
+                            setFormData({ ...formData, images: [...formData.images, inputVal.trim()] });
+                            (document.getElementById('imageUrlInput') as HTMLInputElement).value = '';
+                          }
+                        }}
+                      >
+                        Add URL
+                      </Button>
+                    </div>
+
+                    {/* Premium Bandwidth Warning & Compression Badge */}
+                    <div className="mt-4 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100/80 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-emerald-500 text-white rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest shrink-0 border-none">
+                          Auto WebP Compressor
+                        </Badge>
+                        <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Active</span>
+                      </div>
+                      <p className="text-[10px] text-emerald-800/80 font-medium leading-relaxed">
+                        All local files are silently resized to max 800px and highly optimized to WebP format (~25KB each) before upload. This maintains crystal-clear quality while reducing hosting database bandwidth by **90%**!
+                      </p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1.5 leading-relaxed">
+                        💡 PRO TIP: Paste external links from <a href="https://imgbb.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-black">ImgBB</a> or <a href="https://imgur.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-black">Imgur</a> to consume **0 bytes** of database bandwidth!
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

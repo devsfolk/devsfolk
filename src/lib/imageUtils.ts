@@ -3,7 +3,7 @@
  * Optimizes an image for web use.
  * Resizes to a maximum dimension and compresses while maintaining high quality.
  */
-export async function optimizeImage(file: File, maxWidth = 1200, maxHeight = 1200): Promise<string> {
+export async function optimizeImage(file: File, maxWidth = 800, maxHeight = 800): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -38,9 +38,16 @@ export async function optimizeImage(file: File, maxWidth = 1200, maxHeight = 120
 
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Use webp if supported for better compression, otherwise jpeg
-        const quality = 0.85;
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        // Dynamically compress using WebP (best) or JPEG fallback at 0.60 quality
+        let dataUrl = '';
+        try {
+          dataUrl = canvas.toDataURL('image/webp', 0.60);
+          if (!dataUrl.startsWith('data:image/webp')) {
+            dataUrl = canvas.toDataURL('image/jpeg', 0.60);
+          }
+        } catch {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.60);
+        }
         resolve(dataUrl);
       };
       img.onerror = reject;
