@@ -108,7 +108,12 @@ const DEFAULT_SETTINGS: ThemeSettings = {
   desktop: { ...DEFAULT_DEVICE_CONFIG, productGridCols: 4 },
   tablet: { ...DEFAULT_DEVICE_CONFIG, productGridCols: 2, headerStyle: 'minimal' },
   mobile: { ...DEFAULT_DEVICE_CONFIG, productGridCols: 1, headerStyle: 'minimal', heroStyle: 'minimal' },
-  sections: [],
+  sections: [
+    { id: 'cat-slider', type: 'CATEGORY_SLIDER', title: 'Top Categories', enabled: true, order: 0, config: { isSlider: true, showArrows: true } },
+    { id: 'sale-banner', type: 'SALE_BANNER', title: 'Season Sale', enabled: true, order: 1, config: { height: 'thin', imageUrl: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2000' } },
+    { id: 'featured', type: 'FEATURED_PRODUCTS', title: 'New Arrivals', enabled: true, order: 2 },
+    { id: 'about', type: 'ABOUT', title: 'DevsFolk Story', enabled: true, order: 3 },
+  ],
 };
 
 const SAMPLE_CATEGORIES: Category[] = [

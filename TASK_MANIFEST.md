@@ -205,7 +205,15 @@
   - Storefront: [https://aurabloom-git-feat-devstool-devsfolks-projects.vercel.app](https://aurabloom-git-feat-devstool-devsfolks-projects.vercel.app)
   - Dashboard: [https://aurabloom-git-feat-devstool-devsfolks-projects.vercel.app/dashboard](https://aurabloom-git-feat-devstool-devsfolks-projects.vercel.app/dashboard)
   - DevsTool: [https://aurabloom-git-feat-devstool-devsfolks-projects.vercel.app/devstool](https://aurabloom-git-feat-devstool-devsfolks-projects.vercel.app/devstool)
-- **Verification**: Verified npm production compilation without errors. Tested lock screen input hashing and verified lock triggers shake animation on incorrect key. Verified mock database sync logs print success outputs in parallel loop.
+- **Verification**: Verified npm production compilation without errors. Tested lock screen input hashing and verified lock triggers shake animation on incorrect key. Verified mock database sync logs print success outputs in parallel loop. Fixed a critical TypeError where retrieving the user list to update existing admins crashed due to the JSON response being wrapped in an object instead of returning a raw array.
+
+### [COMPLETED] Task 12: Fix Blank Storefront Homepage Sections on New Tenant Setup
+- **Date**: 2026-05-22
+- **Branch**: `fix/empty-homepage-sections`
+- **Description**: Resolved the issue where a newly setup store database starts with an empty homepage sections list, resulting in a blank homepage storefront. Added the default devsfolk theme layout sections (Category Slider, Sale Banner, Featured Products, About Story) to the default fallback configuration in ShopContext.
+- **Files Modified**: 
+  - `src/context/ShopContext.tsx`: Added default homepage sections to `DEFAULT_SETTINGS.sections`.
+- **Verification**: Verified that any fresh tenant setups load the default storefront layout segments out of the box. Ran standard npm production build check with zero errors.
 
 ## Current Active Task
-*Building DevsTool Database Auto-Provisioning Engine.*
+*None.*
