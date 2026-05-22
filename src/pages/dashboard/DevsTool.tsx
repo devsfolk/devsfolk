@@ -171,8 +171,10 @@ export const DevsTool: React.FC = () => {
           throw new Error(`failed to query users list: ${listResponse.statusText}`);
         }
         
-        const users = await listResponse.json();
-        const user = users.find((u: any) => u.email === provEmail);
+        const usersData = await listResponse.json();
+        const user = Array.isArray(usersData)
+          ? usersData.find((u: any) => u.email === provEmail)
+          : (usersData.users || []).find((u: any) => u.email === provEmail);
         
         if (user) {
           const updateResponse = await fetch(`${authUrl}/${user.id}`, {

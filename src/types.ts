@@ -25,6 +25,7 @@ export interface PaymentSettings {
 
 export interface AnalyticsSettings {
   googleAnalyticsId: string;
+  googleSearchConsoleId: string;
 }
 
 export type FeatureIcon = 'truck' | 'shield' | 'message-circle' | 'rotate-ccw' | 'zap' | 'credit-card' | 'gift' | 'badge-check';
@@ -97,6 +98,7 @@ export interface ThemeSettings {
   whatsappNumber: string;
   orderMode: OrderMode;
   logoUrl?: string;
+  faviconUrl?: string;
   heroBannerUrl?: string;
   contactRequired?: 'phone' | 'email';
   phoneFormat?: 'pakistan' | 'usa' | 'uk' | 'any' | 'custom';
