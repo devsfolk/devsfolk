@@ -102,6 +102,7 @@ const DEFAULT_SETTINGS: ThemeSettings = {
   },
   analytics: {
     googleAnalyticsId: '',
+    googleSearchConsoleId: '',
   },
   trustFeatures: [],
   socialLinks: [],

@@ -164,7 +164,7 @@ export const GeneralSettings: React.FC = () => {
               </div>
 
               <div className="pt-4 border-t border-gray-50">
-                <Label className="text-[10px] font-black uppercase text-gray-400 pl-1 mb-3 block">Analytics</Label>
+                <Label className="text-[10px] font-black uppercase text-gray-400 pl-1 mb-3 block">Analytics & Verification</Label>
                 <div className="grid gap-2">
                   <Label className="text-[9px] uppercase text-gray-400 pl-1">Google Analytics Measurement ID</Label>
                   <Input
@@ -179,6 +179,21 @@ export const GeneralSettings: React.FC = () => {
                     className="rounded-xl h-10 text-sm"
                   />
                   <p className="text-[10px] text-gray-500 italic px-1">Paste a GA4 Measurement ID to enable analytics tracking across the storefront.</p>
+                </div>
+                <div className="grid gap-2 mt-4">
+                  <Label className="text-[9px] uppercase text-gray-400 pl-1">Google Search Console Verification</Label>
+                  <Input
+                    value={settings.analytics.googleSearchConsoleId}
+                    onChange={(e) => handleUpdate({
+                      analytics: {
+                        ...settings.analytics,
+                        googleSearchConsoleId: e.target.value.trim(),
+                      },
+                    })}
+                    placeholder="Paste verification code (e.g. abc123XYZ...)"
+                    className="rounded-xl h-10 text-sm"
+                  />
+                  <p className="text-[10px] text-gray-500 italic px-1">Paste the verification code from Google Search Console → Settings → Ownership verification → HTML tag. Only the content value is needed.</p>
                 </div>
               </div>
             </CardContent>

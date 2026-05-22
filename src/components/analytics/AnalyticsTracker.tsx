@@ -11,11 +11,15 @@ declare global {
 
 const GA_SCRIPT_ID = 'devsfolk-ga-script';
 const GA_CONFIG_SCRIPT_ID = 'devsfolk-ga-config';
+const FAVICON_LINK_ID = 'devsfolk-dynamic-favicon';
+const GSC_META_ID = 'devsfolk-gsc-verification';
 
 export const AnalyticsTracker: React.FC = () => {
   const { settings } = useShop();
   const location = useLocation();
   const measurementId = settings.analytics.googleAnalyticsId.trim();
+  const searchConsoleId = settings.analytics.googleSearchConsoleId.trim();
+  const faviconUrl = settings.faviconUrl?.trim() || '';
 
   React.useEffect(() => {
     if (!measurementId) {
@@ -62,6 +66,48 @@ export const AnalyticsTracker: React.FC = () => {
       page_title: document.title,
     });
   }, [location.pathname, location.search, measurementId]);
+
+  // Dynamic favicon injection
+  React.useEffect(() => {
+    const existing = document.getElementById(FAVICON_LINK_ID) as HTMLLinkElement | null;
+
+    if (!faviconUrl) {
+      // Remove custom favicon if cleared, browser falls back to /favicon.ico
+      if (existing) existing.remove();
+      return;
+    }
+
+    if (existing) {
+      existing.href = faviconUrl;
+    } else {
+      const link = document.createElement('link');
+      link.id = FAVICON_LINK_ID;
+      link.rel = 'icon';
+      link.type = 'image/x-icon';
+      link.href = faviconUrl;
+      document.head.appendChild(link);
+    }
+  }, [faviconUrl]);
+
+  // Google Search Console verification meta tag injection
+  React.useEffect(() => {
+    const existing = document.getElementById(GSC_META_ID) as HTMLMetaElement | null;
+
+    if (!searchConsoleId) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    if (existing) {
+      existing.content = searchConsoleId;
+    } else {
+      const meta = document.createElement('meta');
+      meta.id = GSC_META_ID;
+      meta.name = 'google-site-verification';
+      meta.content = searchConsoleId;
+      document.head.appendChild(meta);
+    }
+  }, [searchConsoleId]);
 
   return null;
 };

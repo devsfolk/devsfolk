@@ -19,6 +19,7 @@ export const DesignSettings: React.FC = () => {
   const { settings, updateSettings, applyTemplate } = useShop();
   const [editingSection, setEditingSection] = useState<StoreSection | null>(null);
   const [isOptimizingLogo, setIsOptimizingLogo] = useState(false);
+  const [isOptimizingFavicon, setIsOptimizingFavicon] = useState(false);
   const [isOptimizingSection, setIsOptimizingSection] = useState(false);
 
   const handleUpdate = (path: string, value: any) => {
@@ -37,6 +38,21 @@ export const DesignSettings: React.FC = () => {
       console.error('Logo optimization failed:', error);
     } finally {
       setIsOptimizingLogo(false);
+    }
+  };
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsOptimizingFavicon(true);
+    try {
+      const optimized = await optimizeImage(file, 128, 128);
+      handleUpdate('faviconUrl', optimized);
+    } catch (error) {
+      console.error('Favicon optimization failed:', error);
+    } finally {
+      setIsOptimizingFavicon(false);
     }
   };
 
@@ -673,6 +689,44 @@ export const DesignSettings: React.FC = () => {
                     )}
                   </div>
                   <p className="text-[10px] text-gray-400 mt-2">Upload a high-quality image or paste a link. We'll optimize it automatically for best performance.</p>
+                </div>
+                <div className="space-y-2 pt-4 border-t border-gray-50">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">Favicon Upload</Label>
+                    <span className="text-[10px] text-gray-400">Recommended: 128×128 PNG/ICO</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex-1 relative">
+                       <Input 
+                        value={settings.faviconUrl || ''} 
+                        onChange={(e) => handleUpdate('faviconUrl', e.target.value)}
+                        placeholder="Paste URL or use upload button"
+                        className="h-11 md:h-12 rounded-xl text-sm pr-10"
+                      />
+                      <label className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                        {isOptimizingFavicon ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        ) : (
+                          <Upload className="h-4 w-4 text-gray-400" />
+                        )}
+                        <input type="file" className="hidden" accept="image/*" onChange={handleFaviconUpload} />
+                      </label>
+                    </div>
+                    {settings.faviconUrl && (
+                      <div className="relative group">
+                        <div className="w-11 h-11 md:w-12 md:h-12 border rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105">
+                          <img src={settings.faviconUrl} className="max-w-full max-h-full object-contain" />
+                        </div>
+                        <button 
+                          onClick={() => handleUpdate('faviconUrl', '')}
+                          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-2 w-2" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2">The favicon appears in browser tabs. Upload a small square icon (128×128px recommended).</p>
                 </div>
               </CardContent>
             </Card>
