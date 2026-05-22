@@ -67,24 +67,32 @@ export const AnalyticsTracker: React.FC = () => {
     });
   }, [location.pathname, location.search, measurementId]);
 
-  // Dynamic favicon injection
+  // Dynamic favicon and apple-touch-icon injection
   React.useEffect(() => {
+    const href = faviconUrl || '/favicon.svg';
+    
+    // 1. Update standard favicon
     const existing = document.getElementById(FAVICON_LINK_ID) as HTMLLinkElement | null;
-
-    if (!faviconUrl) {
-      // Remove custom favicon if cleared, browser falls back to /favicon.ico
-      if (existing) existing.remove();
-      return;
-    }
-
     if (existing) {
-      existing.href = faviconUrl;
+      existing.href = href;
     } else {
       const link = document.createElement('link');
       link.id = FAVICON_LINK_ID;
       link.rel = 'icon';
-      link.type = 'image/x-icon';
-      link.href = faviconUrl;
+      link.href = href;
+      document.head.appendChild(link);
+    }
+
+    // 2. Update apple-touch-icon
+    const APPLE_ICON_ID = 'devsfolk-apple-touch-icon';
+    const existingApple = document.getElementById(APPLE_ICON_ID) as HTMLLinkElement | null;
+    if (existingApple) {
+      existingApple.href = href;
+    } else {
+      const link = document.createElement('link');
+      link.id = APPLE_ICON_ID;
+      link.rel = 'apple-touch-icon';
+      link.href = href;
       document.head.appendChild(link);
     }
   }, [faviconUrl]);
