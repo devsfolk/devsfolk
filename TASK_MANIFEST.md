@@ -216,4 +216,14 @@
 - **Verification**: Verified that any fresh tenant setups load the default storefront layout segments out of the box. Ran standard npm production build check with zero errors.
 
 ## Current Active Task
-*None.*
+### [IN PROGRESS] Task 13: Favicon Upload & Google Search Console Verification
+- **Date**: 2026-05-22
+- **Branch**: `feat/new-store-features`
+- **Description**: Added two final pre-launch features: (1) A favicon upload option in Dashboard → Design Settings, placed below the logo upload with identical UI pattern (paste URL or upload, auto-optimized to 128×128, preview thumbnail with remove button). The favicon is dynamically injected into the document head as a `<link rel="icon">` tag. (2) A Google Search Console verification code input in Dashboard → General Settings under "Analytics & Verification". The code is dynamically injected as a `<meta name="google-site-verification">` tag in the document head.
+- **Files Modified**: 
+  - `src/types.ts`: Added `faviconUrl` to ThemeSettings, `googleSearchConsoleId` to AnalyticsSettings.
+  - `src/context/ShopContext.tsx`: Added `googleSearchConsoleId` default to analytics init.
+  - `src/components/analytics/AnalyticsTracker.tsx`: Added dynamic favicon `<link>` and Search Console `<meta>` tag injection via useEffect hooks.
+  - `src/pages/dashboard/DesignSettings.tsx`: Added Favicon Upload UI block with upload handler, spinner, preview, and remove button.
+  - `src/pages/dashboard/GeneralSettings.tsx`: Added Google Search Console verification input field with helper text.
+- **Verification**: Ran standard npm production build check with zero errors (5 files changed, 119 insertions, 1 deletion).
