@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { fabric } from 'fabric';
-import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +23,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Active product state
   const [activeProduct, setActiveProduct] = useState(() => {
-    return products.find((p) => p.slug === productSlug) || 
-           products.find((p) => p.isPrintify) || 
-           products[0];
+    return customProducts.find((p) => p.slug === productSlug) || 
+           customProducts[0];
   });
 
   const printifyEnabled = settings.printifySettings?.enabled;
@@ -47,6 +46,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedAngle, setSelectedAngle] = useState(0);
   const [selectedScale, setSelectedScale] = useState(1);
   const [hasSelection, setHasSelection] = useState(false);
+
+  // Text formatting states
+  const [textIsBold, setTextIsBold] = useState(false);
+  const [textIsItalic, setTextIsItalic] = useState(false);
+  const [textIsUnderline, setTextIsUnderline] = useState(false);
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
 
   // AI mockups placeholder state
   const [aiMockups, setAiMockups] = useState<string[]>([]);
@@ -123,6 +128,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           setCustomText(textObj.text || '');
           setTextFont(textObj.fontFamily || 'Inter');
           setTextColor(textObj.fill as string || '#000000');
+          setTextIsBold(textObj.fontWeight === 'bold');
+          setTextIsItalic(textObj.fontStyle === 'italic');
+          setTextIsUnderline(!!textObj.underline);
+          setTextAlign((textObj.textAlign as 'left' | 'center' | 'right') || 'left');
         }
       } else {
         setHasSelection(false);
@@ -307,6 +316,141 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         } else if (activeObj.type === 'image') {
           setCustomImage(null);
         }
+      }
+    }
+  };
+
+  // Bring active layer forward
+  const handleBringForward = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        canvas.bringForward(activeObj);
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Send active layer backward
+  const handleSendBackward = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        canvas.sendBackwards(activeObj);
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Center layer horizontally in print area
+  const handleCenterHorizontally = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.centerH();
+        activeObj.setCoords();
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Center layer vertically in print area
+  const handleCenterVertically = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.centerV();
+        activeObj.setCoords();
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Duplicate active layer
+  const handleDuplicateSelected = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.clone((cloned: fabric.Object) => {
+          canvas.discardActiveObject();
+          cloned.set({
+            left: (cloned.left || 0) + 15,
+            top: (cloned.top || 0) + 15,
+            evented: true,
+          });
+          canvas.add(cloned);
+          canvas.setActiveObject(cloned);
+          canvas.requestRenderAll();
+          
+          if (cloned.type === 'i-text') {
+            const textObj = cloned as fabric.IText;
+            setCustomText(textObj.text || '');
+          }
+        });
+      }
+    }
+  };
+
+  // Toggle Bold style on selected text object
+  const toggleBold = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj && activeObj.type === 'i-text') {
+        const textObj = activeObj as fabric.IText;
+        const nextVal = textObj.fontWeight === 'bold' ? 'normal' : 'bold';
+        textObj.set('fontWeight', nextVal);
+        canvas.renderAll();
+        setTextIsBold(nextVal === 'bold');
+      }
+    }
+  };
+
+  // Toggle Italic style on selected text object
+  const toggleItalic = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj && activeObj.type === 'i-text') {
+        const textObj = activeObj as fabric.IText;
+        const nextVal = textObj.fontStyle === 'italic' ? 'normal' : 'italic';
+        textObj.set('fontStyle', nextVal);
+        canvas.renderAll();
+        setTextIsItalic(nextVal === 'italic');
+      }
+    }
+  };
+
+  // Toggle Underline style on selected text object
+  const toggleUnderline = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj && activeObj.type === 'i-text') {
+        const textObj = activeObj as fabric.IText;
+        const nextVal = !textObj.underline;
+        textObj.set('underline', nextVal);
+        canvas.renderAll();
+        setTextIsUnderline(nextVal);
+      }
+    }
+  };
+
+  // Change text alignment on selected text object
+  const handleTextAlignChange = (align: 'left' | 'center' | 'right') => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj && activeObj.type === 'i-text') {
+        const textObj = activeObj as fabric.IText;
+        textObj.set('textAlign', align);
+        canvas.renderAll();
+        setTextAlign(align);
       }
     }
   };
@@ -586,9 +730,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   <div className="space-y-4 pt-4 border-t animate-in fade-in duration-200">
                     <div className="flex items-center justify-between pl-1">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Selected Layer Controls</h4>
-                      <Button variant="ghost" size="icon" onClick={handleDeleteSelected} className="h-7 w-7 text-red-500 rounded-lg hover:bg-red-50">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                     
                     <div className="space-y-2">
@@ -621,6 +762,44 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                         onChange={(e) => handleRotateSlider(parseInt(e.target.value))}
                         className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
                       />
+                    </div>
+
+                    {/* Layer arrangement, center alignment, duplication and deletion */}
+                    <div className="space-y-3 pt-2 border-t">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <span className="text-[8px] font-black uppercase text-gray-400">Layer Order</span>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" onClick={handleBringForward} className="flex-1 h-8 text-[9px] uppercase font-bold gap-1 rounded-xl">
+                              <ChevronUp className="h-3.5 w-3.5" /> Forward
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={handleSendBackward} className="flex-1 h-8 text-[9px] uppercase font-bold gap-1 rounded-xl">
+                              <ChevronDown className="h-3.5 w-3.5" /> Backward
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <span className="text-[8px] font-black uppercase text-gray-400">Position Align</span>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" onClick={handleCenterHorizontally} className="flex-1 h-8 text-[9px] uppercase font-bold rounded-xl" title="Center Horizontally">
+                              Center H
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={handleCenterVertically} className="flex-1 h-8 text-[9px] uppercase font-bold rounded-xl" title="Center Vertically">
+                              Center V
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button variant="outline" size="sm" onClick={handleDuplicateSelected} className="h-8 text-[9px] uppercase font-bold gap-1.5 rounded-xl">
+                          <Copy className="h-3.5 w-3.5" /> Duplicate
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleDeleteSelected} className="h-8 text-[9px] uppercase font-bold gap-1.5 rounded-xl border-red-200 hover:bg-red-50 text-red-500">
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -701,6 +880,108 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                           onChange={(e) => handleRotateSlider(parseInt(e.target.value))}
                           className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
                         />
+
+                        {/* Text Styling Formatting Bar */}
+                        <div className="space-y-1.5 pt-2 border-t">
+                          <span className="text-[8px] font-black uppercase text-gray-400">Text Styling & Align</span>
+                          <div className="flex gap-1 items-center">
+                            <Button 
+                              variant={textIsBold ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={toggleBold} 
+                              className={`h-9 w-9 p-0 rounded-xl ${textIsBold ? 'bg-black text-white hover:bg-neutral-800' : ''}`}
+                              title="Bold"
+                            >
+                              <Bold className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant={textIsItalic ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={toggleItalic} 
+                              className={`h-9 w-9 p-0 rounded-xl ${textIsItalic ? 'bg-black text-white hover:bg-neutral-800' : ''}`}
+                              title="Italic"
+                            >
+                              <Italic className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant={textIsUnderline ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={toggleUnderline} 
+                              className={`h-9 w-9 p-0 rounded-xl ${textIsUnderline ? 'bg-black text-white hover:bg-neutral-800' : ''}`}
+                              title="Underline"
+                            >
+                              <Underline className="h-4 w-4" />
+                            </Button>
+                            
+                            <div className="w-px h-6 bg-gray-200 mx-2" />
+                            
+                            <Button 
+                              variant={textAlign === 'left' ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={() => handleTextAlignChange('left')} 
+                              className={`h-9 w-9 p-0 rounded-xl ${textAlign === 'left' ? 'bg-black text-white hover:bg-neutral-800' : ''}`}
+                              title="Align Left"
+                            >
+                              <AlignLeft className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant={textAlign === 'center' ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={() => handleTextAlignChange('center')} 
+                              className={`h-9 w-9 p-0 rounded-xl ${textAlign === 'center' ? 'bg-black text-white hover:bg-neutral-800' : ''}`}
+                              title="Align Center"
+                            >
+                              <AlignCenter className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant={textAlign === 'right' ? 'default' : 'outline'} 
+                              size="sm" 
+                              onClick={() => handleTextAlignChange('right')} 
+                              className={`h-9 w-9 p-0 rounded-xl ${textAlign === 'right' ? 'bg-black text-white hover:bg-neutral-800' : ''}`}
+                              title="Align Right"
+                            >
+                              <AlignRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Layer order, alignment, duplicate and delete */}
+                        <div className="space-y-3 pt-2 border-t">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black uppercase text-gray-400">Layer Order</span>
+                              <div className="flex gap-1">
+                                <Button variant="outline" size="sm" onClick={handleBringForward} className="flex-1 h-8 text-[9px] uppercase font-bold gap-1 rounded-xl">
+                                  <ChevronUp className="h-3.5 w-3.5" /> Forward
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={handleSendBackward} className="flex-1 h-8 text-[9px] uppercase font-bold gap-1 rounded-xl">
+                                  <ChevronDown className="h-3.5 w-3.5" /> Backward
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black uppercase text-gray-400">Position Align</span>
+                              <div className="flex gap-1">
+                                <Button variant="outline" size="sm" onClick={handleCenterHorizontally} className="flex-1 h-8 text-[9px] uppercase font-bold rounded-xl" title="Center Horizontally">
+                                  Center H
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={handleCenterVertically} className="flex-1 h-8 text-[9px] uppercase font-bold rounded-xl" title="Center Vertically">
+                                  Center V
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" size="sm" onClick={handleDuplicateSelected} className="h-8 text-[9px] uppercase font-bold gap-1.5 rounded-xl">
+                              <Copy className="h-3.5 w-3.5" /> Duplicate
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={handleDeleteSelected} className="h-8 text-[9px] uppercase font-bold gap-1.5 rounded-xl border-red-200 hover:bg-red-50 text-red-500">
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

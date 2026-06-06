@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
 
 export const PrintifySettings: React.FC = () => {
-  const { settings, updateSettings, orders } = useShop();
+  const { settings, updateSettings, orders, products, addProduct, updateProduct } = useShop();
   
   const printifySettings = settings.printifySettings || {
     enabled: false,
@@ -49,27 +49,175 @@ export const PrintifySettings: React.FC = () => {
       alert('Please fill in both API Key and Shop ID first.');
       return;
     }
+    
+    const shopId = printifySettings.providerSettings.shopId.trim();
+    if (!/^\d+$/.test(shopId)) {
+      alert('Invalid Shop ID. The Shop ID must be a numeric value.');
+      setConnectionStatus('failed');
+      return;
+    }
+
     setTestingConnection(true);
     setConnectionStatus('idle');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setTestingConnection(false);
-    if (printifySettings.providerSettings.apiKey.length > 10 && printifySettings.providerSettings.shopId.length > 2) {
-      setConnectionStatus('success');
-    } else {
+
+    try {
+      const apiKey = printifySettings.providerSettings.apiKey.trim();
+      const targetUrl = `https://api.printify.com/v1/shops/${shopId}/products.json`;
+      const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+      
+      const response = await fetch(proxiedUrl, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      
+      if (response.ok) {
+        setConnectionStatus('success');
+      } else {
+        setConnectionStatus('failed');
+      }
+    } catch (err) {
+      console.error('Connection test failed:', err);
       setConnectionStatus('failed');
+    } finally {
+      setTestingConnection(false);
     }
   };
 
   const runManualSync = async () => {
+    if (!printifySettings.providerSettings.apiKey || !printifySettings.providerSettings.shopId) {
+      alert('Please configure your Printify API Access Token and Shop ID in the APIs tab first.');
+      return;
+    }
+    
+    const shopId = printifySettings.providerSettings.shopId.trim();
+    if (!/^\d+$/.test(shopId)) {
+      alert('Invalid Shop ID. The Shop ID must be a numeric value.');
+      return;
+    }
+
     setSyncingProducts(true);
-    setSyncLogs(['[INFO] Initializing catalog sync...', '[INFO] Connecting to Printify Catalog API...']);
-    await new Promise(resolve => setTimeout(resolve, 800));
-    setSyncLogs(prev => [...prev, '[INFO] Fetched blueprints from Printify (T-Shirt, Sweatshirt, Mug, Hoodies)...']);
-    await new Promise(resolve => setTimeout(resolve, 600));
-    setSyncLogs(prev => [...prev, '[INFO] Importing size, color, and print area bounding metrics...']);
-    await new Promise(resolve => setTimeout(resolve, 800));
-    setSyncLogs(prev => [...prev, '[SUCCESS] Sync completed. Database catalog cache populated.']);
-    setSyncingProducts(false);
+    setSyncLogs(['[INFO] Initializing catalog sync...', `[INFO] Querying Shop ID: ${shopId}...`]);
+
+    try {
+      const apiKey = printifySettings.providerSettings.apiKey.trim();
+      const targetUrl = `https://api.printify.com/v1/shops/${shopId}/products.json`;
+      const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+
+      setSyncLogs(prev => [...prev, '[INFO] Connecting to Printify API via secure client bridge...']);
+      
+      const response = await fetch(proxiedUrl, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Printify API returned status ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const printifyProducts = data.data || data || [];
+      
+      if (!Array.isArray(printifyProducts)) {
+        throw new Error('Unexpected API response format. Expected an array of products.');
+      }
+
+      setSyncLogs(prev => [...prev, `[SUCCESS] Connected! Found ${printifyProducts.length} products on Printify.`]);
+
+      if (printifyProducts.length === 0) {
+        setSyncLogs(prev => [...prev, '[WARNING] No products found in this Printify shop. Please create products in your Printify dashboard first.']);
+        setSyncingProducts(false);
+        return;
+      }
+
+      let importedCount = 0;
+      let updatedCount = 0;
+
+      for (const p of printifyProducts) {
+        const colors: string[] = [];
+        const sizes: string[] = [];
+
+        if (Array.isArray(p.options)) {
+          const colorOption = p.options.find((opt: any) => 
+            opt.type === 'color' || 
+            opt.name.toLowerCase() === 'color' || 
+            opt.name.toLowerCase() === 'colors'
+          );
+          const sizeOption = p.options.find((opt: any) => 
+            opt.type === 'size' || 
+            opt.name.toLowerCase() === 'size' || 
+            opt.name.toLowerCase() === 'sizes'
+          );
+
+          if (colorOption && Array.isArray(colorOption.values)) {
+            colorOption.values.forEach((v: any) => {
+              if (v.colors && v.colors[0]) {
+                colors.push(v.colors[0]);
+              } else if (v.title) {
+                colors.push(v.title);
+              }
+            });
+          }
+
+          if (sizeOption && Array.isArray(sizeOption.values)) {
+            sizeOption.values.forEach((v: any) => {
+              if (v.title) sizes.push(v.title);
+            });
+          }
+        }
+
+        if (colors.length === 0) colors.push('#FFFFFF', '#111827');
+        if (sizes.length === 0) sizes.push('S', 'M', 'L', 'XL');
+
+        const images = Array.isArray(p.images) 
+          ? p.images.map((img: any) => img.src)
+          : ['/custom-tee-mockup.png'];
+
+        const existing = products.find(
+          (prod) => prod.printifyProductId === String(p.id) || prod.slug === `printify-${p.id}`
+        );
+
+        const productPayload = {
+          categoryId: 'cat_printify',
+          name: p.title,
+          slug: `printify-${p.id}`,
+          description: p.description || 'Print-on-demand product.',
+          price: 24.99,
+          images,
+          stock: 100,
+          isFeatured: true,
+          colors,
+          sizes,
+          isPrintify: true,
+          printifyProductId: String(p.id),
+          printifyCatalogId: String(p.blueprint_id || '')
+        };
+
+        if (existing) {
+          updateProduct(existing.id, productPayload);
+          updatedCount++;
+        } else {
+          addProduct(productPayload);
+          importedCount++;
+        }
+      }
+
+      setSyncLogs(prev => [
+        ...prev, 
+        `[SUCCESS] Sync fully complete! Imported: ${importedCount}, Updated: ${updatedCount}.`,
+        '[INFO] Store catalog updated in database and local cache.'
+      ]);
+    } catch (err: any) {
+      console.error('Printify sync failed:', err);
+      setSyncLogs(prev => [
+        ...prev, 
+        `[ERROR] Sync failed: ${err.message || err}`,
+        '[TIP] Make sure your Access Token has the correct scopes and your Shop ID matches your Printify account.'
+      ]);
+    } finally {
+      setSyncingProducts(false);
+    }
   };
 
   const customPrintOrders = orders.map((o, idx) => ({
@@ -188,8 +336,13 @@ export const PrintifySettings: React.FC = () => {
                       providerSettings: { ...printifySettings.providerSettings, shopId: e.target.value.trim() }
                     })}
                     placeholder="Enter your Printify Shop ID"
-                    className="rounded-xl h-11 text-sm border-gray-200"
+                    className={`rounded-xl h-11 text-sm border-gray-200 ${printifySettings.providerSettings.shopId && !/^\d+$/.test(printifySettings.providerSettings.shopId) ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                   />
+                  {printifySettings.providerSettings.shopId && !/^\d+$/.test(printifySettings.providerSettings.shopId) && (
+                    <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider pl-1">
+                      Shop ID must be numeric (e.g. 123456). E-mail address is not a valid Shop ID.
+                    </p>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t flex flex-col sm:flex-row items-center gap-4">
