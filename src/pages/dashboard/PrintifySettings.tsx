@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useShop } from '@/context/ShopContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,81 @@ export const PrintifySettings: React.FC = () => {
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('apis');
 
+  const initialApiKeyRef = useRef(printifySettings.providerSettings.apiKey);
+  const lastCheckedTokenRef = useRef('');
+
+  useEffect(() => {
+    const token = printifySettings.providerSettings.apiKey.trim();
+    
+    // If the token is empty, reset status
+    if (!token) {
+      setConnectionStatus('idle');
+      lastCheckedTokenRef.current = '';
+      return;
+    }
+
+    // If it's the same token as initially loaded on mount, or same as last verified, don't auto-verify
+    if (token === initialApiKeyRef.current || token === lastCheckedTokenRef.current) {
+      // If we already have a token and shopId, and haven't failed, default status to success
+      if (token && printifySettings.providerSettings.shopId && connectionStatus === 'idle') {
+        setConnectionStatus('success');
+      }
+      return;
+    }
+
+    setTestingConnection(true);
+    setConnectionStatus('idle');
+
+    const debounceTimer = setTimeout(async () => {
+      lastCheckedTokenRef.current = token;
+      try {
+        const targetUrl = 'https://api.printify.com/v1/shops.json';
+        const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+        
+        const response = await fetch(proxiedUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Printify API returned status ${response.status}`);
+        }
+        
+        const shops = await response.json();
+        const shopList = shops.data || shops || [];
+        
+        if (Array.isArray(shopList) && shopList.length > 0) {
+          const detectedShop = shopList[0];
+          const detectedShopId = String(detectedShop.id);
+          
+          handleUpdate({
+            providerSettings: {
+              apiKey: token,
+              shopId: detectedShopId
+            }
+          });
+          
+          setConnectionStatus('success');
+          setSyncLogs(prev => [
+            ...prev,
+            `[SUCCESS] API Access Token auto-verified!`,
+            `[INFO] Auto-detected Shop ID: ${detectedShopId} ("${detectedShop.title}")`
+          ]);
+        } else {
+          throw new Error('No shops found in this Printify account.');
+        }
+      } catch (err: any) {
+        console.error('Auto-detect connection failed:', err);
+        setConnectionStatus('failed');
+      } finally {
+        setTestingConnection(false);
+      }
+    }, 1000); // 1-second debounce
+
+    return () => clearTimeout(debounceTimer);
+  }, [printifySettings.providerSettings.apiKey]);
+
   const handleUpdate = (updates: any) => {
     updateSettings({
       printifySettings: {
@@ -39,21 +114,35 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (printifySettings.enabled) {
+      const shopId = printifySettings.providerSettings.shopId?.trim();
+      const apiKey = printifySettings.providerSettings.apiKey?.trim();
+
+      if (!apiKey) {
+        alert('Validation Error:\n\nPrintify API Access Token (PAT) is required when Printify Mode is enabled.');
+        return;
+      }
+
+      if (!shopId) {
+        alert('Validation Error:\n\nShop ID is required when Printify Mode is enabled.');
+        return;
+      }
+
+      if (!/^\d+$/.test(shopId)) {
+        alert('Validation Error:\n\nShop ID must be a numeric value (e.g. 123456). E-mail address or alphabetical text is not a valid Shop ID.');
+        return;
+      }
+    }
+
     setSaving(true);
     await new Promise(resolve => setTimeout(resolve, 800));
     setSaving(false);
   };
 
   const testConnection = async () => {
-    if (!printifySettings.providerSettings.apiKey || !printifySettings.providerSettings.shopId) {
-      alert('Please fill in both API Key and Shop ID first.');
-      return;
-    }
-    
-    const shopId = printifySettings.providerSettings.shopId.trim();
-    if (!/^\d+$/.test(shopId)) {
-      alert('Invalid Shop ID. The Shop ID must be a numeric value.');
-      setConnectionStatus('failed');
+    const token = printifySettings.providerSettings.apiKey.trim();
+    if (!token) {
+      alert('Please enter your Printify API Access Token (PAT) first.');
       return;
     }
 
@@ -61,24 +150,47 @@ export const PrintifySettings: React.FC = () => {
     setConnectionStatus('idle');
 
     try {
-      const apiKey = printifySettings.providerSettings.apiKey.trim();
-      const targetUrl = `https://api.printify.com/v1/shops/${shopId}/products.json`;
+      const targetUrl = 'https://api.printify.com/v1/shops.json';
       const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
       
       const response = await fetch(proxiedUrl, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
-      if (response.ok) {
-        setConnectionStatus('success');
-      } else {
-        setConnectionStatus('failed');
+      if (!response.ok) {
+        throw new Error(`Printify API returned status ${response.status}`);
       }
-    } catch (err) {
-      console.error('Connection test failed:', err);
+      
+      const shops = await response.json();
+      const shopList = shops.data || shops || [];
+      
+      if (Array.isArray(shopList) && shopList.length > 0) {
+        const detectedShop = shopList[0];
+        const detectedShopId = String(detectedShop.id);
+        
+        handleUpdate({
+          providerSettings: {
+            apiKey: token,
+            shopId: detectedShopId
+          }
+        });
+        
+        setConnectionStatus('success');
+        setSyncLogs(prev => [
+          ...prev,
+          `[SUCCESS] API Access Token verified!`,
+          `[INFO] Auto-detected Shop ID: ${detectedShopId} ("${detectedShop.title}")`
+        ]);
+        alert(`Token Verified!\nAuto-detected Shop: ${detectedShop.title} (ID: ${detectedShopId})\n\nShop ID has been populated and webhook URL generated successfully.`);
+      } else {
+        throw new Error('No shops found in this Printify account.');
+      }
+    } catch (err: any) {
+      console.error('Connection test / auto-detect failed:', err);
       setConnectionStatus('failed');
+      alert(`Verification Failed!\n\nError: ${err.message || err}\n\nPlease verify that your Access Token (PAT) is correct.`);
     } finally {
       setTestingConnection(false);
     }
@@ -318,15 +430,22 @@ export const PrintifySettings: React.FC = () => {
 
                 <div className="grid gap-2">
                   <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Printify API Access Token</Label>
-                  <Input 
-                    type="password"
-                    value={printifySettings.providerSettings.apiKey}
-                    onChange={(e) => handleUpdate({
-                      providerSettings: { ...printifySettings.providerSettings, apiKey: e.target.value.trim() }
-                    })}
-                    placeholder="Enter your personal access token (e.g. pr_...)"
-                    className="rounded-xl h-11 text-sm font-mono border-gray-200"
-                  />
+                  <div className="relative">
+                    <Input 
+                      type="password"
+                      value={printifySettings.providerSettings.apiKey}
+                      onChange={(e) => handleUpdate({
+                        providerSettings: { ...printifySettings.providerSettings, apiKey: e.target.value.trim() }
+                      })}
+                      placeholder="Enter your personal access token (e.g. pr_...)"
+                      className="rounded-xl h-11 text-sm font-mono border-gray-200 pr-10"
+                    />
+                    {testingConnection && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Printify Shop ID</Label>
@@ -353,20 +472,71 @@ export const PrintifySettings: React.FC = () => {
                     className="rounded-2xl h-11 px-5 uppercase font-black text-[10px] bg-black text-white hover:bg-neutral-800"
                   >
                     {testingConnection && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
-                    Test API Connection
+                    Verify Token & Auto-Detect Shop ID
                   </Button>
                   
                   {connectionStatus === 'success' && (
                     <div className="flex items-center gap-2 text-green-600 text-xs font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-100">
-                      <CheckCircle2 className="h-4 w-4" /> Connected Successfully
+                      <CheckCircle2 className="h-4 w-4" /> Connected & Shop Loaded!
                     </div>
                   )}
                   {connectionStatus === 'failed' && (
                     <div className="flex items-center gap-2 text-red-600 text-xs font-bold bg-red-50 px-4 py-2 rounded-xl border border-red-100">
-                      <AlertCircle className="h-4 w-4" /> Connection Failed. Check token and Shop ID.
+                      <AlertCircle className="h-4 w-4" /> Connection Failed. Check token.
                     </div>
                   )}
                 </div>
+
+                {/* Webhook & Setup instructions (rendered once token is valid/configured) */}
+                {connectionStatus === 'success' && (
+                  <div className="pt-5 border-t space-y-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-amber-500" />
+                      <h4 className="font-black text-xs uppercase tracking-wider text-gray-700">Webhook Connection Setup</h4>
+                    </div>
+
+                    <div className="grid gap-2 bg-gray-50 p-4 rounded-2xl border">
+                      <Label className="text-[10px] font-black uppercase text-gray-400">Generated Webhook Endpoint URL</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          readOnly
+                          id="printify-webhook-url-api-tab"
+                          value={`${window.location.origin}/api/printify/webhook`}
+                          className="rounded-xl h-10 text-xs font-mono border-gray-200 bg-white flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const inputEl = document.getElementById('printify-webhook-url-api-tab') as HTMLInputElement;
+                            if (inputEl) {
+                              inputEl.select();
+                              navigator.clipboard.writeText(inputEl.value);
+                              alert('Webhook URL copied to clipboard!');
+                            }
+                          }}
+                          className="rounded-xl h-10 px-3 text-[10px] font-black uppercase border-gray-200 bg-white"
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-2">
+                      <h5 className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Setup Instructions in Printify:</h5>
+                      <ol className="list-decimal pl-4 text-[10px] text-amber-700 space-y-1.5 leading-relaxed">
+                        <li>Log in to your <strong>Printify Account</strong>.</li>
+                        <li>Navigate to <strong>Settings → Connections</strong>.</li>
+                        <li>Find the <strong>Webhooks</strong> section (or Developer Keys).</li>
+                        <li>Click <strong>Add Webhook</strong> or create a new webhook endpoint.</li>
+                        <li>Paste the <strong>Endpoint URL</strong> generated above.</li>
+                        <li>Select events to subscribe to (we recommend <code>order.created</code>, <code>order.updated</code>, <code>order.shipped</code>).</li>
+                        <li>Save the webhook configuration. Printify will now auto-sync order milestones instantly!</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
 
                 {/* API Endpoints Reference */}
                 <div className="pt-4 border-t">
