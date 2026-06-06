@@ -211,6 +211,9 @@ export interface Product {
   sizes?: string[];
   variants?: ProductVariant[];
   createdAt: number;
+  isPrintify?: boolean;
+  printifyProductId?: string;
+  printifyCatalogId?: string;
 }
 
 export interface Review {
@@ -222,12 +225,24 @@ export interface Review {
   createdAt: number;
 }
 
+export interface PrintifyCustomization {
+  designId?: string;
+  customImageUrl?: string;
+  customText?: string;
+  textColor?: string;
+  fontFamily?: string;
+  textPosition?: { x: number; y: number; rotate: number; scale: number };
+  imagePosition?: { x: number; y: number; rotate: number; scale: number };
+  previewUrl?: string;
+}
+
 export interface OrderItem {
   productId: string;
   variantId?: string;
   name: string;
   price: number;
   quantity: number;
+  customization?: PrintifyCustomization;
 }
 
 export interface Order {

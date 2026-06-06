@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink } from '../types';
+import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization } from '../types';
 import { TEMPLATES } from '../lib/templates';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 
@@ -30,9 +30,9 @@ interface ShopContextType {
   updateOrderStatus: (id: string, status: Order['status']) => void;
   refreshOrders: () => Promise<void>;
   cart: CartItem[];
-  addToCart: (product: Product, variant?: ProductVariant, quantity?: number, options?: { color?: string; size?: string }) => void;
-  removeFromCart: (productId: string, variantId?: string) => void;
-  updateCartQuantity: (productId: string, variantId: string | undefined, quantity: number) => void;
+  addToCart: (product: Product, variant?: ProductVariant, quantity?: number, options?: { color?: string; size?: string; customization?: PrintifyCustomization }) => void;
+  removeFromCart: (productId: string, variantId?: string, customization?: PrintifyCustomization) => void;
+  updateCartQuantity: (productId: string, variantId: string | undefined, quantity: number, customization?: PrintifyCustomization) => void;
   clearCart: () => void;
   placeOrder: (customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>, mode: 'WHATSAPP' | 'WEBSITE', paymentMethod?: string) => void;
   cartTotal: number;
@@ -136,6 +136,7 @@ const SAMPLE_CATEGORIES: Category[] = [
   { id: 'cat_suncare', name: 'Sun Armor', slug: 'sun-care', description: 'Superior protection for sun-kissed skin.', imageUrl: 'https://images.unsplash.com/photo-1526947425960-985c9991db01?auto=format&fit=crop&q=80&w=800', order: 7, createdAt: Date.now() },
   { id: 'cat_organic', name: 'Pure Organic', slug: 'natural-beauty', description: 'Clean, green beauty powered by nature.', imageUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&q=80&w=800', order: 8, createdAt: Date.now() },
   { id: 'cat_luxury', name: 'Gold Standard', slug: 'luxury-beauty', description: 'The pinnacle of beauty craftsmanship.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800', order: 9, createdAt: Date.now() },
+  { id: 'cat_printify', name: 'Custom Merch', slug: 'custom-merch', description: 'Design your own premium custom print-on-demand products.', imageUrl: '/custom-tee-mockup.png', order: 10, createdAt: Date.now() },
 ];
 
 const SAMPLE_PRODUCTS: Product[] = [
@@ -159,6 +160,24 @@ const SAMPLE_PRODUCTS: Product[] = [
   { id: 'p_org_2', categoryId: 'cat_organic', name: 'Vegan Bamboo Cleanser', slug: 'vegan-bamboo-cleanser', description: 'Ultra-gentle daily cleanser powered by fermented bamboo water and green tea.', price: 26, images: ['https://images.unsplash.com/photo-1556229030-5ef73db95d73?auto=format&fit=crop&q=80&w=800'], stock: 95, isFeatured: false, order: 1, createdAt: Date.now() },
   { id: 'p_lux_1', categoryId: 'cat_luxury', name: '24K Gold Face Oil', slug: '24k-gold-face-oil', description: 'Luxurious blend of rare oils infused with genuine 24-karat gold flakes for ultimate radiance.', price: 185, images: ['https://images.unsplash.com/photo-1616683693504-3ee7e1da76b8?auto=format&fit=crop&q=80&w=800', 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800'], stock: 12, isFeatured: true, order: 0, createdAt: Date.now() },
   { id: 'p_lux_2', categoryId: 'cat_luxury', name: 'Imperial Caviar Cream', slug: 'imperial-caviar-cream', description: 'Revitalizing moisturizer that harnesses the power of black caviar to firm and lift.', price: 245, images: ['https://images.unsplash.com/photo-1550524513-3bfc90df48da?auto=format&fit=crop&q=80&w=800'], stock: 8, isFeatured: true, order: 1, createdAt: Date.now() },
+  {
+    id: 'p_printify_tee',
+    categoryId: 'cat_printify',
+    name: 'Custom Unisex Jersey Tee',
+    slug: 'custom-unisex-tee',
+    description: 'This classic unisex jersey short sleeve tee fits like a well-loved favorite. Soft cotton and quality print make users fall in love with it over and over again. Customize it with your own designs or logo overlays!',
+    price: 24.99,
+    images: ['/custom-tee-mockup.png'],
+    stock: 500,
+    colors: ['#FFFFFF', '#111827', '#EF4444', '#3B82F6', '#10B981'],
+    sizes: ['S', 'M', 'L', 'XL', '2XL'],
+    isFeatured: true,
+    order: 0,
+    createdAt: Date.now(),
+    isPrintify: true,
+    printifyProductId: 'printify_tee_123',
+    printifyCatalogId: 'printify_catalog_tee_123'
+  }
 ];
 
 const SETTINGS_STORAGE_KEY = 'devsfolk_settings';
@@ -1082,14 +1101,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const cartTotal = useMemo(() => cart.reduce((accumulator, item) => accumulator + item.price * item.quantity, 0), [cart]);
 
-  const addToCart = (product: Product, variant?: ProductVariant, quantity = 1, options?: { color?: string; size?: string }) => {
+  const addToCart = (product: Product, variant?: ProductVariant, quantity = 1, options?: { color?: string; size?: string; customization?: PrintifyCustomization }) => {
     setCart((current) => {
       const existingIndex = current.findIndex(
         (item) =>
           item.productId === product.id &&
           item.variantId === variant?.id &&
           item.color === options?.color &&
-          item.size === options?.size,
+          item.size === options?.size &&
+          JSON.stringify(item.customization || null) === JSON.stringify(options?.customization || null),
       );
 
       const nextCart = [...current];
@@ -1102,12 +1122,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         nextCart.push({
           productId: product.id,
           variantId: variant?.id,
-          name: product.name + (variant ? ` - ${variant.name}` : '') + (options?.color ? ` (${options.color})` : '') + (options?.size ? ` - ${options.size}` : ''),
+          name: product.name + (variant ? ` - ${variant.name}` : '') + (options?.color ? ` (${options.color})` : '') + (options?.size ? ` - ${options.size}` : '') + (options?.customization ? ' (Customized)' : ''),
           price: variant?.price || product.discountPrice || product.price,
           quantity,
-          image: product.images[0],
+          image: options?.customization?.previewUrl || product.images[0],
           color: options?.color,
           size: options?.size,
+          customization: options?.customization,
         });
       }
 
@@ -1116,18 +1137,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const removeFromCart = (productId: string, variantId?: string) => {
+  const removeFromCart = (productId: string, variantId?: string, customization?: PrintifyCustomization) => {
     setCart((current) => {
-      const updated = current.filter((item) => !(item.productId === productId && item.variantId === variantId));
+      const updated = current.filter(
+        (item) =>
+          !(
+            item.productId === productId &&
+            item.variantId === variantId &&
+            JSON.stringify(item.customization || null) === JSON.stringify(customization || null)
+          ),
+      );
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
   };
 
-  const updateCartQuantity = (productId: string, variantId: string | undefined, quantity: number) => {
+  const updateCartQuantity = (productId: string, variantId: string | undefined, quantity: number, customization?: PrintifyCustomization) => {
     setCart((current) => {
       const updated = current.map((item) =>
-        item.productId === productId && item.variantId === variantId
+        item.productId === productId &&
+        item.variantId === variantId &&
+        JSON.stringify(item.customization || null) === JSON.stringify(customization || null)
           ? { ...item, quantity: Math.max(1, quantity) }
           : item,
       );

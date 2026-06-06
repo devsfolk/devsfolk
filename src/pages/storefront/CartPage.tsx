@@ -40,8 +40,8 @@ export const CartPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12">
         {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4 md:space-y-6">
-          {cart.map((item) => (
-            <div key={`${item.productId}-${item.variantId}`} className="flex gap-4 md:gap-6 pb-4 md:pb-6 border-b last:border-0 px-2 md:px-0">
+          {cart.map((item, index) => (
+            <div key={`${item.productId}-${item.variantId || 'base'}-${index}`} className="flex gap-4 md:gap-6 pb-4 md:pb-6 border-b last:border-0 px-2 md:px-0">
               <div className="w-20 md:w-32 aspect-square rounded-xl md:rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0">
                 <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
               </div>
@@ -56,7 +56,7 @@ export const CartPage: React.FC = () => {
                     variant="ghost" 
                     size="icon" 
                     className="text-gray-400 hover:text-red-500 h-8 w-8 md:h-10 md:w-10"
-                    onClick={() => removeFromCart(item.productId, item.variantId)}
+                    onClick={() => removeFromCart(item.productId, item.variantId, item.customization)}
                   >
                     <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
@@ -68,7 +68,7 @@ export const CartPage: React.FC = () => {
                       variant="ghost" 
                       size="icon" 
                       className="h-7 w-7 md:h-8 md:w-8"
-                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity - 1)}
+                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity - 1, item.customization)}
                     >
                       <Minus className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>
@@ -77,7 +77,7 @@ export const CartPage: React.FC = () => {
                       variant="ghost" 
                       size="icon" 
                       className="h-7 w-7 md:h-8 md:w-8"
-                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity + 1)}
+                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity + 1, item.customization)}
                     >
                       <Plus className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>

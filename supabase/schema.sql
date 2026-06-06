@@ -225,4 +225,8 @@ alter table public.orders add column if not exists printify_order_id text;
 alter table public.orders add column if not exists printify_sync_status text;
 alter table public.orders add column if not exists printify_error_log text;
 
+alter table public.products add column if not exists is_printify boolean not null default false;
+alter table public.products add column if not exists printify_product_id text;
+alter table public.products add column if not exists printify_catalog_id text;
+
 commit;

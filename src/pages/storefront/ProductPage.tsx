@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
-import { ShoppingBag, ChevronRight, Truck, ShieldCheck, ArrowLeft, Plus, Minus, MessageSquare, Star, Heart, Share2, Zap, RotateCcw, CreditCard, Gift, BadgeCheck } from 'lucide-react';
+import { ShoppingBag, ChevronRight, Truck, ShieldCheck, ArrowLeft, Plus, Minus, MessageSquare, Star, Heart, Share2, Zap, RotateCcw, CreditCard, Gift, BadgeCheck, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -324,6 +324,22 @@ export const ProductPage: React.FC = () => {
 
             <div className={`flex flex-col ${isDevsFolk && device === 'mobile' ? 'gap-2' : 'gap-3'}`}>
                 <div className="flex gap-2">
+                {product.isPrintify && settings.printifySettings?.enabled ? (
+                  <Link to={`/product/${product.slug}/customize`} className="flex-1">
+                    <Button 
+                      size="lg" 
+                      className={`${isDevsFolk && device === 'mobile' ? 'h-10 text-[10px]' : 'h-14 text-lg'} w-full rounded-xl md:rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2`}
+                      style={{
+                        backgroundColor: settings.primaryColor,
+                        color: 'var(--primary-foreground)',
+                        borderColor: 'var(--primary-border)',
+                      }}
+                    >
+                      <Palette className="h-3.5 w-3.5 md:h-6 md:w-6" />
+                      Customize Design
+                    </Button>
+                  </Link>
+                ) : (
                   <Button 
                     size="lg" 
                     disabled={product.stock <= 0}
@@ -338,6 +354,7 @@ export const ProductPage: React.FC = () => {
                     <ShoppingBag className="h-3.5 w-3.5 md:h-6 md:w-6" />
                     {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                   </Button>
+                )}
                   <Button
                     size="lg"
                     variant="outline"
