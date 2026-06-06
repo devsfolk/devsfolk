@@ -1,11 +1,12 @@
 import React from 'react';
 import { useShop } from '@/context/ShopContext';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Globe, Shield, CreditCard, MessageSquare, Bell, User, Truck, ShieldCheck, RotateCcw, Zap, Gift, BadgeCheck, CreditCard as CreditCardIcon, Plus, Trash2, Instagram, Facebook, Youtube, Twitter, Linkedin, Upload, X, Loader2 } from 'lucide-react';
+import { Globe, Shield, CreditCard, MessageSquare, Bell, User, Truck, ShieldCheck, RotateCcw, Zap, Gift, BadgeCheck, CreditCard as CreditCardIcon, Plus, Trash2, Instagram, Facebook, Youtube, Twitter, Linkedin, Upload, X, Loader2, Printer } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +16,7 @@ import { optimizeImage } from '@/lib/imageUtils';
 
 export const GeneralSettings: React.FC = () => {
   const { settings, updateSettings } = useShop();
+  const navigate = useNavigate();
 
   const featureIconOptions: { value: FeatureIcon; label: string }[] = [
     { value: 'truck', label: 'Free Shipping / Delivery' },
@@ -782,6 +784,41 @@ export const GeneralSettings: React.FC = () => {
                 </div>
                 <Switch defaultChecked />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm rounded-3xl">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Printer className="h-5 w-5 text-gray-400" />
+                <CardTitle>Integrations</CardTitle>
+              </div>
+              <CardDescription>Connect your store with third-party platforms.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                <div>
+                  <h4 className="font-bold">Printify POD Integration</h4>
+                  <p className="text-xs text-gray-500">Synchronize catalog and automate order fulfillment.</p>
+                </div>
+                <Switch 
+                  checked={settings.printifySettings?.enabled || false}
+                  onCheckedChange={(checked) => handleUpdate({ 
+                    printifySettings: { ...settings.printifySettings, enabled: checked } 
+                  })}
+                />
+              </div>
+              {settings.printifySettings?.enabled && (
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    className="rounded-xl w-full h-10 text-[10px] font-black uppercase tracking-widest border-black text-black hover:bg-neutral-50"
+                    onClick={() => navigate('/dashboard/printify')}
+                  >
+                    Configure Printify settings
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

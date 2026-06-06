@@ -114,7 +114,7 @@ export const OrdersPage: React.FC = () => {
                 body: `Customer: ${latestOrder.customerName}\nTotal: ${settings.currencySymbol}${latestOrder.total.toFixed(2)}\nPlatform: ${latestOrder.paymentMethod === 'WHATSAPP' ? 'WhatsApp' : 'Website'}`,
                 icon: '/favicon.ico',
                 vibrate: [200, 100, 200, 100, 200]
-              });
+              } as any);
             } catch (err) {
               console.error('System push alert trigger error:', err);
             }

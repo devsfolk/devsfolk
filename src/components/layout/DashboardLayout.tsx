@@ -11,7 +11,8 @@ import {
   ChevronLeft,
   LogOut,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Printer
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -55,6 +56,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     { name: 'Reviews', href: '/dashboard/reviews', icon: MessageSquare },
     { name: 'Design', href: '/dashboard/design', icon: Palette },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+    ...(settings.printifySettings?.enabled ? [{ name: 'Printify', href: '/dashboard/printify', icon: Printer }] : []),
   ];
 
   const currentNavItem = navItems.find(item => item.href === location.pathname) || navItems[0];
