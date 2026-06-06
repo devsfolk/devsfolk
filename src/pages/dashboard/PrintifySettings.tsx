@@ -58,7 +58,7 @@ export const PrintifySettings: React.FC = () => {
       lastCheckedTokenRef.current = token;
       try {
         const targetUrl = 'https://api.printify.com/v1/shops.json';
-        const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+        const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
         
         const response = await fetch(proxiedUrl, {
           headers: {
@@ -151,7 +151,7 @@ export const PrintifySettings: React.FC = () => {
 
     try {
       const targetUrl = 'https://api.printify.com/v1/shops.json';
-      const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+      const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
       
       const response = await fetch(proxiedUrl, {
         headers: {
@@ -214,7 +214,7 @@ export const PrintifySettings: React.FC = () => {
     try {
       const apiKey = printifySettings.providerSettings.apiKey.trim();
       const targetUrl = `https://api.printify.com/v1/shops/${shopId}/products.json`;
-      const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+      const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
 
       setSyncLogs(prev => [...prev, '[INFO] Connecting to Printify API via secure client bridge...']);
       
