@@ -98,7 +98,8 @@ export interface PrintifyEditorSettings {
 export interface PrintifyAiPreviewSettings {
   provider: 'gemini' | 'openai';
   apiKey: string;
-  anglesCount: number;
+  maxPreviewImages: number;
+  pipelinePrompt: string;
 }
 
 export interface PrintifyPreviewSettings {
@@ -115,12 +116,21 @@ export interface PrintifyCharges {
   placementFees: Record<string, number>;
 }
 
+export interface PrintifySyncSettings {
+  mode: 'manual' | 'scheduled' | 'webhook';
+  scheduleInterval: 'daily' | 'weekly' | 'hourly';
+  autoSyncEnabled: boolean;
+  lastSyncAt?: string;
+  lastSyncStatus?: 'success' | 'failed' | 'pending';
+}
+
 export interface PrintifySettings {
   enabled: boolean;
   providerSettings: PrintifyProviderSettings;
   editor: PrintifyEditorSettings;
   preview: PrintifyPreviewSettings;
   charges: PrintifyCharges;
+  sync: PrintifySyncSettings;
 }
 
 export interface ThemeSettings {

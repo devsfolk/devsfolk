@@ -7,18 +7,19 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
 
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders } = useShop();
   
-  // Default values fallback
   const printifySettings = settings.printifySettings || {
     enabled: false,
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
-    preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', anglesCount: 3 } },
-    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} }
+    preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: '' } },
+    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true }
   };
 
   const [saving, setSaving] = useState(false);
@@ -39,7 +40,6 @@ export const PrintifySettings: React.FC = () => {
 
   const handleSave = async () => {
     setSaving(true);
-    // Simulate configuration save
     await new Promise(resolve => setTimeout(resolve, 800));
     setSaving(false);
   };
@@ -53,7 +53,6 @@ export const PrintifySettings: React.FC = () => {
     setConnectionStatus('idle');
     await new Promise(resolve => setTimeout(resolve, 1500));
     setTestingConnection(false);
-    // Standard basic check on input formatting
     if (printifySettings.providerSettings.apiKey.length > 10 && printifySettings.providerSettings.shopId.length > 2) {
       setConnectionStatus('success');
     } else {
@@ -73,7 +72,6 @@ export const PrintifySettings: React.FC = () => {
     setSyncingProducts(false);
   };
 
-  // Mocking order sync states for dashboard display
   const customPrintOrders = orders.map((o, idx) => ({
     ...o,
     printifyOrderId: idx % 3 === 0 ? null : `pr_ord_${o.id.slice(0, 6)}`,
@@ -118,12 +116,36 @@ export const PrintifySettings: React.FC = () => {
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-gray-100 p-1 rounded-2xl w-full flex overflow-x-auto justify-start md:justify-center border">
-            <TabsTrigger value="apis" className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider">APIs</TabsTrigger>
-            <TabsTrigger value="editor" className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider">Editor</TabsTrigger>
-            <TabsTrigger value="preview" className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider">Live Preview</TabsTrigger>
-            <TabsTrigger value="sync" className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider">Product Sync</TabsTrigger>
-            <TabsTrigger value="orders" className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider">Orders</TabsTrigger>
-            <TabsTrigger value="webhooks" className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider">Webhooks</TabsTrigger>
+            <TabsTrigger value="apis" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
+              <Key className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
+              <span className="hidden md:inline">APIs</span>
+              <span className="md:hidden">APIs</span>
+            </TabsTrigger>
+            <TabsTrigger value="editor" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
+              <Edit className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
+              <span className="hidden md:inline">Editor</span>
+              <span className="md:hidden">Editor</span>
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
+              <Eye className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
+              <span className="hidden md:inline">Live Preview</span>
+              <span className="md:hidden">Preview</span>
+            </TabsTrigger>
+            <TabsTrigger value="sync" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
+              <RefreshCw className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
+              <span className="hidden md:inline">Product Sync</span>
+              <span className="md:hidden">Sync</span>
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
+              <ShoppingCart className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
+              <span className="hidden md:inline">Orders</span>
+              <span className="md:hidden">Orders</span>
+            </TabsTrigger>
+            <TabsTrigger value="webhooks" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
+              <Link className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
+              <span className="hidden md:inline">Webhooks</span>
+              <span className="md:hidden">Hooks</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* APIs Tab */}
@@ -137,6 +159,15 @@ export const PrintifySettings: React.FC = () => {
                 <CardDescription className="text-xs">Provide credentials to securely connect your store to Printify.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 p-5 md:p-6 pt-0">
+                {/* API Info Banner */}
+                <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                  <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-blue-700 leading-relaxed">
+                    <p className="font-bold mb-1">One Token, Full Access</p>
+                    <p>Printify uses a single Personal Access Token (PAT) that grants access to <strong>all</strong> API endpoints — Catalog, Uploads, Products, Orders, Shops, and Webhooks. You do not need separate keys for each service.</p>
+                  </div>
+                </div>
+
                 <div className="grid gap-2">
                   <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Printify API Access Token</Label>
                   <Input 
@@ -183,6 +214,26 @@ export const PrintifySettings: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* API Endpoints Reference */}
+                <div className="pt-4 border-t">
+                  <h4 className="font-black text-xs uppercase tracking-wider text-gray-500 pl-1 mb-3">Endpoints Covered by Your Token</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {[
+                      { name: 'Catalog API', desc: 'Products, colors, sizes, print areas' },
+                      { name: 'Upload API', desc: 'Customer design uploads' },
+                      { name: 'Product API', desc: 'Create printable products' },
+                      { name: 'Order API', desc: 'Send orders to Printify' },
+                      { name: 'Shops API', desc: 'Store setup & management' },
+                      { name: 'Webhooks', desc: 'Order status updates' },
+                    ].map((ep) => (
+                      <div key={ep.name} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-gray-700">{ep.name}</p>
+                        <p className="text-[9px] text-gray-500 mt-0.5 leading-snug">{ep.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -193,7 +244,7 @@ export const PrintifySettings: React.FC = () => {
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <Edit className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Customizer Editor Selection</CardTitle>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Customizer Editor</CardTitle>
                 </div>
                 <CardDescription className="text-xs">Choose and enable the editing interface available to customers.</CardDescription>
               </CardHeader>
@@ -263,7 +314,7 @@ export const PrintifySettings: React.FC = () => {
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <Eye className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Live Preview Settings</CardTitle>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Live Preview</CardTitle>
                 </div>
                 <CardDescription className="text-xs">Control how visual mockups are rendered for customer verification.</CardDescription>
               </CardHeader>
@@ -284,7 +335,7 @@ export const PrintifySettings: React.FC = () => {
                       />
                     </div>
                     <p className="text-[11px] text-gray-600 leading-relaxed mb-4">
-                      Super fast and completely cost-free. Mockup overlay is generated client-side directly on the user's phone or laptop.
+                      Super fast and completely cost-free. Mockup overlay is generated client-side directly on the user's device.
                     </p>
                     <Button 
                       variant={printifySettings.preview.selected === 'devsfolk' ? 'default' : 'outline'}
@@ -311,7 +362,7 @@ export const PrintifySettings: React.FC = () => {
                       />
                     </div>
                     <p className="text-[11px] text-gray-600 leading-relaxed mb-4">
-                      Sends design models and templates through an AI pipeline to output premium, ultra-realistic product display visuals.
+                      Sends design models through an AI pipeline to output premium, ultra-realistic product display visuals.
                     </p>
                     <Button 
                       variant={printifySettings.preview.selected === 'ai' ? 'default' : 'outline'}
@@ -325,7 +376,7 @@ export const PrintifySettings: React.FC = () => {
                 </div>
 
                 {printifySettings.preview.aiEnabled && printifySettings.preview.selected === 'ai' && (
-                  <div className="p-5 bg-gray-50 border rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-300">
+                  <div className="p-5 bg-gray-50 border rounded-3xl space-y-5 animate-in slide-in-from-top-4 duration-300">
                     <h4 className="font-black text-xs uppercase tracking-wider text-gray-500 pl-1">AI Pipeline Configurations</h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -351,13 +402,13 @@ export const PrintifySettings: React.FC = () => {
                       </div>
 
                       <div className="grid gap-2">
-                        <Label className="text-[9px] uppercase text-gray-400 pl-1">Viewing Angles Count (1 - 5)</Label>
+                        <Label className="text-[9px] uppercase text-gray-400 pl-1">Max Preview Images per Product (1–5)</Label>
                         <Select 
-                          value={printifySettings.preview.aiConfig.anglesCount.toString()} 
+                          value={printifySettings.preview.aiConfig.maxPreviewImages.toString()} 
                           onValueChange={(val) => handleUpdate({
                             preview: {
                               ...printifySettings.preview,
-                              aiConfig: { ...printifySettings.preview.aiConfig, anglesCount: parseInt(val) }
+                              aiConfig: { ...printifySettings.preview.aiConfig, maxPreviewImages: parseInt(val) }
                             }
                           })}
                         >
@@ -366,7 +417,12 @@ export const PrintifySettings: React.FC = () => {
                           </SelectTrigger>
                           <SelectContent>
                             {[1, 2, 3, 4, 5].map((val) => (
-                              <SelectItem key={val} value={val.toString()}>{val} Angle{val > 1 ? 's' : ''}</SelectItem>
+                              <SelectItem key={val} value={val.toString()}>
+                                {val} {val === 1 ? 'Image' : 'Images'}
+                                {val === 1 && ' (front + back combined)'}
+                                {val === 2 && ' (front & back separate)'}
+                                {val >= 3 && ' (+ additional angles)'}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -388,6 +444,27 @@ export const PrintifySettings: React.FC = () => {
                         className="rounded-xl h-10 text-xs font-mono border-gray-200"
                       />
                     </div>
+
+                    <div className="grid gap-2">
+                      <div className="flex items-center gap-2 pl-1">
+                        <FileText className="h-3 w-3 text-gray-400" />
+                        <Label className="text-[9px] uppercase text-gray-400">Pipeline Prompt (AI Generation Instructions)</Label>
+                      </div>
+                      <Textarea
+                        value={printifySettings.preview.aiConfig.pipelinePrompt}
+                        onChange={(e) => handleUpdate({
+                          preview: {
+                            ...printifySettings.preview,
+                            aiConfig: { ...printifySettings.preview.aiConfig, pipelinePrompt: e.target.value }
+                          }
+                        })}
+                        placeholder="e.g. Generate a photorealistic product mockup with soft studio lighting, neutral background, slight shadow beneath the product..."
+                        className="rounded-2xl min-h-[100px] text-xs border-gray-200 leading-relaxed"
+                      />
+                      <p className="text-[9px] text-gray-500 italic pl-1">
+                        Customize background style, lighting, camera angle, product presentation, and any other visual details for AI-generated previews.
+                      </p>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -396,20 +473,88 @@ export const PrintifySettings: React.FC = () => {
 
           {/* Product Sync Tab */}
           <TabsContent value="sync" className="space-y-6 animate-in fade-in duration-200 outline-none">
+            {/* Sync Mode Settings */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="p-5 md:p-6">
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-gray-400" />
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Sync Strategy</CardTitle>
+                </div>
+                <CardDescription className="text-xs">Choose how product data stays in sync between Printify and your store.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5 p-5 md:p-6 pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { id: 'webhook', label: 'Real-time (Webhook)', desc: 'Syncs instantly when Printify products change.', icon: Zap },
+                    { id: 'scheduled', label: 'Scheduled', desc: 'Automatic daily, weekly, or hourly sync.', icon: Clock },
+                    { id: 'manual', label: 'Manual Only', desc: 'You decide when to pull latest catalog data.', icon: Play },
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      onClick={() => handleUpdate({
+                        sync: { ...printifySettings.sync, mode: mode.id as 'manual' | 'scheduled' | 'webhook' }
+                      })}
+                      className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                        printifySettings.sync?.mode === mode.id 
+                          ? 'border-black bg-neutral-50' 
+                          : 'border-gray-100 bg-white hover:border-gray-200'
+                      }`}
+                    >
+                      <mode.icon className={`h-5 w-5 mb-2 ${printifySettings.sync?.mode === mode.id ? 'text-black' : 'text-gray-400'}`} />
+                      <h4 className="font-bold text-xs uppercase tracking-tight">{mode.label}</h4>
+                      <p className="text-[10px] text-gray-500 mt-1 leading-snug">{mode.desc}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {printifySettings.sync?.mode === 'scheduled' && (
+                  <div className="p-4 bg-gray-50 border rounded-2xl space-y-3 animate-in fade-in duration-200">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Schedule Interval</Label>
+                    <Select
+                      value={printifySettings.sync?.scheduleInterval || 'daily'}
+                      onValueChange={(val) => handleUpdate({
+                        sync: { ...printifySettings.sync, scheduleInterval: val as 'daily' | 'weekly' | 'hourly' }
+                      })}
+                    >
+                      <SelectTrigger className="rounded-xl h-10 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hourly">Every Hour</SelectItem>
+                        <SelectItem value="daily">Once a Day</SelectItem>
+                        <SelectItem value="weekly">Once a Week</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {printifySettings.sync?.mode === 'webhook' && (
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl animate-in fade-in duration-200">
+                    <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-[11px] text-amber-700 leading-relaxed">
+                      <p className="font-bold mb-1">Webhook Sync Active</p>
+                      <p>Configure your Printify webhook to send product update events to your store. Products, pricing, variants, and availability will update in real-time when they change in Printify.</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Manual Sync + Logs */}
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <RefreshCw className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Product Catalog Synchronization</CardTitle>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Manual Sync</CardTitle>
                 </div>
-                <CardDescription className="text-xs">Configure how often Printify products, variants, and stock maps are cached locally.</CardDescription>
+                <CardDescription className="text-xs">Force an immediate catalog refresh from Printify at any time.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 p-5 md:p-6 pt-0">
                 <div className="bg-gray-50 border p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Manual Synchronization</h4>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Run Sync Now</h4>
                     <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Forces an immediate fetch of Printify's catalog configurations, importing variants and sizes into the local Supabase cache.
+                      Fetches Printify's catalog configurations, importing variants, sizes, colors, print areas, and pricing into the local Supabase cache.
                     </p>
                   </div>
                   <Button 
@@ -420,6 +565,22 @@ export const PrintifySettings: React.FC = () => {
                     {syncingProducts ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Play className="h-3 w-3 mr-2" />}
                     Sync Catalog now
                   </Button>
+                </div>
+
+                {/* Sync Status */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 bg-gray-50 rounded-xl border">
+                    <p className="text-[9px] font-black uppercase text-gray-400">Last Sync</p>
+                    <p className="text-xs font-bold mt-1">{printifySettings.sync?.lastSyncAt || 'Never'}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border">
+                    <p className="text-[9px] font-black uppercase text-gray-400">Status</p>
+                    <p className="text-xs font-bold mt-1 capitalize">{printifySettings.sync?.lastSyncStatus || 'Pending'}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border">
+                    <p className="text-[9px] font-black uppercase text-gray-400">Sync Mode</p>
+                    <p className="text-xs font-bold mt-1 capitalize">{printifySettings.sync?.mode || 'Scheduled'}</p>
+                  </div>
                 </div>
 
                 {syncLogs.length > 0 && (
@@ -444,58 +605,69 @@ export const PrintifySettings: React.FC = () => {
                 </div>
                 <CardDescription className="text-xs">Monitor the automated print fulfillment status of custom-designed orders.</CardDescription>
               </CardHeader>
-              <CardContent className="p-5 md:p-6 pt-0 overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-[10px] uppercase font-black text-gray-400">
-                      <th className="pb-3 pl-2">Order ID</th>
-                      <th className="pb-3">Customer</th>
-                      <th className="pb-3">Total</th>
-                      <th className="pb-3 text-center">Fulfillment Status</th>
-                      <th className="pb-3">Printify ID</th>
-                      <th className="pb-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {customPrintOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8 text-xs text-gray-400">No customizer orders recorded yet.</td>
+              <CardContent className="space-y-5 p-5 md:p-6 pt-0">
+                {/* Orders Explanation */}
+                <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                  <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-blue-700 leading-relaxed">
+                    <p className="font-bold mb-1">How Printify Orders Work</p>
+                    <p>When a customer places an order that includes a customized product, the order appears in <strong>both</strong> the main Orders page and here. This section shows the Printify-specific fulfillment tracking — whether the order was successfully forwarded to Printify, its print status, shipping progress, and any errors. Regular (non-customized) orders only appear in the main Orders page.</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-[10px] uppercase font-black text-gray-400">
+                        <th className="pb-3 pl-2">Order ID</th>
+                        <th className="pb-3">Customer</th>
+                        <th className="pb-3">Total</th>
+                        <th className="pb-3 text-center">Fulfillment Status</th>
+                        <th className="pb-3">Printify ID</th>
+                        <th className="pb-3 text-right">Actions</th>
                       </tr>
-                    ) : (
-                      customPrintOrders.map((ord) => (
-                        <tr key={ord.id} className="text-xs">
-                          <td className="py-4 pl-2 font-mono font-bold">#{ord.id.slice(0, 8)}</td>
-                          <td className="py-4 font-bold">{ord.customerName}</td>
-                          <td className="py-4 font-mono font-bold">${ord.total.toFixed(2)}</td>
-                          <td className="py-4">
-                            <div className="flex justify-center">
-                              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
-                                ord.printifySyncStatus === 'SYNCED' 
-                                  ? 'bg-green-50 text-green-700 border border-green-100' 
-                                  : (ord.printifySyncStatus === 'FAILED' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100')
-                              }`}>
-                                {ord.printifySyncStatus}
-                              </span>
-                            </div>
-                            {ord.printifySyncStatus === 'FAILED' && (
-                              <p className="text-[9px] text-red-500 mt-1 pl-2 text-center max-w-[200px] truncate">{ord.printifyErrorLog}</p>
-                            )}
-                          </td>
-                          <td className="py-4 font-mono text-gray-500">{ord.printifyOrderId || 'N/A'}</td>
-                          <td className="py-4 text-right">
-                            <Button 
-                              variant="outline" 
-                              className="rounded-lg h-8 px-3 text-[9px] font-black uppercase tracking-wider"
-                              onClick={() => alert(`Retrying Printify push for Order #${ord.id}`)}
-                            >
-                              Push / Retry
-                            </Button>
-                          </td>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {customPrintOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-xs text-gray-400">No customizer orders recorded yet.</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        customPrintOrders.map((ord) => (
+                          <tr key={ord.id} className="text-xs">
+                            <td className="py-4 pl-2 font-mono font-bold">#{ord.id.slice(0, 8)}</td>
+                            <td className="py-4 font-bold">{ord.customerName}</td>
+                            <td className="py-4 font-mono font-bold">${ord.total.toFixed(2)}</td>
+                            <td className="py-4">
+                              <div className="flex justify-center">
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                                  ord.printifySyncStatus === 'SYNCED' 
+                                    ? 'bg-green-50 text-green-700 border border-green-100' 
+                                    : (ord.printifySyncStatus === 'FAILED' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100')
+                                }`}>
+                                  {ord.printifySyncStatus}
+                                </span>
+                              </div>
+                              {ord.printifySyncStatus === 'FAILED' && (
+                                <p className="text-[9px] text-red-500 mt-1 pl-2 text-center max-w-[200px] truncate">{ord.printifyErrorLog}</p>
+                              )}
+                            </td>
+                            <td className="py-4 font-mono text-gray-500">{ord.printifyOrderId || 'N/A'}</td>
+                            <td className="py-4 text-right">
+                              <Button 
+                                variant="outline" 
+                                className="rounded-lg h-8 px-3 text-[9px] font-black uppercase tracking-wider"
+                                onClick={() => alert(`Retrying Printify push for Order #${ord.id}`)}
+                              >
+                                Push / Retry
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -508,19 +680,9 @@ export const PrintifySettings: React.FC = () => {
                   <Link className="h-5 w-5 text-gray-400" />
                   <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Webhook Notifications</CardTitle>
                 </div>
-                <CardDescription className="text-xs">Configure status listeners to capture print updates automatically.</CardDescription>
+                <CardDescription className="text-xs">Configure status listeners to capture print and product updates automatically.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 p-5 md:p-6 pt-0">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-                  <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Fulfillment Webhooks</h4>
-                    <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Enable status syncing. Once a T-shirt is printed, packaged, and shipped, Printify webhooks automatically update order statuses in your dashboard.
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
                 <div className="grid gap-2">
                   <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Target Webhook Endpoint URL</Label>
                   <Input 
@@ -529,8 +691,30 @@ export const PrintifySettings: React.FC = () => {
                     className="rounded-xl h-11 text-sm font-mono border-gray-200 bg-gray-50"
                   />
                   <p className="text-[10px] text-gray-500 italic pl-1">
-                    Provide this URL inside your Printify Developer Console webhooks settings to subscribe to shipment events.
+                    Provide this URL inside your Printify Developer Console webhooks settings to subscribe to events.
                   </p>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <h4 className="font-black text-xs uppercase tracking-wider text-gray-500 pl-1 mb-3">Event Subscriptions</h4>
+                  <div className="space-y-3">
+                    {[
+                      { event: 'order.created', desc: 'Triggered when a new order is submitted to Printify.' },
+                      { event: 'order.updated', desc: 'Triggered when an order status changes (e.g. printing → shipped).' },
+                      { event: 'order.shipped', desc: 'Triggered when a completed order is dispatched with tracking info.' },
+                      { event: 'order.cancelled', desc: 'Triggered when an order is cancelled or returned.' },
+                      { event: 'product.updated', desc: 'Triggered when a product\'s pricing, variants, or availability changes.' },
+                      { event: 'product.deleted', desc: 'Triggered when a product is removed from Printify catalog.' },
+                    ].map((wh) => (
+                      <div key={wh.event} className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                        <div>
+                          <p className="text-xs font-bold font-mono">{wh.event}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">{wh.desc}</p>
+                        </div>
+                        <Switch defaultChecked />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>

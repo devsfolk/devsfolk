@@ -119,8 +119,9 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     enabled: false,
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
-    preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', anglesCount: 3 } },
-    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} }
+    preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: 'Generate a photorealistic product mockup with soft studio lighting, neutral background, and a slight shadow beneath the product. Show the design clearly on the product surface.' } },
+    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true },
   },
 };
 
@@ -333,6 +334,10 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
         ...DEFAULT_SETTINGS.printifySettings!.charges.placementFees,
         ...(raw?.printifySettings?.charges?.placementFees || {}),
       },
+    },
+    sync: {
+      ...DEFAULT_SETTINGS.printifySettings!.sync,
+      ...(raw?.printifySettings?.sync || {}),
     },
   },
 });
