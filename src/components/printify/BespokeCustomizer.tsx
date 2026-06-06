@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
-import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette } from 'lucide-react';
+import { fabric } from 'fabric';
+import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,52 +18,43 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const navigate = useNavigate();
   const { products, settings, addToCart } = useShop();
 
-  // Find printify product: use provided slug, first printify product, or sample product fallback
-  const product = products.find((p) => p.slug === productSlug) || 
-                  products.find((p) => p.isPrintify) || 
-                  products[0];
+  // Filter custom-eligible Printify products
+  const customProducts = products.filter((p) => p.isPrintify);
+
+  // Active product state
+  const [activeProduct, setActiveProduct] = useState(() => {
+    return products.find((p) => p.slug === productSlug) || 
+           products.find((p) => p.isPrintify) || 
+           products[0];
+  });
 
   const printifyEnabled = settings.printifySettings?.enabled;
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
 
-  // State configurations
+  // Option configurations
   const [selectedColor, setSelectedColor] = useState('#FFFFFF');
   const [selectedSize, setSelectedSize] = useState('M');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
 
-  // Sync color & size to product options when loaded
-  useEffect(() => {
-    if (product) {
-      if (product.colors && product.colors.length > 0) {
-        setSelectedColor(product.colors[0]);
-      }
-      if (product.sizes && product.sizes.length > 0) {
-        setSelectedSize(product.sizes[0]);
-      }
-    }
-  }, [product]);
-
-  // Customizer image state
+  // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
-  const [imagePos, setImagePos] = useState({ x: 50, y: 50, scale: 1, rotate: 0 });
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Customizer text state
   const [customText, setCustomText] = useState('');
   const [textFont, setTextFont] = useState('Inter');
   const [textColor, setTextColor] = useState('#000000');
-  const [textPos, setTextPos] = useState({ x: 50, y: 30, scale: 1, rotate: 0 });
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Selected object properties for sliders
+  const [selectedAngle, setSelectedAngle] = useState(0);
+  const [selectedScale, setSelectedScale] = useState(1);
+  const [hasSelection, setHasSelection] = useState(false);
 
   // AI mockups placeholder state
   const [aiMockups, setAiMockups] = useState<string[]>([]);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
-  // Dragging states
-  const [isDragging, setIsDragging] = useState<'image' | 'text' | null>(null);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const canvasElRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Available fonts
@@ -74,7 +66,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     { name: 'Impact Condensed (Oswald)', value: 'Oswald' },
   ];
 
-  // Dynamic colors list mapping for display
+  // Colors display helper
   const colorMap: Record<string, string> = {
     '#FFFFFF': 'White',
     '#111827': 'Charcoal / Black',
@@ -83,7 +75,75 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     '#10B981': 'Emerald Green',
   };
 
-  if (!product || !printifyEnabled) {
+  // Sync colors & sizes when active product shifts
+  useEffect(() => {
+    if (activeProduct) {
+      if (activeProduct.colors && activeProduct.colors.length > 0) {
+        setSelectedColor(activeProduct.colors[0]);
+      }
+      if (activeProduct.sizes && activeProduct.sizes.length > 0) {
+        setSelectedSize(activeProduct.sizes[0]);
+      }
+    }
+  }, [activeProduct]);
+
+  // Initialize Fabric.js Canvas
+  useEffect(() => {
+    if (!canvasElRef.current || !printAreaRef.current) return;
+
+    // Reset local canvas states
+    setCustomImage(null);
+    setCustomText('');
+    setHasSelection(false);
+
+    // Get parent bounds
+    const rect = printAreaRef.current.getBoundingClientRect();
+    const width = rect.width || printAreaRef.current.clientWidth || 175;
+    const height = rect.height || printAreaRef.current.clientHeight || 225;
+
+    const canvas = new fabric.Canvas(canvasElRef.current, {
+      width,
+      height,
+      backgroundColor: 'transparent',
+      preserveObjectStacking: true,
+    });
+
+    fabricCanvasRef.current = canvas;
+
+    // Selection syncing events
+    const syncSelection = () => {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        setHasSelection(true);
+        setSelectedAngle(Math.round(activeObj.angle || 0));
+        setSelectedScale(activeObj.scaleX || 1);
+
+        if (activeObj.type === 'i-text') {
+          const textObj = activeObj as fabric.IText;
+          setCustomText(textObj.text || '');
+          setTextFont(textObj.fontFamily || 'Inter');
+          setTextColor(textObj.fill as string || '#000000');
+        }
+      } else {
+        setHasSelection(false);
+      }
+    };
+
+    canvas.on('selection:created', syncSelection);
+    canvas.on('selection:updated', syncSelection);
+    canvas.on('selection:cleared', () => setHasSelection(false));
+    canvas.on('object:moving', syncSelection);
+    canvas.on('object:scaling', syncSelection);
+    canvas.on('object:rotating', syncSelection);
+    canvas.on('object:modified', syncSelection);
+
+    return () => {
+      canvas.dispose();
+      fabricCanvasRef.current = null;
+    };
+  }, [activeProduct]);
+
+  if (!activeProduct || !printifyEnabled) {
     return (
       <div className="p-8 text-center bg-gray-50 border border-dashed rounded-3xl">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
@@ -93,70 +153,183 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     );
   }
 
-  // Drag interaction handlers
-  const handlePointerDown = (type: 'image' | 'text', e: React.PointerEvent) => {
-    e.stopPropagation();
-    setIsDragging(type);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setDragOffset(type === 'image' ? { x: imagePos.x, y: imagePos.y } : { x: textPos.x, y: textPos.y });
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging || !printAreaRef.current) return;
-    const rect = printAreaRef.current.getBoundingClientRect();
-    const dx = ((e.clientX - dragStart.x) / rect.width) * 100;
-    const dy = ((e.clientY - dragStart.y) / rect.height) * 100;
-
-    const newX = Math.max(0, Math.min(100, dragOffset.x + dx));
-    const newY = Math.max(0, Math.min(100, dragOffset.y + dy));
-
-    if (isDragging === 'image') {
-      setImagePos((prev) => ({ ...prev, x: newX, y: newY }));
-    } else {
-      setTextPos((prev) => ({ ...prev, x: newX, y: newY }));
-    }
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDragging) {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      setIsDragging(null);
-    }
-  };
-
-  // Image upload optimization handler
+  // Optimize and Upload image onto Fabric.js Canvas
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploading(true);
     try {
       const optimized = await optimizeImage(file, 800, 800);
-      setCustomImage(optimized);
-      setImagePos({ x: 50, y: 50, scale: 0.5, rotate: 0 });
-      setActiveTab('upload');
+      const canvas = fabricCanvasRef.current;
+      if (canvas) {
+        fabric.Image.fromURL(optimized, (img) => {
+          // Resize to fit print area reasonably
+          const scaleFactor = (canvas.width * 0.7) / (img.width || 1);
+          img.set({
+            left: canvas.width / 2,
+            top: canvas.height / 2,
+            originX: 'center',
+            originY: 'center',
+            scaleX: scaleFactor,
+            scaleY: scaleFactor,
+            cornerColor: '#000000',
+            cornerStrokeColor: '#ffffff',
+            borderColor: '#000000',
+            cornerSize: 8,
+            transparentCorners: false,
+            padding: 5,
+          });
+
+          // Remove any existing graphic layers to keep it focused
+          const oldImages = canvas.getObjects('image');
+          oldImages.forEach((obj) => canvas.remove(obj));
+
+          canvas.add(img);
+          canvas.setActiveObject(img);
+          canvas.renderAll();
+
+          setCustomImage(optimized);
+          setActiveTab('upload');
+        });
+      }
     } catch (err) {
-      console.error('Failed to optimize custom design upload:', err);
-      alert('Error processing image. Please try another file.');
+      console.error('Failed to upload custom graphic:', err);
+      alert('Failed to process custom design. Please try another image.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleReset = () => {
-    if (confirm('Are you sure you want to reset all design inputs?')) {
-      setCustomImage(null);
-      setCustomText('');
-      setImagePos({ x: 50, y: 50, scale: 1, rotate: 0 });
-      setTextPos({ x: 50, y: 30, scale: 1, rotate: 0 });
+  // Add/Modify Custom Text Layer on Fabric Canvas
+  const handleTextChange = (val: string) => {
+    setCustomText(val);
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      let activeText = canvas.getObjects('i-text')[0] as fabric.IText;
+      if (val.trim()) {
+        if (!activeText) {
+          activeText = new fabric.IText(val, {
+            left: canvas.width / 2,
+            top: canvas.height * 0.3,
+            originX: 'center',
+            originY: 'center',
+            fontSize: 24,
+            fontFamily: textFont,
+            fill: textColor,
+            fontWeight: 'bold',
+            cornerColor: '#000000',
+            cornerStrokeColor: '#ffffff',
+            borderColor: '#000000',
+            cornerSize: 8,
+            transparentCorners: false,
+            padding: 5,
+          });
+          canvas.add(activeText);
+        } else {
+          activeText.set('text', val);
+        }
+        canvas.setActiveObject(activeText);
+        canvas.renderAll();
+      } else if (activeText) {
+        canvas.remove(activeText);
+        canvas.renderAll();
+      }
     }
   };
 
-  // Local compilation rendering helper to generate preview output
+  // Handle Font styles change
+  const handleFontChange = (font: string) => {
+    setTextFont(font);
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeText = canvas.getObjects('i-text')[0] as fabric.IText;
+      if (activeText) {
+        activeText.set('fontFamily', font);
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Handle Text color change
+  const handleColorChange = (color: string) => {
+    setTextColor(color);
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeText = canvas.getObjects('i-text')[0] as fabric.IText;
+      if (activeText) {
+        activeText.set('fill', color);
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Canvas manual controls modification
+  const handleScaleSlider = (val: number) => {
+    setSelectedScale(val);
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.set({
+          scaleX: val,
+          scaleY: val,
+        });
+        canvas.renderAll();
+      }
+    }
+  };
+
+  const handleRotateSlider = (val: number) => {
+    setSelectedAngle(val);
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        activeObj.set('angle', val);
+        canvas.renderAll();
+      }
+    }
+  };
+
+  // Delete selected layer element
+  const handleDeleteSelected = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj) {
+        canvas.remove(activeObj);
+        canvas.discardActiveObject();
+        canvas.renderAll();
+        
+        // Reset corresponding state
+        if (activeObj.type === 'i-text') {
+          setCustomText('');
+        } else if (activeObj.type === 'image') {
+          setCustomImage(null);
+        }
+      }
+    }
+  };
+
+  // Reset entire Canvas workspace
+  const handleReset = () => {
+    if (confirm('Are you sure you want to clear your current workspace?')) {
+      const canvas = fabricCanvasRef.current;
+      if (canvas) {
+        canvas.clear();
+        setCustomImage(null);
+        setCustomText('');
+        setHasSelection(false);
+      }
+    }
+  };
+
+  // Compile final product preview including background t-shirt tint
   const generatePreviewDataUrl = (): Promise<string> => {
     return new Promise((resolve) => {
       const canvas = compiledCanvasRef.current;
-      if (!canvas) {
+      const fCanvas = fabricCanvasRef.current;
+      if (!canvas || !fCanvas) {
         resolve('');
         return;
       }
@@ -175,80 +348,65 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
       // Load base mockup
       const baseImg = new Image();
-      baseImg.src = '/custom-tee-mockup.png';
+      baseImg.src = activeProduct.images[0] || '/custom-tee-mockup.png';
       baseImg.onload = () => {
+        // Draw shirt mockup multiplying background color
         ctx.globalCompositeOperation = 'multiply';
         ctx.drawImage(baseImg, 0, 0, 600, 600);
         ctx.globalCompositeOperation = 'source-over';
 
+        // Coordinates matching the relative boundary size (35% x 45%)
         const pw = 600 * 0.35;
         const ph = 600 * 0.45;
         const px = (600 - pw) / 2;
         const py = 600 * 0.28;
 
-        ctx.save();
-        
-        if (customImage) {
-          const overlayImg = new Image();
-          overlayImg.src = customImage;
-          overlayImg.onload = () => {
-            ctx.save();
-            const cx = px + (imagePos.x / 100) * pw;
-            const cy = py + (imagePos.y / 100) * ph;
-            ctx.translate(cx, cy);
-            ctx.rotate((imagePos.rotate * Math.PI) / 180);
-            
-            const targetW = pw * 0.8 * imagePos.scale;
-            const targetH = targetW * (overlayImg.height / overlayImg.width);
-            ctx.drawImage(overlayImg, -targetW / 2, -targetH / 2, targetW, targetH);
-            ctx.restore();
-            drawText();
-          };
-        } else {
-          drawText();
+        // Discard active selection line before compilation
+        const activeObj = fCanvas.getActiveObject();
+        if (activeObj) {
+          fCanvas.discardActiveObject();
+          fCanvas.renderAll();
         }
 
-        function drawText() {
-          if (customText.trim()) {
-            ctx.save();
-            const cx = px + (textPos.x / 100) * pw;
-            const cy = py + (textPos.y / 100) * ph;
-            ctx.translate(cx, cy);
-            ctx.rotate((textPos.rotate * Math.PI) / 180);
+        const fabricDataUrl = fCanvas.toDataURL({ format: 'png' });
+        const fabricImg = new Image();
+        fabricImg.src = fabricDataUrl;
+        fabricImg.onload = () => {
+          ctx.drawImage(fabricImg, px, py, pw, ph);
 
-            const fontSize = Math.round(18 * textPos.scale);
-            ctx.font = `bold ${fontSize}px "${textFont}", sans-serif`;
-            ctx.fillStyle = textColor;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(customText, 0, 0);
-            ctx.restore();
+          // Restore selection state
+          if (activeObj) {
+            fCanvas.setActiveObject(activeObj);
+            fCanvas.renderAll();
           }
 
-          ctx.restore();
           resolve(canvas.toDataURL('image/webp', 0.85));
-        }
+        };
       };
-      baseImg.onerror = () => {
-        resolve('');
-      };
+      baseImg.onerror = () => resolve('');
     });
   };
 
-  // Add customized item to shopping cart
+  // Add compiled customization item to cart
   const handleAddToCart = async () => {
     const previewUrl = await generatePreviewDataUrl();
+    const fCanvas = fabricCanvasRef.current;
+    if (!fCanvas) return;
+
+    const imgObj = fCanvas.getObjects('image')[0];
+    const textObj = fCanvas.getObjects('i-text')[0] as fabric.IText;
+
     const customization = {
       customImageUrl: customImage || undefined,
       customText: customText || undefined,
       textColor: customText ? textColor : undefined,
       fontFamily: customText ? textFont : undefined,
-      imagePosition: customImage ? { ...imagePos } : undefined,
-      textPosition: customText ? { ...textPos } : undefined,
+      imagePosition: imgObj ? { x: imgObj.left || 0, y: imgObj.top || 0, scale: imgObj.scaleX || 1, rotate: imgObj.angle || 0 } : undefined,
+      textPosition: textObj ? { x: textObj.left || 0, y: textObj.top || 0, scale: textObj.scaleX || 1, rotate: textObj.angle || 0 } : undefined,
       previewUrl: previewUrl || undefined,
     };
 
-    addToCart(product, undefined, 1, {
+    addToCart(activeProduct, undefined, 1, {
       color: selectedColor,
       size: selectedSize,
       customization,
@@ -257,22 +415,20 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     navigate('/cart');
   };
 
-  // Trigger AI Mockup generation
-  const handleGenerateAiMockup = async () => {
+  // Generate AI preview mockups
+  const handleGenerateAiMockup = () => {
     setIsGeneratingAi(true);
     setAiMockups([]);
-    
     setTimeout(() => {
-      const simulatedMockups = ['/custom-tee-mockup.png'];
-      setAiMockups(simulatedMockups);
+      setAiMockups([activeProduct.images[0]]);
       setIsGeneratingAi(false);
     }, 1500);
   };
 
   // Filter tabs: only include AI Preview if enabled in backend settings
   const tabsList = [
-    { id: 'product', label: 'Shirt', icon: Layout },
-    { id: 'upload', label: 'Graphic', icon: Upload },
+    { id: 'product', label: 'Product', icon: Layout },
+    { id: 'upload', label: 'Graphics', icon: Upload },
     { id: 'text', label: 'Text', icon: Type },
   ];
 
@@ -282,11 +438,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   return (
     <div className="w-full">
-      {/* Optional Header Breadcrumbs */}
+      {/* Standalone Header */}
       {showHeader && (
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-2">
-            <Link to={`/product/${product.slug}`} className="flex items-center gap-2 text-xs font-black uppercase text-gray-400 hover:text-black">
+            <Link to={`/product/${activeProduct.slug}`} className="flex items-center gap-2 text-xs font-black uppercase text-gray-400 hover:text-black">
               <ArrowLeft className="h-4 w-4" /> Back to Product
             </Link>
             <span className="text-gray-300">/</span>
@@ -294,93 +450,48 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleReset} className="rounded-xl text-[10px] font-black uppercase">
-              Reset Design
+              Reset Workspace
             </Button>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left: T-Shirt interactive preview canvas */}
+        {/* Left Column: Canvas Preview area */}
         <div className="lg:col-span-7 flex flex-col items-center">
           <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
-            {/* Base Color Fill */}
+            {/* Color Tinting layer */}
             <div 
               className="absolute inset-0 transition-colors duration-300"
               style={{ backgroundColor: selectedColor }}
             />
 
-            {/* White T-Shirt Overlay Mockup */}
+            {/* Mockup Overlay Multiplier */}
             <img 
-              src="/custom-tee-mockup.png" 
-              alt="T-shirt Mockup" 
+              src={activeProduct.images[0] || '/custom-tee-mockup.png'} 
+              alt="Shirt template" 
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none mix-blend-multiply transition-opacity duration-300"
             />
 
-            {/* Print Area Boundary Box */}
+            {/* Print Area Bounds holding Fabric Canvas */}
             <div 
               ref={printAreaRef}
-              className="absolute w-[35%] h-[45%] top-[28%] border-2 border-dashed border-gray-400/50 hover:border-gray-500 rounded-xl transition-all flex items-center justify-center select-none"
-              onPointerMove={handlePointerMove}
+              className="absolute w-[35%] h-[45%] top-[28%] border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
             >
-              <span className="absolute -top-6 text-[8px] font-black uppercase tracking-widest text-gray-400 bg-white/80 px-2 py-0.5 rounded-full select-none">
-                Print Boundary
-              </span>
-
-              {/* Uploaded Custom Image Overlay */}
-              {customImage && (
-                <div 
-                  className={`absolute cursor-move select-none ${isDragging === 'image' ? 'ring-2 ring-black/35 rounded' : 'hover:ring-1 hover:ring-gray-300 rounded'}`}
-                  style={{
-                    left: `${imagePos.x}%`,
-                    top: `${imagePos.y}%`,
-                    transform: `translate(-50%, -50%) scale(${imagePos.scale}) rotate(${imagePos.rotate}deg)`,
-                    touchAction: 'none'
-                  }}
-                  onPointerDown={(e) => handlePointerDown('image', e)}
-                  onPointerUp={handlePointerUp}
-                >
-                  <img 
-                    src={customImage} 
-                    alt="Custom Print" 
-                    className="max-w-[120px] select-none pointer-events-none object-contain"
-                  />
-                </div>
-              )}
-
-              {/* Custom Text Overlay */}
-              {customText.trim() && (
-                <div 
-                  className={`absolute cursor-move select-none whitespace-nowrap leading-none ${isDragging === 'text' ? 'ring-2 ring-black/35 rounded' : 'hover:ring-1 hover:ring-gray-300 rounded'}`}
-                  style={{
-                    left: `${textPos.x}%`,
-                    top: `${textPos.y}%`,
-                    transform: `translate(-50%, -50%) scale(${textPos.scale}) rotate(${textPos.rotate}deg)`,
-                    fontFamily: `"${textFont}", sans-serif`,
-                    color: textColor,
-                    fontWeight: 'bold',
-                    touchAction: 'none',
-                    fontSize: '14px'
-                  }}
-                  onPointerDown={(e) => handlePointerDown('text', e)}
-                  onPointerUp={handlePointerUp}
-                >
-                  {customText}
-                </div>
-              )}
+              <canvas ref={canvasElRef} id="fabric-canvas" className="absolute inset-0 w-full h-full" />
             </div>
           </div>
           
           <p className="text-[10px] text-gray-400 mt-4 uppercase font-black tracking-widest flex items-center gap-1.5 opacity-70">
-            <HelpCircle className="h-3.5 w-3.5" /> Drag overlays directly inside the boundary box to adjust placement.
+            <HelpCircle className="h-3.5 w-3.5" /> Customize design layers interactively directly on the t-shirt.
           </p>
         </div>
 
-        {/* Right: Controls Options Panel */}
+        {/* Right Column: Control Options */}
         <div className="lg:col-span-5 bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm flex flex-col w-full">
-          {/* Tab Selection */}
-          <div className={`grid border-b`} style={{ gridTemplateColumns: `repeat(${tabsList.length}, minmax(0, 1fr))` }}>
+          {/* Tab buttons list */}
+          <div className="grid border-b" style={{ gridTemplateColumns: `repeat(${tabsList.length}, minmax(0, 1fr))` }}>
             {tabsList.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -397,18 +508,32 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           </div>
 
           <div className="p-6 flex-1 min-h-[350px]">
-            {/* Tab: Product Options */}
+            {/* Tab: Shirt / Product Select */}
             {activeTab === 'product' && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider mb-2">Selected Product</h3>
-                  <p className="text-xs text-gray-500 font-bold">{product.name}</p>
+                {/* Product Selector Dropdown */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Merch Product</Label>
+                  <select
+                    value={activeProduct.id}
+                    onChange={(e) => {
+                      const selected = customProducts.find((p) => p.id === e.target.value);
+                      if (selected) setActiveProduct(selected);
+                    }}
+                    className="w-full h-11 border rounded-xl px-3 text-xs bg-white focus:outline-none border-gray-200"
+                  >
+                    {customProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Shirt Color ({colorMap[selectedColor] || selectedColor})</Label>
+                <div className="space-y-3 pt-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color ({colorMap[selectedColor] || 'Custom Color'})</Label>
                   <div className="flex flex-wrap gap-3">
-                    {product.colors?.map((color) => (
+                    {activeProduct.colors?.map((color) => (
                       <button
                         key={color}
                         onClick={() => setSelectedColor(color)}
@@ -423,7 +548,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Size</Label>
                   <div className="flex flex-wrap gap-2">
-                    {product.sizes?.map((size) => (
+                    {activeProduct.sizes?.map((size) => (
                       <button
                         key={size}
                         onClick={() => setSelectedSize(size)}
@@ -437,73 +562,63 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               </div>
             )}
 
-            {/* Tab: Upload Custom Graphic */}
+            {/* Tab: Upload Custom Graphics */}
             {activeTab === 'upload' && (
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Upload Your Artwork</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Upload Artwork Layer</Label>
                   
-                  {!customImage ? (
-                    <div className="relative group border-2 border-dashed border-gray-200 hover:border-black rounded-2xl p-8 transition-colors flex flex-col items-center justify-center cursor-pointer">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      <Upload className="h-8 w-8 text-gray-400 group-hover:text-black mb-3 transition-colors" />
-                      <span className="text-xs font-black uppercase tracking-wider">{isUploading ? 'Compressing WebP...' : 'Choose File'}</span>
-                      <span className="text-[9px] text-gray-400 mt-1 uppercase font-bold tracking-wider opacity-60">Supports PNG, JPG (Auto-optimized)</span>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-gray-50 rounded-2xl border flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <img src={customImage} alt="Preview" className="w-12 h-12 object-contain bg-white rounded border" />
-                        <div>
-                          <p className="text-xs font-black uppercase text-gray-600">Graphic Uploaded</p>
-                          <p className="text-[9px] text-gray-400 uppercase font-black">Ready for placement</p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => setCustomImage(null)} className="text-red-500 font-bold uppercase text-[10px]">
-                        Remove
-                      </Button>
-                    </div>
-                  )}
+                  <div className="relative group border-2 border-dashed border-gray-200 hover:border-black rounded-2xl p-8 transition-colors flex flex-col items-center justify-center cursor-pointer">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={isUploading}
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    />
+                    <Upload className="h-8 w-8 text-gray-400 group-hover:text-black mb-3 transition-colors" />
+                    <span className="text-xs font-black uppercase tracking-wider">{isUploading ? 'Optimizing Image...' : 'Select File'}</span>
+                    <span className="text-[9px] text-gray-400 mt-1 uppercase font-bold tracking-wider opacity-60">Supports JPG, PNG (WebP Auto-compressed)</span>
+                  </div>
                 </div>
 
-                {customImage && (
-                  <div className="space-y-4 pt-4 border-t">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Manual Graphic Placement</h4>
+                {hasSelection && (
+                  <div className="space-y-4 pt-4 border-t animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between pl-1">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Selected Layer Controls</h4>
+                      <Button variant="ghost" size="icon" onClick={handleDeleteSelected} className="h-7 w-7 text-red-500 rounded-lg hover:bg-red-50">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                     
                     <div className="space-y-2">
                       <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
-                        <span>Graphic Size (Scale)</span>
-                        <span>{Math.round(imagePos.scale * 100)}%</span>
+                        <span>Layer Scale (Size)</span>
+                        <span>{Math.round(selectedScale * 100)}%</span>
                       </div>
                       <input
                         type="range"
                         min="0.1"
                         max="2.5"
                         step="0.05"
-                        value={imagePos.scale}
-                        onChange={(e) => setImagePos((prev) => ({ ...prev, scale: parseFloat(e.target.value) }))}
+                        value={selectedScale}
+                        onChange={(e) => handleScaleSlider(parseFloat(e.target.value))}
                         className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
                       />
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
-                        <span>Rotation</span>
-                        <span>{imagePos.rotate}°</span>
+                        <span>Layer Rotation</span>
+                        <span>{selectedAngle}°</span>
                       </div>
                       <input
                         type="range"
                         min="-180"
                         max="180"
                         step="1"
-                        value={imagePos.rotate}
-                        onChange={(e) => setImagePos((prev) => ({ ...prev, rotate: parseInt(e.target.value) }))}
+                        value={selectedAngle}
+                        onChange={(e) => handleRotateSlider(parseInt(e.target.value))}
                         className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
                       />
                     </div>
@@ -512,28 +627,28 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               </div>
             )}
 
-            {/* Tab: Custom Text */}
+            {/* Tab: Text overlay options */}
             {activeTab === 'text' && (
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Enter Customize Text</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Add Text Layer</Label>
                   <Input
                     placeholder="Type customized word..."
                     value={customText}
-                    onChange={(e) => setCustomText(e.target.value)}
-                    className="rounded-xl h-11 border-gray-200 text-sm"
+                    onChange={(e) => handleTextChange(e.target.value)}
+                    className="rounded-xl h-11 border-gray-200 text-sm font-medium"
                   />
                 </div>
 
                 {customText.trim() && (
-                  <div className="space-y-5 pt-4 border-t space-y-4 animate-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-5 pt-4 border-t animate-in slide-in-from-top-4 duration-300">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Font Style</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Font</Label>
                         <select
                           value={textFont}
-                          onChange={(e) => setTextFont(e.target.value)}
-                          className="w-full h-10 border rounded-xl px-3 text-xs bg-white focus:outline-none"
+                          onChange={(e) => handleFontChange(e.target.value)}
+                          className="w-full h-10 border rounded-xl px-3 text-xs bg-white focus:outline-none border-gray-200"
                         >
                           {fontOptions.map((font) => (
                             <option key={font.value} value={font.value}>
@@ -549,53 +664,53 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                           <Input
                             type="color"
                             value={textColor}
-                            onChange={(e) => setTextColor(e.target.value)}
-                            className="w-10 h-10 p-0 rounded-xl border-none cursor-pointer"
+                            onChange={(e) => handleColorChange(e.target.value)}
+                            className="w-10 h-10 p-0 rounded-xl border-none cursor-pointer bg-transparent"
                           />
                           <span className="text-xs font-mono font-bold uppercase">{textColor}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
-                        <span>Text Size</span>
-                        <span>{Math.round(textPos.scale * 100)}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0.5"
-                        max="3"
-                        step="0.1"
-                        value={textPos.scale}
-                        onChange={(e) => setTextPos((prev) => ({ ...prev, scale: parseFloat(e.target.value) }))}
-                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
-                      />
-                    </div>
+                    {hasSelection && (
+                      <div className="space-y-4 pt-2 border-t">
+                        <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
+                          <span>Text Scale (Size)</span>
+                          <span>{Math.round(selectedScale * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="3"
+                          step="0.1"
+                          value={selectedScale}
+                          onChange={(e) => handleScaleSlider(parseFloat(e.target.value))}
+                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
+                        />
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
-                        <span>Rotation</span>
-                        <span>{textPos.rotate}°</span>
+                        <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
+                          <span>Text Rotation</span>
+                          <span>{selectedAngle}°</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="-180"
+                          max="180"
+                          step="1"
+                          value={selectedAngle}
+                          onChange={(e) => handleRotateSlider(parseInt(e.target.value))}
+                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
+                        />
                       </div>
-                      <input
-                        type="range"
-                        min="-180"
-                        max="180"
-                        step="1"
-                        value={textPos.rotate}
-                        onChange={(e) => setTextPos((prev) => ({ ...prev, rotate: parseInt(e.target.value) }))}
-                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
-                      />
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Tab: AI Mockups Preview */}
+            {/* Tab: AI Live Previews */}
             {activeTab === 'ai' && aiPreviewEnabled && (
-              <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-6">
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-wider mb-1">AI Live Preview Pipeline</h3>
                   <p className="text-[10px] text-gray-400 leading-normal uppercase font-black tracking-wider opacity-70">

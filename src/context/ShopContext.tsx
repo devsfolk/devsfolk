@@ -682,9 +682,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const hasLocalReviews = localStorage.getItem(REVIEWS_STORAGE_KEY) !== null;
 
       const localSettings = mergeSettings(hasLocalSettings ? readLocalJson<Partial<ThemeSettings> | null>(SETTINGS_STORAGE_KEY, null) : null);
-      const localProducts = hasLocalProducts
+      let localProducts = hasLocalProducts
         ? readLocalJson<Product[]>(PRODUCTS_STORAGE_KEY, [])
         : SAMPLE_PRODUCTS;
+
+      // Auto-migrate or ensure custom Printify product exists in the list
+      if (localProducts.length > 0 && !localProducts.some(p => p.isPrintify)) {
+        const samplePrintifyTee = SAMPLE_PRODUCTS.find(p => p.isPrintify);
+        if (samplePrintifyTee) {
+          localProducts = [...localProducts, samplePrintifyTee];
+          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(localProducts));
+        }
+      }
       const localCategories = hasLocalCategories
         ? readLocalJson<Category[]>(CATEGORIES_STORAGE_KEY, [])
         : SAMPLE_CATEGORIES;
