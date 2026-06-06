@@ -58,7 +58,7 @@ export interface DeviceConfig {
   footerStyle: 'simple' | 'detailed';
 }
 
-export type SectionType = 'HERO' | 'FEATURED_PRODUCTS' | 'CATEGORIES' | 'BANNER' | 'TESTIMONIALS' | 'NEWSLETTER' | 'ABOUT' | 'HTML_CONTENT' | 'CATEGORY_SLIDER' | 'SALE_BANNER';
+export type SectionType = 'HERO' | 'FEATURED_PRODUCTS' | 'CATEGORIES' | 'BANNER' | 'TESTIMONIALS' | 'NEWSLETTER' | 'ABOUT' | 'HTML_CONTENT' | 'CATEGORY_SLIDER' | 'SALE_BANNER' | 'CUSTOMIZER';
 
 export interface StoreSection {
   id: string;

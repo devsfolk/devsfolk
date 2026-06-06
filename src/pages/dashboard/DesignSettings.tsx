@@ -123,6 +123,7 @@ export const DesignSettings: React.FC = () => {
     { type: 'BANNER', label: 'Call to Action', icon: Smartphone },
     { type: 'SALE_BANNER', label: 'Season Sale', icon: ShoppingBag },
     { type: 'HTML_CONTENT', label: 'Custom HTML', icon: Code },
+    { type: 'CUSTOMIZER', label: 'Bespoke Customizer', icon: Palette },
   ];
 
   return (

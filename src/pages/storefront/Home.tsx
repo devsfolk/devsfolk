@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ShoppingBag, Zap, ShieldCheck, Truck, Mail, ChevronLeft, ChevronRight, MessageCircle, RotateCcw, CreditCard, Gift, BadgeCheck } from 'lucide-react';
+import { BespokeCustomizer } from '@/components/printify/BespokeCustomizer';
 
 export const Home: React.FC = () => {
   const { settings, products, categories, addToCart, loading } = useShop();
@@ -484,6 +485,26 @@ export const Home: React.FC = () => {
           <section key={section.id} className="py-12">
             <div className="container mx-auto px-6" dangerouslySetInnerHTML={{ __html: config.html || '' }} />
           </section>
+        );
+
+      case 'CUSTOMIZER':
+        return (
+          <motion.section 
+            key={section.id}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className={`${isDevsFolk && device === 'mobile' ? 'py-6' : 'py-16'} bg-white`}
+            style={devsfolkBgStyle}
+          >
+            <div className="container mx-auto px-4 md:px-6">
+              <div className="text-center mb-8 md:mb-12">
+                <h2 className={`${isDevsFolk && device === 'mobile' ? 'text-lg' : 'text-4xl'} font-black uppercase tracking-tight mb-2`} style={{ fontFamily: settings.fontDisplay }}>{section.title || "Bespoke Designer"}</h2>
+                {section.subtitle && <p className={`${isDevsFolk && device === 'mobile' ? 'text-[10px]' : 'text-gray-500'} max-w-2xl mx-auto uppercase font-bold tracking-widest opacity-60`}>{section.subtitle}</p>}
+              </div>
+              <BespokeCustomizer showHeader={false} />
+            </div>
+          </motion.section>
         );
 
       default:
