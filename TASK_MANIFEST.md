@@ -410,7 +410,20 @@
 - **Verification**: Verified that any fresh tenant setups load the default storefront layout segments out of the box. Ran standard npm production build check with zero errors.
 
 ### Current Active Task
-*None.*
+### [IN PROGRESS] Task 14: Printify Integration — Admin Dashboard Settings & Schema (Branch 1 of 4)
+- **Date**: 2026-06-06
+- **Branch**: `feat/printify-admin-dashboard`
+- **Description**: First phase of Printify POD integration. Extended database schema with `printify_catalog` and `printify_designs` tables. Added `printify_order_id`, `printify_sync_status`, and `printify_error_log` columns to orders. Created `PrintifySettings` type system with sub-interfaces for provider credentials, dual-editor toggles, dual-preview renderers (DevsFolk canvas + AI pipeline), and customization charges. Built a premium tabbed dashboard page at `/dashboard/printify` with organized sections for APIs, Editor, Live Preview, Product Sync, Orders, and Webhooks. Sidebar menu item appears conditionally only when Printify integration is enabled.
+- **Files Modified**: 
+  - `src/types.ts`: Added `PrintifySettings`, `PrintifyProviderSettings`, `PrintifyEditorSettings`, `PrintifyPreviewSettings`, `PrintifyAiPreviewSettings`, `PrintifyCharges` interfaces. Integrated `printifySettings` into `ThemeSettings`.
+  - `src/context/ShopContext.tsx`: Initialized default `printifySettings` in `DEFAULT_SETTINGS` and added deep-merge logic in `mergeSettings`.
+  - `supabase/schema.sql`: Added `printify_catalog` and `printify_designs` tables with RLS policies. Extended `orders` table with Printify tracking columns.
+  - `src/components/layout/DashboardLayout.tsx`: Added conditional `Printify` sidebar nav item with `Printer` icon.
+  - `src/App.tsx`: Registered lazy-loaded `/dashboard/printify` route.
+  - `src/pages/dashboard/PrintifySettings.tsx`: Created full admin settings page with 6 organized tabs (APIs, Editor, Live Preview, Product Sync, Orders, Webhooks).
+  - `src/pages/dashboard/OrdersPage.tsx`: Fixed pre-existing TS error on `vibrate` property.
+  - `scripts/create-admin.ts`: Fixed pre-existing TS error on `listUsers` type inference.
+- **Verification**: TypeScript compilation passed with zero errors (`npm run lint`).
 
 ## Task Log
 

@@ -115,6 +115,13 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     { id: 'featured', type: 'FEATURED_PRODUCTS', title: 'New Arrivals', enabled: true, order: 2 },
     { id: 'about', type: 'ABOUT', title: 'DevsFolk Story', enabled: true, order: 3 },
   ],
+  printifySettings: {
+    enabled: false,
+    providerSettings: { apiKey: '', shopId: '' },
+    editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
+    preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', anglesCount: 3 } },
+    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} }
+  },
 };
 
 const SAMPLE_CATEGORIES: Category[] = [
@@ -297,6 +304,37 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
     ...(raw?.mobile || {}),
   },
   sections: raw?.sections || DEFAULT_SETTINGS.sections,
+  printifySettings: {
+    enabled: raw?.printifySettings?.enabled ?? DEFAULT_SETTINGS.printifySettings!.enabled,
+    providerSettings: {
+      ...DEFAULT_SETTINGS.printifySettings!.providerSettings,
+      ...(raw?.printifySettings?.providerSettings || {}),
+    },
+    editor: {
+      ...DEFAULT_SETTINGS.printifySettings!.editor,
+      ...(raw?.printifySettings?.editor || {}),
+    },
+    preview: {
+      ...DEFAULT_SETTINGS.printifySettings!.preview,
+      ...(raw?.printifySettings?.preview || {}),
+      aiConfig: {
+        ...DEFAULT_SETTINGS.printifySettings!.preview.aiConfig,
+        ...(raw?.printifySettings?.preview?.aiConfig || {}),
+      },
+    },
+    charges: {
+      ...DEFAULT_SETTINGS.printifySettings!.charges,
+      ...(raw?.printifySettings?.charges || {}),
+      sizeFees: {
+        ...DEFAULT_SETTINGS.printifySettings!.charges.sizeFees,
+        ...(raw?.printifySettings?.charges?.sizeFees || {}),
+      },
+      placementFees: {
+        ...DEFAULT_SETTINGS.printifySettings!.charges.placementFees,
+        ...(raw?.printifySettings?.charges?.placementFees || {}),
+      },
+    },
+  },
 });
 
 const mapCategoryRow = (row: any): Category => ({

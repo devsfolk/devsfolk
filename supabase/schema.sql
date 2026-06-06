@@ -170,4 +170,59 @@ insert into public.store_settings (id, value)
 values ('default', '{}'::jsonb)
 on conflict (id) do nothing;
 
+-- Printify Database Extensions
+
+create table if not exists public.printify_catalog (
+  id text primary key,
+  title text not null,
+  description text not null default '',
+  variants jsonb not null default '[]'::jsonb,
+  print_areas jsonb not null default '[]'::jsonb,
+  last_synced timestamptz not null default now()
+);
+
+create table if not exists public.printify_designs (
+  id text primary key,
+  image_url text not null,
+  name text not null,
+  created_at bigint not null
+);
+
+alter table public.printify_catalog enable row level security;
+alter table public.printify_designs enable row level security;
+
+drop policy if exists "Public can read printify catalog" on public.printify_catalog;
+create policy "Public can read printify catalog"
+on public.printify_catalog
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Authenticated can manage printify catalog" on public.printify_catalog;
+create policy "Authenticated can manage printify catalog"
+on public.printify_catalog
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Public can read printify designs" on public.printify_designs;
+create policy "Public can read printify designs"
+on public.printify_designs
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Authenticated can manage printify designs" on public.printify_designs;
+create policy "Authenticated can manage printify designs"
+on public.printify_designs
+for all
+to authenticated
+using (true)
+with check (true);
+
+alter table public.orders add column if not exists printify_order_id text;
+alter table public.orders add column if not exists printify_sync_status text;
+alter table public.orders add column if not exists printify_error_log text;
+
 commit;

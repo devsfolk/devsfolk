@@ -46,6 +46,7 @@ const OrdersPage = lazy(() => import('@/pages/dashboard/OrdersPage').then((modul
 const LoginPage = lazy(() => import('@/pages/dashboard/LoginPage').then((module) => ({ default: module.LoginPage })));
 const DevsTool = lazy(() => import('@/pages/dashboard/DevsTool').then((module) => ({ default: module.DevsTool })));
 const ReviewsManagement = lazy(() => import('@/pages/dashboard/ReviewsManagement').then((module) => ({ default: module.ReviewsManagement })));
+const PrintifySettings = lazy(() => import('@/pages/dashboard/PrintifySettings').then((module) => ({ default: module.PrintifySettings })));
 
 const RouteFallback = () => <div className="min-h-screen bg-white" />;
 
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/dashboard/reviews" element={<DashboardLayout><ReviewsManagement /></DashboardLayout>} />
             <Route path="/dashboard/design" element={<DashboardLayout><DesignSettings /></DashboardLayout>} />
             <Route path="/dashboard/settings" element={<DashboardLayout><GeneralSettings /></DashboardLayout>} />
+            <Route path="/dashboard/printify" element={<DashboardLayout><PrintifySettings /></DashboardLayout>} />
 
             {/* Developer Central Orchestration */}
             <Route path="/devstool" element={<DevsTool />} />

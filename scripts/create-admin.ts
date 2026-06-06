@@ -34,13 +34,13 @@ async function createAdmin() {
       console.log('User already exists. Attempting to update password...');
       
       // Get the user ID first
-      const { data: users, error: listError } = await supabase.auth.admin.listUsers();
+      const { data, error: listError } = await supabase.auth.admin.listUsers();
       if (listError) {
         console.error('Error listing users:', listError.message);
         return;
       }
       
-      const user = users.users.find(u => u.email === adminEmail);
+      const user = data?.users?.find((u: any) => u.email === adminEmail);
       if (user) {
         const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, {
           password: adminPassword

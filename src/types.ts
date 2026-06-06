@@ -84,6 +84,45 @@ export interface StoreSection {
   };
 }
 
+export interface PrintifyProviderSettings {
+  apiKey: string;
+  shopId: string;
+}
+
+export interface PrintifyEditorSettings {
+  selected: 'devsfolk' | 'alternative';
+  devsfolkEnabled: boolean;
+  alternativeEnabled: boolean;
+}
+
+export interface PrintifyAiPreviewSettings {
+  provider: 'gemini' | 'openai';
+  apiKey: string;
+  anglesCount: number;
+}
+
+export interface PrintifyPreviewSettings {
+  selected: 'devsfolk' | 'ai';
+  devsfolkEnabled: boolean;
+  aiEnabled: boolean;
+  aiConfig: PrintifyAiPreviewSettings;
+}
+
+export interface PrintifyCharges {
+  designFee: number;
+  editFee: number;
+  sizeFees: Record<string, number>;
+  placementFees: Record<string, number>;
+}
+
+export interface PrintifySettings {
+  enabled: boolean;
+  providerSettings: PrintifyProviderSettings;
+  editor: PrintifyEditorSettings;
+  preview: PrintifyPreviewSettings;
+  charges: PrintifyCharges;
+}
+
 export interface ThemeSettings {
   activeTemplate: string;
   primaryColor: string;
@@ -125,6 +164,8 @@ export interface ThemeSettings {
   socialLinks: SocialLink[];
   // Dynamic sections
   sections: StoreSection[];
+  // Printify Integration
+  printifySettings?: PrintifySettings;
 }
 
 export interface Category {
