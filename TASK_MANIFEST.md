@@ -424,6 +424,20 @@
   - `scripts/create-admin.ts`: Fixed pre-existing TS error on `listUsers` type inference.
 - **Verification**: TypeScript compilation passed with zero errors (`npm run lint`). Settings toggled and tabs work correctly.
 
+### [COMPLETED] Task 15: Printify Integration — Editors, Client Preview, & WebP Engine (Branch 2 of 4)
+- **Date**: 2026-06-06
+- **Branch**: `feat/printify-editors-and-previews`
+- **Description**: Second phase of Printify POD integration. Added customizer-specific optional fields to the `Product` type and DB schema. Appended a sample customizer-eligible Jersey Tee to the default storefront catalog products. Created the premium, responsive `/product/:slug/customize` route implementing the **DevsFolk Customizer Editor** (using pointer-captures for real-time drag/scale/rotate math, custom text fonts, and layout alignment helpers). Built an overlay preview generator and local canvas rendering system that compiles customized overlays into a high-fidelity WebP base64 mockup stored inside `CartItem.customization` to display custom designs directly in the cart and checkout lists.
+- **Files Modified**: 
+  - `src/types.ts`: Added optional `isPrintify`, `printifyProductId`, and `printifyCatalogId` attributes to `Product` interface. Added `PrintifyCustomization` interface, and integrated optional `customization` property to `OrderItem`.
+  - `supabase/schema.sql`: Extended products table schema with `is_printify`, `printify_product_id`, and `printify_catalog_id`.
+  - `src/context/ShopContext.tsx`: Appended Custom Merch category and sample Custom Unisex Tee product. Updated `addToCart`, `removeFromCart`, and `updateCartQuantity` signatures and implementations to correctly track and isolate customized items.
+  - `src/App.tsx`: Registered lazy-loaded `/product/:slug/customize` route.
+  - `src/pages/storefront/ProductPage.tsx`: Added dynamic Customize Design action button replacing standard cart triggers when product is printify-enabled.
+  - `src/pages/storefront/CartPage.tsx`: Passed customizer properties and index keys to support duplicate customized products in cart listing.
+  - `src/pages/storefront/ProductCustomizePage.tsx`: Created the full bespoke customization designer client panel.
+- **Verification**: TypeScript compilation checks passed with 0 errors (`npm run lint`).
+
 ## Task Log
 
 ### [COMPLETED] Task 13: Favicon Upload & Google Search Console Verification
