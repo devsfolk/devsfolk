@@ -387,7 +387,7 @@ export const PrintifySettings: React.FC = () => {
                           onValueChange={(val) => handleUpdate({
                             preview: {
                               ...printifySettings.preview,
-                              aiConfig: { ...printifySettings.preview.aiConfig, provider: val as 'gemini' | 'openai' }
+                              aiConfig: { ...printifySettings.preview.aiConfig, provider: val as any }
                             }
                           })}
                         >
@@ -397,6 +397,9 @@ export const PrintifySettings: React.FC = () => {
                           <SelectContent>
                             <SelectItem value="gemini">Google Gemini 2.5 Flash</SelectItem>
                             <SelectItem value="openai">OpenAI DALL-E 3</SelectItem>
+                            <SelectItem value="qwen">Alibaba Qwen (Free tier / Open-source)</SelectItem>
+                            <SelectItem value="anthropic">Anthropic Claude 3.5 Sonnet</SelectItem>
+                            <SelectItem value="deepseek">DeepSeek-V3 / DeepSeek-R1</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

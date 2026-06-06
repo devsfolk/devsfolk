@@ -96,7 +96,7 @@ export interface PrintifyEditorSettings {
 }
 
 export interface PrintifyAiPreviewSettings {
-  provider: 'gemini' | 'openai';
+  provider: 'gemini' | 'openai' | 'qwen' | 'anthropic' | 'deepseek';
   apiKey: string;
   maxPreviewImages: number;
   pipelinePrompt: string;
