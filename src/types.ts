@@ -133,6 +133,25 @@ export interface PrintifySettings {
   sync: PrintifySyncSettings;
 }
 
+export interface PrintifyCatalogTemplate {
+  id: string;
+  blueprintId: number;
+  title: string;
+  brand?: string;
+  model?: string;
+  description: string;
+  images: string[];
+  providers: any[];
+  variants: any[];
+  printAreas: any[];
+  shipping: any[];
+  baseCost?: number;
+  retailPrice?: number;
+  profitMargin?: number;
+  isEnabled: boolean;
+  lastSynced: string;
+}
+
 export interface ThemeSettings {
   activeTemplate: string;
   primaryColor: string;

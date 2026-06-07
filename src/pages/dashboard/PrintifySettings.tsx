@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
+import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
+import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates } from '@/lib/printifyApi';
 
 export const PrintifySettings: React.FC = () => {
-  const { settings, updateSettings, orders, products, addProduct, updateProduct } = useShop();
+  const { settings, updateSettings, orders, products, addProduct, updateProduct, printifyCatalog, upsertPrintifyCatalogTemplates } = useShop();
   
   const printifySettings = settings.printifySettings || {
     enabled: false,
@@ -26,14 +28,52 @@ export const PrintifySettings: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   const [syncingProducts, setSyncingProducts] = useState(false);
+  const [syncingTemplates, setSyncingTemplates] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('apis');
+  const [privateApiKey, setPrivateApiKey] = useState('');
+  const [privateAiApiKey, setPrivateAiApiKey] = useState('');
+  const [credentialsLoaded, setCredentialsLoaded] = useState(false);
 
-  const initialApiKeyRef = useRef(printifySettings.providerSettings.apiKey);
+  const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
 
   useEffect(() => {
-    const token = printifySettings.providerSettings.apiKey.trim();
+    let mounted = true;
+
+    const loadCredentials = async () => {
+      try {
+        const credentials = await loadPrintifyCredentials();
+        if (!mounted) {
+          return;
+        }
+
+        setPrivateApiKey(credentials.apiKey);
+        setPrivateAiApiKey(credentials.aiApiKey);
+        initialApiKeyRef.current = credentials.apiKey;
+      } catch (err: any) {
+        console.error('Failed to load private Printify credentials:', err);
+        setSyncLogs(prev => [...prev, `[WARNING] Could not load private Printify credentials: ${err.message || err}`]);
+      } finally {
+        if (mounted) {
+          setCredentialsLoaded(true);
+        }
+      }
+    };
+
+    void loadCredentials();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!credentialsLoaded) {
+      return;
+    }
+
+    const token = privateApiKey.trim();
     
     // If the token is empty, reset status
     if (!token) {
@@ -57,20 +97,7 @@ export const PrintifySettings: React.FC = () => {
     const debounceTimer = setTimeout(async () => {
       lastCheckedTokenRef.current = token;
       try {
-        const targetUrl = 'https://api.printify.com/v1/shops.json';
-        const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-        
-        const response = await fetch(proxiedUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Printify API returned status ${response.status}`);
-        }
-        
-        const shops = await response.json();
+        const shops = await fetchPrintifyShops(token);
         const shopList = shops.data || shops || [];
         
         if (Array.isArray(shopList) && shopList.length > 0) {
@@ -79,7 +106,7 @@ export const PrintifySettings: React.FC = () => {
           
           handleUpdate({
             providerSettings: {
-              apiKey: token,
+              apiKey: '',
               shopId: detectedShopId
             }
           });
@@ -102,7 +129,7 @@ export const PrintifySettings: React.FC = () => {
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(debounceTimer);
-  }, [printifySettings.providerSettings.apiKey]);
+  }, [privateApiKey, credentialsLoaded]);
 
   const handleUpdate = (updates: any) => {
     updateSettings({
@@ -116,7 +143,7 @@ export const PrintifySettings: React.FC = () => {
   const handleSave = async () => {
     if (printifySettings.enabled) {
       const shopId = printifySettings.providerSettings.shopId?.trim();
-      const apiKey = printifySettings.providerSettings.apiKey?.trim();
+      const apiKey = privateApiKey.trim();
 
       if (!apiKey) {
         alert('Validation Error:\n\nPrintify API Access Token (PAT) is required when Printify Mode is enabled.');
@@ -135,12 +162,23 @@ export const PrintifySettings: React.FC = () => {
     }
 
     setSaving(true);
+    try {
+      await savePrintifyCredentials({
+        apiKey: privateApiKey.trim(),
+        aiApiKey: privateAiApiKey.trim(),
+      });
+    } catch (err: any) {
+      setSaving(false);
+      alert(`Credential Save Failed:\n\n${err.message || err}`);
+      return;
+    }
+
     await new Promise(resolve => setTimeout(resolve, 800));
     setSaving(false);
   };
 
   const testConnection = async () => {
-    const token = printifySettings.providerSettings.apiKey.trim();
+    const token = privateApiKey.trim();
     if (!token) {
       alert('Please enter your Printify API Access Token (PAT) first.');
       return;
@@ -150,20 +188,7 @@ export const PrintifySettings: React.FC = () => {
     setConnectionStatus('idle');
 
     try {
-      const targetUrl = 'https://api.printify.com/v1/shops.json';
-      const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-      
-      const response = await fetch(proxiedUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Printify API returned status ${response.status}`);
-      }
-      
-      const shops = await response.json();
+      const shops = await fetchPrintifyShops(token);
       const shopList = shops.data || shops || [];
       
       if (Array.isArray(shopList) && shopList.length > 0) {
@@ -172,10 +197,11 @@ export const PrintifySettings: React.FC = () => {
         
         handleUpdate({
           providerSettings: {
-            apiKey: token,
+            apiKey: '',
             shopId: detectedShopId
           }
         });
+        await savePrintifyCredentials({ apiKey: token });
         
         setConnectionStatus('success');
         setSyncLogs(prev => [
@@ -197,7 +223,7 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const runManualSync = async () => {
-    if (!printifySettings.providerSettings.apiKey || !printifySettings.providerSettings.shopId) {
+    if (!privateApiKey.trim() || !printifySettings.providerSettings.shopId) {
       alert('Please configure your Printify API Access Token and Shop ID in the APIs tab first.');
       return;
     }
@@ -212,23 +238,9 @@ export const PrintifySettings: React.FC = () => {
     setSyncLogs(['[INFO] Initializing catalog sync...', `[INFO] Querying Shop ID: ${shopId}...`]);
 
     try {
-      const apiKey = printifySettings.providerSettings.apiKey.trim();
-      const targetUrl = `https://api.printify.com/v1/shops/${shopId}/products.json`;
-      const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
-
+      const apiKey = privateApiKey.trim();
       setSyncLogs(prev => [...prev, '[INFO] Connecting to Printify API via secure client bridge...']);
-      
-      const response = await fetch(proxiedUrl, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Printify API returned status ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await fetchPrintifyShopProducts(apiKey, shopId);
       const printifyProducts = data.data || data || [];
       
       if (!Array.isArray(printifyProducts)) {
@@ -332,6 +344,79 @@ export const PrintifySettings: React.FC = () => {
     }
   };
 
+  const runTemplateCatalogSync = async () => {
+    const apiKey = privateApiKey.trim();
+    if (!apiKey) {
+      alert('Please configure your Printify API Access Token in the APIs tab first.');
+      return;
+    }
+
+    setSyncingTemplates(true);
+    setSyncLogs([
+      '[INFO] Initializing raw Printify template sync...',
+      '[INFO] Fetching catalog blueprints for customer-customizable products...',
+    ]);
+
+    try {
+      const blueprintData = await fetchPrintifyBlueprints(apiKey);
+      const templates = mapBlueprintsToTemplates(blueprintData);
+
+      if (templates.length === 0) {
+        setSyncLogs(prev => [...prev, '[WARNING] Printify returned no catalog blueprints for this token.']);
+        return;
+      }
+
+      setSyncLogs(prev => [...prev, `[SUCCESS] Found ${templates.length} raw templates / blueprints.`]);
+
+      const providerLimit = Math.min(templates.length, 24);
+      const providersByBlueprintId: Record<number, any[]> = {};
+
+      for (const template of templates.slice(0, providerLimit)) {
+        try {
+          const providerData = await fetchPrintifyBlueprintProviders(apiKey, template.blueprintId);
+          const providerList = providerData.data || providerData || [];
+          providersByBlueprintId[template.blueprintId] = Array.isArray(providerList) ? providerList : [];
+        } catch (providerError: any) {
+          providersByBlueprintId[template.blueprintId] = [];
+          setSyncLogs(prev => [...prev, `[WARNING] Provider lookup skipped for ${template.title}: ${providerError.message || providerError}`]);
+        }
+      }
+
+      const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId);
+      await upsertPrintifyCatalogTemplates(templatesWithProviders);
+
+      handleUpdate({
+        sync: {
+          ...printifySettings.sync,
+          lastSyncAt: new Date().toLocaleString(),
+          lastSyncStatus: 'success'
+        }
+      });
+
+      setSyncLogs(prev => [
+        ...prev,
+        `[SUCCESS] Cached ${templatesWithProviders.length} customer template records.`,
+        `[INFO] Editor-ready provider metadata included for the first ${providerLimit} templates to avoid unsafe API fan-out.`
+      ]);
+    } catch (err: any) {
+      console.error('Printify template sync failed:', err);
+      handleUpdate({
+        sync: {
+          ...printifySettings.sync,
+          lastSyncAt: new Date().toLocaleString(),
+          lastSyncStatus: 'failed'
+        }
+      });
+      setSyncLogs(prev => [
+        ...prev,
+        `[ERROR] Template sync failed: ${err.message || err}`,
+        '[TIP] Confirm the PAT includes catalog.read and print_providers.read scopes.'
+      ]);
+    } finally {
+      setSyncingTemplates(false);
+    }
+  };
+
   const customPrintOrders = orders.map((o, idx) => ({
     ...o,
     printifyOrderId: idx % 3 === 0 ? null : `pr_ord_${o.id.slice(0, 6)}`,
@@ -428,15 +513,21 @@ export const PrintifySettings: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-emerald-700 leading-relaxed">
+                    <p className="font-bold mb-1">Private Credential Storage</p>
+                    <p>Your Printify PAT and AI preview key are saved separately from public storefront settings. Customers can see catalog data, but they cannot read these private credentials.</p>
+                  </div>
+                </div>
+
                 <div className="grid gap-2">
                   <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Printify API Access Token</Label>
                   <div className="relative">
                     <Input 
                       type="password"
-                      value={printifySettings.providerSettings.apiKey}
-                      onChange={(e) => handleUpdate({
-                        providerSettings: { ...printifySettings.providerSettings, apiKey: e.target.value.trim() }
-                      })}
+                      value={privateApiKey}
+                      onChange={(e) => setPrivateApiKey(e.target.value.trim())}
                       placeholder="Enter your personal access token (e.g. pr_...)"
                       className="rounded-xl h-11 text-sm font-mono border-gray-200 pr-10"
                     />
@@ -759,13 +850,8 @@ export const PrintifySettings: React.FC = () => {
                       <Label className="text-[9px] uppercase text-gray-400 pl-1">AI Provider API Secret Key</Label>
                       <Input 
                         type="password"
-                        value={printifySettings.preview.aiConfig.apiKey}
-                        onChange={(e) => handleUpdate({
-                          preview: {
-                            ...printifySettings.preview,
-                            aiConfig: { ...printifySettings.preview.aiConfig, apiKey: e.target.value.trim() }
-                          }
-                        })}
+                        value={privateAiApiKey}
+                        onChange={(e) => setPrivateAiApiKey(e.target.value.trim())}
                         placeholder="Paste your AI provider secret token..."
                         className="rounded-xl h-10 text-xs font-mono border-gray-200"
                       />
@@ -866,21 +952,96 @@ export const PrintifySettings: React.FC = () => {
               </CardContent>
             </Card>
 
+            {/* Raw Template Catalog */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="p-5 md:p-6">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-gray-400" />
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Raw Template Catalog</CardTitle>
+                </div>
+                <CardDescription className="text-xs">Cache blank Printify templates for the customer editor product picker.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 p-5 md:p-6 pt-0">
+                <div className="bg-neutral-50 border p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync Blank Templates</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
+                      Fetches Printify blueprints such as T-shirts, hoodies, mugs, posters, and other POD blanks. These records become the base catalog for the storefront editor.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={runTemplateCatalogSync}
+                    disabled={syncingTemplates}
+                    className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800 self-stretch md:self-auto shrink-0"
+                  >
+                    {syncingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <RefreshCw className="h-3 w-3 mr-2" />}
+                    Sync Templates
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 bg-gray-50 rounded-xl border">
+                    <p className="text-[9px] font-black uppercase text-gray-400">Cached Templates</p>
+                    <p className="text-xs font-bold mt-1">{printifyCatalog.length}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border">
+                    <p className="text-[9px] font-black uppercase text-gray-400">Enabled Templates</p>
+                    <p className="text-xs font-bold mt-1">{printifyCatalog.filter((template) => template.isEnabled).length}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border">
+                    <p className="text-[9px] font-black uppercase text-gray-400">Editor-Ready</p>
+                    <p className="text-xs font-bold mt-1">{printifyCatalog.filter((template) => template.providers.length > 0).length}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                  <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-blue-700 leading-relaxed">
+                    <p className="font-bold mb-1">Template Readiness</p>
+                    <p>Cached templates are lightweight blueprints. Editor-ready templates also include provider metadata, which is needed before customers can choose fulfillment options, variants, and print areas.</p>
+                  </div>
+                </div>
+
+                {printifyCatalog.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {printifyCatalog.slice(0, 6).map((template) => (
+                      <div key={template.id} className="p-3 rounded-2xl border bg-white flex items-center gap-3">
+                        <div className="h-14 w-14 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                          {template.images[0] ? (
+                            <img src={template.images[0]} alt={template.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center">
+                              <FileText className="h-5 w-5 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-tight truncate">{template.title}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{template.brand || 'Printify'} {template.model || ''}</p>
+                          <p className="text-[9px] text-gray-400 mt-1">{template.providers.length} providers cached</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Manual Sync + Logs */}
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <RefreshCw className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Manual Sync</CardTitle>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Shop Product Sync</CardTitle>
                 </div>
-                <CardDescription className="text-xs">Force an immediate catalog refresh from Printify at any time.</CardDescription>
+                <CardDescription className="text-xs">Force an immediate refresh of products already created in the connected Printify shop.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 p-5 md:p-6 pt-0">
                 <div className="bg-gray-50 border p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Run Sync Now</h4>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync Published Shop Products</h4>
                     <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Fetches Printify's catalog configurations, importing variants, sizes, colors, print areas, and pricing into the local Supabase cache.
+                      Imports products the admin already created inside Printify. Raw customer-customizable templates are handled separately above.
                     </p>
                   </div>
                   <Button 

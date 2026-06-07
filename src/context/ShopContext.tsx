@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization } from '../types';
+import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization, PrintifyCatalogTemplate } from '../types';
 import { TEMPLATES } from '../lib/templates';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 
@@ -22,6 +22,8 @@ interface ShopContextType {
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  printifyCatalog: PrintifyCatalogTemplate[];
+  upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[]) => Promise<void>;
   categories: Category[];
   addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
@@ -188,6 +190,7 @@ const PENDING_ORDERS_STORAGE_KEY = 'devsfolk_pending_orders';
 const REVIEWS_STORAGE_KEY = 'devsfolk_reviews';
 const CART_STORAGE_KEY = 'devsfolk_cart';
 const WISHLIST_STORAGE_KEY = 'devsfolk_wishlist';
+const PRINTIFY_CATALOG_STORAGE_KEY = 'devsfolk_printify_catalog';
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
@@ -361,6 +364,26 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
   },
 });
 
+const redactPublicSettings = (settings: ThemeSettings): ThemeSettings => ({
+  ...settings,
+  printifySettings: settings.printifySettings
+    ? {
+        ...settings.printifySettings,
+        providerSettings: {
+          ...settings.printifySettings.providerSettings,
+          apiKey: '',
+        },
+        preview: {
+          ...settings.printifySettings.preview,
+          aiConfig: {
+            ...settings.printifySettings.preview.aiConfig,
+            apiKey: '',
+          },
+        },
+      }
+    : settings.printifySettings,
+});
+
 const mapCategoryRow = (row: any): Category => ({
   id: row.id,
   name: row.name,
@@ -387,6 +410,28 @@ const mapProductRow = (row: any): Product => ({
   sizes: row.sizes || [],
   variants: row.variants || [],
   createdAt: row.created_at ?? Date.now(),
+  isPrintify: Boolean(row.is_printify),
+  printifyProductId: row.printify_product_id ?? undefined,
+  printifyCatalogId: row.printify_catalog_id ?? undefined,
+});
+
+const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => ({
+  id: row.id,
+  blueprintId: Number(row.blueprint_id ?? row.id?.replace('bp_', '') ?? 0),
+  title: row.title,
+  brand: row.brand ?? undefined,
+  model: row.model ?? undefined,
+  description: row.description ?? '',
+  images: row.images || [],
+  providers: row.providers || [],
+  variants: row.variants || [],
+  printAreas: row.print_areas || [],
+  shipping: row.shipping || [],
+  baseCost: row.base_cost == null ? undefined : Number(row.base_cost),
+  retailPrice: row.retail_price == null ? undefined : Number(row.retail_price),
+  profitMargin: row.profit_margin == null ? undefined : Number(row.profit_margin),
+  isEnabled: row.is_enabled ?? true,
+  lastSynced: row.last_synced ?? new Date().toISOString(),
 });
 
 const mapReviewRow = (row: any): Review => ({
@@ -437,6 +482,28 @@ const toProductRow = (product: Product) => ({
   sizes: product.sizes || [],
   variants: product.variants || [],
   created_at: product.createdAt,
+  is_printify: product.isPrintify ?? false,
+  printify_product_id: product.printifyProductId ?? null,
+  printify_catalog_id: product.printifyCatalogId ?? null,
+});
+
+const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => ({
+  id: template.id,
+  blueprint_id: template.blueprintId,
+  title: template.title,
+  brand: template.brand ?? null,
+  model: template.model ?? null,
+  description: template.description,
+  images: template.images,
+  providers: template.providers,
+  variants: template.variants,
+  print_areas: template.printAreas,
+  shipping: template.shipping,
+  base_cost: template.baseCost ?? null,
+  retail_price: template.retailPrice ?? null,
+  profit_margin: template.profitMargin ?? null,
+  is_enabled: template.isEnabled,
+  last_synced: template.lastSynced,
 });
 
 const toReviewRow = (review: Review) => ({
@@ -466,6 +533,7 @@ const createId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().to
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<ThemeSettings>(DEFAULT_SETTINGS);
   const [products, setProducts] = useState<Product[]>([]);
+  const [printifyCatalog, setPrintifyCatalog] = useState<PrintifyCatalogTemplate[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -489,11 +557,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const [settingsResult, categoriesResult, productsResult, reviewsResult] = await Promise.all([
+    const [settingsResult, categoriesResult, productsResult, reviewsResult, printifyCatalogResult] = await Promise.all([
       supabase.from('store_settings').select('value').eq('id', 'default').maybeSingle(),
       supabase.from('categories').select('*').order('display_order', { ascending: true }),
       supabase.from('products').select('*').order('display_order', { ascending: true }),
       supabase.from('reviews').select('*').order('created_at', { ascending: false }),
+      supabase.from('printify_catalog').select('*').order('title', { ascending: true }),
     ]);
 
     if (settingsResult.error) {
@@ -524,6 +593,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       const remoteReviews = (reviewsResult.data ?? []).map(mapReviewRow);
       setReviews(remoteReviews);
+    }
+
+    if (printifyCatalogResult.error) {
+      reportSyncError('Failed to load Printify catalog from Supabase.', printifyCatalogResult.error.message);
+    } else {
+      const remoteCatalog = (printifyCatalogResult.data ?? []).map(mapPrintifyCatalogRow);
+      setPrintifyCatalog(remoteCatalog);
+      localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(remoteCatalog));
     }
   };
 
@@ -565,7 +642,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       if (remoteSettingsIsEmpty && rawLocalSettings) {
-        const localSettings = mergeSettings(JSON.parse(rawLocalSettings) as Partial<ThemeSettings>);
+        const localSettings = redactPublicSettings(mergeSettings(JSON.parse(rawLocalSettings) as Partial<ThemeSettings>));
         const { error } = await supabase.from('store_settings').upsert({
           id: 'default',
           value: localSettings,
@@ -699,6 +776,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         : SAMPLE_CATEGORIES;
       const localOrders = readLocalJson<Order[]>(ORDERS_STORAGE_KEY, []);
       const localReviews = hasLocalReviews ? readLocalJson<Review[]>(REVIEWS_STORAGE_KEY, []) : [];
+      const localPrintifyCatalog = readLocalJson<PrintifyCatalogTemplate[]>(PRINTIFY_CATALOG_STORAGE_KEY, []);
       const localCart = readLocalJson<CartItem[]>(CART_STORAGE_KEY, []);
       const localWishlist = readLocalJson<string[]>(WISHLIST_STORAGE_KEY, []);
 
@@ -706,6 +784,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Production mode: Bypasses stale local caches. Load fresh from Supabase.
         setSettings(mergeSettings(null));
         setProducts([]);
+        setPrintifyCatalog([]);
         setCategories([]);
         setReviews([]);
         setOrders([]);
@@ -713,6 +792,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Offline / Local development fallback mode
         setSettings(localSettings);
         setProducts(localProducts);
+        setPrintifyCatalog(localPrintifyCatalog);
         setCategories(localCategories);
         setReviews(localReviews);
         setOrders(localOrders);
@@ -857,6 +937,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProducts(readLocalJson<Product[]>(PRODUCTS_STORAGE_KEY, SAMPLE_PRODUCTS));
       }
 
+      if (event.key === PRINTIFY_CATALOG_STORAGE_KEY) {
+        setPrintifyCatalog(readLocalJson<PrintifyCatalogTemplate[]>(PRINTIFY_CATALOG_STORAGE_KEY, []));
+      }
+
       if (event.key === CATEGORIES_STORAGE_KEY) {
         setCategories(readLocalJson<Category[]>(CATEGORIES_STORAGE_KEY, SAMPLE_CATEGORIES));
       }
@@ -936,9 +1020,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateSettings = (newSettings: Partial<ThemeSettings>) => {
     const updated = mergeSettings({ ...settings, ...newSettings });
+    const publicSettings = redactPublicSettings(updated);
     setSettings(updated);
     if (!supabase) {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(publicSettings));
     }
     applyCssVariables(updated);
 
@@ -946,7 +1031,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       void (async () => {
         const { error } = await supabase.from('store_settings').upsert({
           id: 'default',
-          value: updated,
+          value: publicSettings,
           updated_at: new Date().toISOString(),
         });
 
@@ -1031,6 +1116,30 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         reportSyncSuccess('Product removed from Supabase.');
       })();
+    }
+  };
+
+  const upsertPrintifyCatalogTemplates = async (templates: PrintifyCatalogTemplate[]) => {
+    if (templates.length === 0) {
+      return;
+    }
+
+    const byId = new Map<string, PrintifyCatalogTemplate>(printifyCatalog.map((template) => [template.id, template]));
+    templates.forEach((template) => {
+      byId.set(template.id, template);
+    });
+    const updated = Array.from(byId.values()).sort((a, b) => a.title.localeCompare(b.title));
+
+    setPrintifyCatalog(updated);
+    localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(updated));
+
+    if (supabase) {
+      const { error } = await supabase.from('printify_catalog').upsert(templates.map(toPrintifyCatalogRow));
+      if (error) {
+        reportSyncError('Failed to save Printify catalog templates to Supabase.', error.message);
+        return;
+      }
+      reportSyncSuccess('Printify catalog templates saved to Supabase.');
     }
   };
 
@@ -1339,6 +1448,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addProduct,
       updateProduct,
       deleteProduct,
+      printifyCatalog,
+      upsertPrintifyCatalogTemplates,
       categories,
       addCategory,
       updateCategory,
@@ -1363,7 +1474,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       logout,
     }),
-    [settings, products, categories, orders, cart, cartTotal, loading, reviews, wishlist, isAdmin],
+    [settings, products, printifyCatalog, categories, orders, cart, cartTotal, loading, reviews, wishlist, isAdmin],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
