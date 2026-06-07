@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { fabric } from 'fabric';
@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
+import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
+import { Product, PrintifyCatalogTemplate } from '@/types';
 
 interface BespokeCustomizerProps {
   productSlug?: string;
@@ -17,9 +19,46 @@ interface BespokeCustomizerProps {
 export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlug, showHeader = true }) => {
   const navigate = useNavigate();
   const { products, settings, addToCart } = useShop();
+  const { enabledTemplates } = usePrintifyCatalog();
 
-  // Filter custom-eligible Printify products
-  const customProducts = products.filter((p) => p.isPrintify);
+  const normalizeTemplateImage = (image: any) => {
+    if (!image) return '';
+    if (typeof image === 'string') return image;
+    return image.src || image.url || image.preview_url || '';
+  };
+
+  const templateToEditorProduct = (template: PrintifyCatalogTemplate): Product => {
+    const images = template.images.map(normalizeTemplateImage).filter(Boolean);
+
+    return {
+      id: `printify_template_${template.id}`,
+      categoryId: 'cat_printify',
+      name: template.title,
+      slug: `custom-template-${template.blueprintId}`,
+      description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
+      price: template.retailPrice ?? 24.99,
+      images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
+      stock: 999,
+      isFeatured: false,
+      colors: ['#FFFFFF', '#111827'],
+      sizes: ['S', 'M', 'L', 'XL'],
+      variants: [],
+      createdAt: Date.now(),
+      isPrintify: true,
+      printifyCatalogId: String(template.blueprintId),
+    };
+  };
+
+  // Filter custom-eligible Printify products and raw Printify templates
+  const customProducts = useMemo(() => {
+    const shopProducts = products.filter((p) => p.isPrintify);
+    const shopBlueprintIds = new Set(shopProducts.map((product) => product.printifyCatalogId).filter(Boolean));
+    const templateProducts = enabledTemplates
+      .filter((template) => !shopBlueprintIds.has(String(template.blueprintId)))
+      .map(templateToEditorProduct);
+
+    return [...shopProducts, ...templateProducts];
+  }, [products, enabledTemplates]);
 
   // Active product state
   const [activeProduct, setActiveProduct] = useState(() => {
@@ -29,6 +68,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const printifyEnabled = settings.printifySettings?.enabled;
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
+
+  useEffect(() => {
+    const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];
+    if (!activeProduct || !customProducts.some((p) => p.id === activeProduct.id)) {
+      setActiveProduct(nextActiveProduct);
+    }
+  }, [activeProduct, customProducts, productSlug]);
 
   // Option configurations
   const [selectedColor, setSelectedColor] = useState('#FFFFFF');
@@ -668,7 +714,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   >
                     {customProducts.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {p.id.startsWith('printify_template_') ? 'Template: ' : 'Shop Product: '}{p.name}
                       </option>
                     ))}
                   </select>
