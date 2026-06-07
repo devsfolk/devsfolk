@@ -35,6 +35,8 @@ export const PrintifySettings: React.FC = () => {
   const [privateApiKey, setPrivateApiKey] = useState('');
   const [privateAiApiKey, setPrivateAiApiKey] = useState('');
   const [credentialsLoaded, setCredentialsLoaded] = useState(false);
+  const [templateSyncSearch, setTemplateSyncSearch] = useState('');
+  const [templateSyncLimit, setTemplateSyncLimit] = useState('100');
 
   const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
@@ -359,14 +361,31 @@ export const PrintifySettings: React.FC = () => {
 
     try {
       const blueprintData = await fetchPrintifyBlueprints(apiKey);
-      const templates = mapBlueprintsToTemplates(blueprintData);
+      const allTemplates = mapBlueprintsToTemplates(blueprintData);
+      const query = templateSyncSearch.trim().toLowerCase();
+      const filteredTemplates = query
+        ? allTemplates.filter((template) => (
+            template.title.toLowerCase().includes(query) ||
+            template.brand?.toLowerCase().includes(query) ||
+            template.model?.toLowerCase().includes(query) ||
+            String(template.blueprintId).includes(query)
+          ))
+        : allTemplates;
+      const maxTemplates = templateSyncLimit === 'all'
+        ? filteredTemplates.length
+        : Math.max(1, Number(templateSyncLimit) || 100);
+      const templates = filteredTemplates.slice(0, maxTemplates);
 
       if (templates.length === 0) {
-        setSyncLogs(prev => [...prev, '[WARNING] Printify returned no catalog blueprints for this token.']);
+        setSyncLogs(prev => [...prev, '[WARNING] No Printify templates matched the current sync filters.']);
         return;
       }
 
-      setSyncLogs(prev => [...prev, `[SUCCESS] Found ${templates.length} raw templates / blueprints.`]);
+      setSyncLogs(prev => [
+        ...prev,
+        `[SUCCESS] Found ${allTemplates.length} raw templates / blueprints.`,
+        `[INFO] Syncing ${templates.length} templates${query ? ` matching "${templateSyncSearch.trim()}"` : ''}.`
+      ]);
 
       const providerLimit = Math.min(templates.length, 24);
       const providersByBlueprintId: Record<number, any[]> = {};
@@ -967,7 +986,7 @@ export const PrintifySettings: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync Blank Templates</h4>
                     <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Fetches Printify blueprints such as T-shirts, hoodies, mugs, posters, and other POD blanks. These records become the base catalog for the storefront editor.
+                      Fetches selected Printify blueprints such as T-shirts, hoodies, mugs, posters, and other POD blanks. Only synced templates become available in the storefront editor.
                     </p>
                   </div>
                   <Button
@@ -978,6 +997,40 @@ export const PrintifySettings: React.FC = () => {
                     {syncingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <RefreshCw className="h-3 w-3 mr-2" />}
                     Sync Templates
                   </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Search Filter</Label>
+                    <Input
+                      value={templateSyncSearch}
+                      onChange={(event) => setTemplateSyncSearch(event.target.value)}
+                      placeholder="Optional: t-shirt, hoodie, mug, poster..."
+                      className="rounded-xl h-11 text-xs border-gray-200"
+                    />
+                    <p className="text-[9px] text-gray-400 pl-1">
+                      Leave empty to sync from the full Printify template catalog.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Maximum Templates to Publish</Label>
+                    <Select value={templateSyncLimit} onValueChange={setTemplateSyncLimit}>
+                      <SelectTrigger className="rounded-xl h-11 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="25">25 templates</SelectItem>
+                        <SelectItem value="50">50 templates</SelectItem>
+                        <SelectItem value="100">100 templates</SelectItem>
+                        <SelectItem value="250">250 templates</SelectItem>
+                        <SelectItem value="all">All matching templates</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[9px] text-gray-400 pl-1">
+                      Recommended: start with 50–100 to keep the editor clean.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

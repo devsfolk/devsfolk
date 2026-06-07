@@ -20,6 +20,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const navigate = useNavigate();
   const { products, settings, addToCart } = useShop();
   const { enabledTemplates } = usePrintifyCatalog();
+  const [templateSearch, setTemplateSearch] = useState('');
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
@@ -49,22 +50,44 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     };
   };
 
-  // Filter custom-eligible Printify products and raw Printify templates
+  // Filter raw Printify templates only. Admin-created Printify shop products remain storefront products.
   const customProducts = useMemo(() => {
-    const shopProducts = products.filter((p) => p.isPrintify);
-    const shopBlueprintIds = new Set(shopProducts.map((product) => product.printifyCatalogId).filter(Boolean));
-    const templateProducts = enabledTemplates
-      .filter((template) => !shopBlueprintIds.has(String(template.blueprintId)))
+    const syncedTemplateProducts = products.filter((product) => (
+      product.isPrintify &&
+      (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_'))
+    ));
+    const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
+    const catalogTemplateProducts = enabledTemplates
+      .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
       .map(templateToEditorProduct);
 
-    return [...shopProducts, ...templateProducts];
+    return [...syncedTemplateProducts, ...catalogTemplateProducts];
   }, [products, enabledTemplates]);
+
+  const filteredProducts = useMemo(() => {
+    const query = templateSearch.trim().toLowerCase();
+    if (!query) return customProducts;
+
+    return customProducts.filter((product) => (
+      product.name.toLowerCase().includes(query) ||
+      product.description.toLowerCase().includes(query) ||
+      product.printifyCatalogId?.toLowerCase().includes(query)
+    ));
+  }, [customProducts, templateSearch]);
 
   // Active product state
   const [activeProduct, setActiveProduct] = useState(() => {
     return customProducts.find((p) => p.slug === productSlug) || 
            customProducts[0];
   });
+
+  const displayedProducts = useMemo(() => {
+    if (!activeProduct || filteredProducts.some((product) => product.id === activeProduct.id)) {
+      return filteredProducts;
+    }
+
+    return [activeProduct, ...filteredProducts];
+  }, [activeProduct, filteredProducts]);
 
   const printifyEnabled = settings.printifySettings?.enabled;
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
@@ -703,7 +726,20 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               <div className="space-y-6">
                 {/* Product Selector Dropdown */}
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Merch Product</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Search Blank Templates</Label>
+                  <Input
+                    value={templateSearch}
+                    onChange={(event) => setTemplateSearch(event.target.value)}
+                    placeholder="Search T-shirts, hoodies, mugs, posters..."
+                    className="rounded-xl h-11 text-xs border-gray-200"
+                  />
+                </div>
+
+                {/* Product Selector Dropdown */}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Select Template ({filteredProducts.length} matching / {customProducts.length} available)
+                  </Label>
                   <select
                     value={activeProduct.id}
                     onChange={(e) => {
@@ -712,12 +748,17 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                     }}
                     className="w-full h-11 border rounded-xl px-3 text-xs bg-white focus:outline-none border-gray-200"
                   >
-                    {customProducts.map((p) => (
+                    {displayedProducts.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.id.startsWith('printify_template_') ? 'Template: ' : 'Shop Product: '}{p.name}
+                        {p.name}
                       </option>
                     ))}
                   </select>
+                  {filteredProducts.length === 0 && (
+                    <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider pl-1">
+                      No matching templates found. Try a broader search.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-3 pt-2">
