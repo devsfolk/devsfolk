@@ -499,6 +499,9 @@ const mapOrderRow = (row: any): Order => ({
   status: row.status,
   createdAt: row.created_at ?? Date.now(),
   paymentMethod: row.payment_method,
+  printifyOrderId: row.printify_order_id ?? null,
+  printifySyncStatus: row.printify_sync_status ?? undefined,
+  printifyErrorLog: row.printify_error_log ?? null,
 });
 
 const toCategoryRow = (category: Category) => ({
@@ -635,7 +638,23 @@ const toOrderRow = (order: Order, paymentMethod?: string) => ({
   items: order.items,
   total: order.total,
   status: order.status,
-  payment_method: paymentMethod ?? null,
+  payment_method: paymentMethod ?? order.paymentMethod ?? null,
+  created_at: order.createdAt,
+  printify_order_id: order.printifyOrderId ?? null,
+  printify_sync_status: order.printifySyncStatus ?? 'NOT_REQUIRED',
+  printify_error_log: order.printifyErrorLog ?? null,
+});
+
+const toLegacyOrderRow = (order: Order, paymentMethod?: string) => ({
+  id: order.id,
+  customer_name: order.customerName,
+  customer_email: order.customerEmail,
+  customer_phone: order.customerPhone,
+  customer_address: order.customerAddress,
+  items: order.items,
+  total: order.total,
+  status: order.status,
+  payment_method: paymentMethod ?? order.paymentMethod ?? null,
   created_at: order.createdAt,
 });
 
@@ -837,11 +856,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let syncedAnyOrders = false;
 
     for (const pendingOrder of pendingOrders) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('orders')
         .insert(toOrderRow(pendingOrder.order, pendingOrder.paymentMethod));
 
       if (error) {
+        if (error.message.includes('printify_order_id') || error.message.includes('printify_sync_status') || error.message.includes('printify_error_log')) {
+          const legacyResult = await supabase
+            .from('orders')
+            .insert(toLegacyOrderRow(pendingOrder.order, pendingOrder.paymentMethod));
+          error = legacyResult.error;
+        }
+
+        if (!error) {
+          syncedAnyOrders = true;
+          continue;
+        }
+
         if (error.code === '23505') {
           syncedAnyOrders = true;
           continue;
@@ -1477,6 +1508,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           color: options?.color,
           size: options?.size,
           customization: options?.customization,
+          isPrintify: product.isPrintify,
+          printifyProductId: product.printifyProductId,
+          printifyCatalogId: product.printifyCatalogId,
         });
       }
 
@@ -1607,6 +1641,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    const hasPrintifyItems = cart.some((item) => item.isPrintify || item.printifyProductId || item.printifyCatalogId || item.customization);
     const newOrder: Order = {
       id: createId('ord'),
       ...customerData,
@@ -1614,6 +1649,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       total: cartTotal,
       status: initialStatus,
       createdAt: Date.now(),
+      paymentMethod: effectivePaymentMethod,
+      printifyOrderId: null,
+      printifySyncStatus: hasPrintifyItems ? 'PENDING' : 'NOT_REQUIRED',
+      printifyErrorLog: hasPrintifyItems ? 'Queued for Printify fulfillment bridge.' : null,
     };
 
     // Save to local device order history

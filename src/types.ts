@@ -261,7 +261,13 @@ export interface OrderItem {
   name: string;
   price: number;
   quantity: number;
+  image?: string;
+  color?: string;
+  size?: string;
   customization?: PrintifyCustomization;
+  isPrintify?: boolean;
+  printifyProductId?: string;
+  printifyCatalogId?: string;
 }
 
 export interface Order {
@@ -276,4 +282,7 @@ export interface Order {
   createdAt: number;
   paymentMethod?: string;
   notes?: string;
+  printifyOrderId?: string | null;
+  printifySyncStatus?: 'NOT_REQUIRED' | 'PENDING' | 'SYNCED' | 'FAILED';
+  printifyErrorLog?: string | null;
 }

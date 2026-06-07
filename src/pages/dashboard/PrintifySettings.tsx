@@ -417,12 +417,9 @@ export const PrintifySettings: React.FC = () => {
     }
   };
 
-  const customPrintOrders = orders.map((o, idx) => ({
-    ...o,
-    printifyOrderId: idx % 3 === 0 ? null : `pr_ord_${o.id.slice(0, 6)}`,
-    printifySyncStatus: idx % 3 === 0 ? 'FAILED' : (idx % 3 === 1 ? 'PENDING' : 'SYNCED'),
-    printifyErrorLog: idx % 3 === 0 ? 'API Connection timeout: Printify host unreachable.' : null
-  }));
+  const customPrintOrders = orders.filter((order) => (
+    order.printifySyncStatus && order.printifySyncStatus !== 'NOT_REQUIRED'
+  ));
 
   return (
     <div className="space-y-4 md:space-y-8 pb-10">
