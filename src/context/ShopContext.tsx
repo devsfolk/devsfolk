@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization, PrintifyCatalogTemplate } from '../types';
+import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization, PrintifyCatalogTemplate, StoreSection } from '../types';
 import { TEMPLATES } from '../lib/templates';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 
@@ -22,6 +22,7 @@ interface ShopContextType {
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  upsertPrintifyShopProducts: (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => Promise<{ importedCount: number; updatedCount: number }>;
   printifyCatalog: PrintifyCatalogTemplate[];
   upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[]) => Promise<void>;
   categories: Category[];
@@ -182,6 +183,16 @@ const SAMPLE_PRODUCTS: Product[] = [
   }
 ];
 
+const PRINTIFY_CATEGORY: Category = {
+  id: 'cat_printify',
+  name: 'Custom Merch',
+  slug: 'custom-merch',
+  description: 'Design your own premium custom print-on-demand products.',
+  imageUrl: '/custom-tee-mockup.png',
+  order: 10,
+  createdAt: Date.now(),
+};
+
 const SETTINGS_STORAGE_KEY = 'devsfolk_settings';
 const PRODUCTS_STORAGE_KEY = 'devsfolk_products';
 const CATEGORIES_STORAGE_KEY = 'devsfolk_categories';
@@ -278,6 +289,27 @@ const applyCssVariables = (updated: ThemeSettings) => {
   document.documentElement.style.setProperty('--font-display', updated.fontDisplay);
 };
 
+const getMergedSections = (raw?: Partial<ThemeSettings> | null): StoreSection[] => {
+  const sections = raw?.sections || DEFAULT_SETTINGS.sections;
+  const printifyEnabled = raw?.printifySettings?.enabled ?? DEFAULT_SETTINGS.printifySettings!.enabled;
+
+  if (!printifyEnabled || sections.some((section) => section.type === 'CUSTOMIZER')) {
+    return sections;
+  }
+
+  return [
+    ...sections,
+    {
+      id: 'printify-customizer',
+      type: 'CUSTOMIZER',
+      title: 'Design Your Own',
+      subtitle: 'Choose a custom product and personalize it in our live editor.',
+      enabled: true,
+      order: Math.max(...sections.map((section) => section.order), 0) + 1,
+    },
+  ];
+};
+
 const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
   ...DEFAULT_SETTINGS,
   ...raw,
@@ -326,7 +358,7 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
     ...DEFAULT_SETTINGS.mobile,
     ...(raw?.mobile || {}),
   },
-  sections: raw?.sections || DEFAULT_SETTINGS.sections,
+  sections: getMergedSections(raw),
   printifySettings: {
     enabled: raw?.printifySettings?.enabled ?? DEFAULT_SETTINGS.printifySettings!.enabled,
     providerSettings: {
@@ -1119,6 +1151,76 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const upsertPrintifyShopProducts = async (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => {
+    if (productPayloads.length === 0) {
+      return { importedCount: 0, updatedCount: 0 };
+    }
+
+    const categoryExists = categories.some((category) => category.id === PRINTIFY_CATEGORY.id);
+    if (!categoryExists) {
+      const updatedCategories = [...categories, PRINTIFY_CATEGORY].sort((a, b) => (a.order || 0) - (b.order || 0));
+      setCategories(updatedCategories);
+
+      if (!supabase) {
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(updatedCategories));
+      } else {
+        const { error } = await supabase.from('categories').upsert(toCategoryRow(PRINTIFY_CATEGORY));
+        if (error) {
+          throw new Error(`Failed to create Printify category: ${error.message}`);
+        }
+      }
+    }
+
+    let importedCount = 0;
+    let updatedCount = 0;
+    const nextProducts = [...products];
+    const rowsToUpsert: Product[] = [];
+
+    productPayloads.forEach((payload) => {
+      const existingIndex = nextProducts.findIndex(
+        (product) =>
+          product.printifyProductId === payload.printifyProductId ||
+          product.slug === payload.slug,
+      );
+
+      if (existingIndex >= 0) {
+        const existingProduct = nextProducts[existingIndex];
+        const updatedProduct: Product = {
+          ...existingProduct,
+          ...payload,
+          id: existingProduct.id,
+          createdAt: existingProduct.createdAt,
+        };
+        nextProducts[existingIndex] = updatedProduct;
+        rowsToUpsert.push(updatedProduct);
+        updatedCount++;
+        return;
+      }
+
+      const newProduct: Product = {
+        ...payload,
+        id: createId('p'),
+        createdAt: Date.now(),
+      };
+      nextProducts.unshift(newProduct);
+      rowsToUpsert.push(newProduct);
+      importedCount++;
+    });
+
+    setProducts(nextProducts);
+
+    if (!supabase) {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(nextProducts));
+    } else {
+      const { error } = await supabase.from('products').upsert(rowsToUpsert.map(toProductRow));
+      if (error) {
+        throw new Error(`Failed to save Printify shop products: ${error.message}`);
+      }
+    }
+
+    return { importedCount, updatedCount };
+  };
+
   const upsertPrintifyCatalogTemplates = async (templates: PrintifyCatalogTemplate[]) => {
     if (templates.length === 0) {
       return;
@@ -1448,6 +1550,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addProduct,
       updateProduct,
       deleteProduct,
+      upsertPrintifyShopProducts,
       printifyCatalog,
       upsertPrintifyCatalogTemplates,
       categories,

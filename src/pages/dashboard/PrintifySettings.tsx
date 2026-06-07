@@ -13,7 +13,7 @@ import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printify
 import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates } from '@/lib/printifyApi';
 
 export const PrintifySettings: React.FC = () => {
-  const { settings, updateSettings, orders, products, addProduct, updateProduct, printifyCatalog, upsertPrintifyCatalogTemplates } = useShop();
+  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts } = useShop();
   
   const printifySettings = settings.printifySettings || {
     enabled: false,
@@ -256,8 +256,7 @@ export const PrintifySettings: React.FC = () => {
         return;
       }
 
-      let importedCount = 0;
-      let updatedCount = 0;
+      const productPayloads = [];
 
       for (const p of printifyProducts) {
         const colors: string[] = [];
@@ -299,11 +298,7 @@ export const PrintifySettings: React.FC = () => {
           ? p.images.map((img: any) => img.src)
           : ['/custom-tee-mockup.png'];
 
-        const existing = products.find(
-          (prod) => prod.printifyProductId === String(p.id) || prod.slug === `printify-${p.id}`
-        );
-
-        const productPayload = {
+        productPayloads.push({
           categoryId: 'cat_printify',
           name: p.title,
           slug: `printify-${p.id}`,
@@ -317,16 +312,10 @@ export const PrintifySettings: React.FC = () => {
           isPrintify: true,
           printifyProductId: String(p.id),
           printifyCatalogId: String(p.blueprint_id || '')
-        };
-
-        if (existing) {
-          updateProduct(existing.id, productPayload);
-          updatedCount++;
-        } else {
-          addProduct(productPayload);
-          importedCount++;
-        }
+        });
       }
+
+      const { importedCount, updatedCount } = await upsertPrintifyShopProducts(productPayloads);
 
       setSyncLogs(prev => [
         ...prev, 
