@@ -12,10 +12,24 @@ const emptyCredentials: PrintifyCredentials = {
   aiApiKey: '',
 };
 
+const isMissingCredentialsTableError = (message = '') => (
+  message.includes('printify_credentials') &&
+  (message.includes('schema cache') || message.includes('does not exist') || message.includes('relation'))
+);
+
+const loadSessionCredentials = () => {
+  const saved = sessionStorage.getItem(SESSION_KEY);
+  return saved ? { ...emptyCredentials, ...JSON.parse(saved) } : emptyCredentials;
+};
+
+const saveSessionCredentials = async (credentials: Partial<PrintifyCredentials>) => {
+  const current = loadSessionCredentials();
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, ...credentials }));
+};
+
 export const loadPrintifyCredentials = async (): Promise<PrintifyCredentials> => {
   if (!supabase) {
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    return saved ? { ...emptyCredentials, ...JSON.parse(saved) } : emptyCredentials;
+    return loadSessionCredentials();
   }
 
   const { data, error } = await supabase
@@ -25,6 +39,10 @@ export const loadPrintifyCredentials = async (): Promise<PrintifyCredentials> =>
     .maybeSingle();
 
   if (error) {
+    if (isMissingCredentialsTableError(error.message)) {
+      return loadSessionCredentials();
+    }
+
     throw new Error(error.message);
   }
 
@@ -36,8 +54,7 @@ export const loadPrintifyCredentials = async (): Promise<PrintifyCredentials> =>
 
 export const savePrintifyCredentials = async (credentials: Partial<PrintifyCredentials>) => {
   if (!supabase) {
-    const current = await loadPrintifyCredentials();
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, ...credentials }));
+    await saveSessionCredentials(credentials);
     return;
   }
 
@@ -52,6 +69,11 @@ export const savePrintifyCredentials = async (credentials: Partial<PrintifyCrede
   });
 
   if (error) {
+    if (isMissingCredentialsTableError(error.message)) {
+      await saveSessionCredentials(credentials);
+      return;
+    }
+
     throw new Error(error.message);
   }
 };
