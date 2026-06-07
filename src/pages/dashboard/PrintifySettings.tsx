@@ -27,6 +27,7 @@ export const PrintifySettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'failed'>('idle');
+  const [connectionError, setConnectionError] = useState('');
   const [syncingProducts, setSyncingProducts] = useState(false);
   const [syncingTemplates, setSyncingTemplates] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
@@ -37,6 +38,8 @@ export const PrintifySettings: React.FC = () => {
 
   const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
+
+  const normalizeToken = (token: string) => token.trim().replace(/^Bearer\s+/i, '').trim();
 
   useEffect(() => {
     let mounted = true;
@@ -73,11 +76,12 @@ export const PrintifySettings: React.FC = () => {
       return;
     }
 
-    const token = privateApiKey.trim();
+    const token = normalizeToken(privateApiKey);
     
     // If the token is empty, reset status
     if (!token) {
       setConnectionStatus('idle');
+      setConnectionError('');
       lastCheckedTokenRef.current = '';
       return;
     }
@@ -93,6 +97,7 @@ export const PrintifySettings: React.FC = () => {
 
     setTestingConnection(true);
     setConnectionStatus('idle');
+    setConnectionError('');
 
     const debounceTimer = setTimeout(async () => {
       lastCheckedTokenRef.current = token;
@@ -123,6 +128,8 @@ export const PrintifySettings: React.FC = () => {
         }
       } catch (err: any) {
         console.error('Auto-detect connection failed:', err);
+        setConnectionError(err.message || String(err));
+        setSyncLogs(prev => [...prev, `[ERROR] Token auto-verification failed: ${err.message || err}`]);
         setConnectionStatus('failed');
       } finally {
         setTestingConnection(false);
@@ -144,7 +151,7 @@ export const PrintifySettings: React.FC = () => {
   const handleSave = async () => {
     if (printifySettings.enabled) {
       const shopId = printifySettings.providerSettings.shopId?.trim();
-      const apiKey = privateApiKey.trim();
+      const apiKey = normalizeToken(privateApiKey);
 
       if (!apiKey) {
         alert('Validation Error:\n\nPrintify API Access Token (PAT) is required when Printify Mode is enabled.');
@@ -165,7 +172,7 @@ export const PrintifySettings: React.FC = () => {
     setSaving(true);
     try {
       await savePrintifyCredentials({
-        apiKey: privateApiKey.trim(),
+        apiKey: normalizeToken(privateApiKey),
         aiApiKey: privateAiApiKey.trim(),
       });
     } catch (err: any) {
@@ -179,7 +186,7 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const testConnection = async () => {
-    const token = privateApiKey.trim();
+    const token = normalizeToken(privateApiKey);
     if (!token) {
       alert('Please enter your Printify API Access Token (PAT) first.');
       return;
@@ -187,6 +194,7 @@ export const PrintifySettings: React.FC = () => {
 
     setTestingConnection(true);
     setConnectionStatus('idle');
+    setConnectionError('');
 
     try {
       const shops = await fetchPrintifyShops(token);
@@ -216,6 +224,8 @@ export const PrintifySettings: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Connection test / auto-detect failed:', err);
+      setConnectionError(err.message || String(err));
+      setSyncLogs(prev => [...prev, `[ERROR] Token verification failed: ${err.message || err}`]);
       setConnectionStatus('failed');
       alert(`Verification Failed!\n\nError: ${err.message || err}\n\nPlease verify that your Access Token (PAT) is correct.`);
     } finally {
@@ -224,7 +234,7 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const runManualSync = async () => {
-    if (!privateApiKey.trim() || !printifySettings.providerSettings.shopId) {
+    if (!normalizeToken(privateApiKey) || !printifySettings.providerSettings.shopId) {
       alert('Please configure your Printify API Access Token and Shop ID in the APIs tab first.');
       return;
     }
@@ -239,7 +249,7 @@ export const PrintifySettings: React.FC = () => {
     setSyncLogs(['[INFO] Initializing catalog sync...', `[INFO] Querying Shop ID: ${shopId}...`]);
 
     try {
-      const apiKey = privateApiKey.trim();
+      const apiKey = normalizeToken(privateApiKey);
       setSyncLogs(prev => [...prev, '[INFO] Connecting to Printify API via secure client bridge...']);
       const data = await fetchPrintifyShopProducts(apiKey, shopId);
       const printifyProducts = data.data || data || [];
@@ -335,7 +345,7 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const runTemplateCatalogSync = async () => {
-    const apiKey = privateApiKey.trim();
+    const apiKey = normalizeToken(privateApiKey);
     if (!apiKey) {
       alert('Please configure your Printify API Access Token in the APIs tab first.');
       return;
@@ -517,7 +527,7 @@ export const PrintifySettings: React.FC = () => {
                     <Input 
                       type="password"
                       value={privateApiKey}
-                      onChange={(e) => setPrivateApiKey(e.target.value.trim())}
+                      onChange={(e) => setPrivateApiKey(e.target.value)}
                       placeholder="Enter your personal access token (e.g. pr_...)"
                       className="rounded-xl h-11 text-sm font-mono border-gray-200 pr-10"
                     />
@@ -562,8 +572,12 @@ export const PrintifySettings: React.FC = () => {
                     </div>
                   )}
                   {connectionStatus === 'failed' && (
-                    <div className="flex items-center gap-2 text-red-600 text-xs font-bold bg-red-50 px-4 py-2 rounded-xl border border-red-100">
-                      <AlertCircle className="h-4 w-4" /> Connection Failed. Check token.
+                    <div className="flex items-start gap-2 text-red-600 text-xs font-bold bg-red-50 px-4 py-2 rounded-xl border border-red-100">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        Connection Failed.
+                        {connectionError ? <span className="block font-mono text-[10px] normal-case mt-0.5">{connectionError}</span> : ' Check token.'}
+                      </span>
                     </div>
                   )}
                 </div>

@@ -93,6 +93,11 @@ const buildPrintifyPath = (body: any) => {
   return null;
 };
 
+const normalizeApiKey = (value: unknown) => {
+  const token = String(value || '').trim();
+  return token.replace(/^Bearer\s+/i, '').trim();
+};
+
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -100,14 +105,15 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
-  const isAuthorized = await isAuthorizedAdminRequest(request);
+  const bodyApiKey = normalizeApiKey(request.body?.apiKey);
+  const isTokenValidationRequest = request.body?.mode === 'shops' && Boolean(bodyApiKey);
+  const isAuthorized = isTokenValidationRequest || await isAuthorizedAdminRequest(request);
   if (!isAuthorized) {
-    sendJson(response, 401, { error: 'Admin authentication is required.' });
+    sendJson(response, 401, { error: 'Admin authentication is required before connecting to Printify.' });
     return;
   }
 
-  const bodyApiKey = String(request.body?.apiKey || '').trim();
-  const savedApiKey = await getSavedPrintifyApiKey();
+  const savedApiKey = isTokenValidationRequest ? '' : await getSavedPrintifyApiKey();
   const apiKey = bodyApiKey || savedApiKey;
   if (!apiKey) {
     sendJson(response, 400, { error: 'Printify API Access Token is required.' });
