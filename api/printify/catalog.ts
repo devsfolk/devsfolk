@@ -4,8 +4,9 @@ const getSupabaseConfig = () => {
   const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
   const supabaseUrl = rawUrl.trim().replace(/\/rest\/v1\/?$/, '');
   const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  const supabaseServiceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
-  return { supabaseUrl, supabaseAnonKey };
+  return { supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey };
 };
 
 const sendJson = (response: any, status: number, payload: unknown) => {
@@ -32,6 +33,27 @@ const isAuthorizedAdminRequest = async (request: any) => {
   });
 
   return sessionResponse.ok;
+};
+
+const getSavedPrintifyApiKey = async () => {
+  const { supabaseUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return '';
+  }
+
+  const credentialsResponse = await fetch(`${supabaseUrl}/rest/v1/printify_credentials?id=eq.default&select=api_key`, {
+    headers: {
+      apikey: supabaseServiceRoleKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+    },
+  });
+
+  if (!credentialsResponse.ok) {
+    return '';
+  }
+
+  const rows = await credentialsResponse.json().catch(() => []);
+  return String(rows?.[0]?.api_key || '').trim();
 };
 
 const buildPrintifyPath = (body: any) => {
@@ -84,7 +106,8 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
-  const apiKey = String(request.body?.apiKey || '').trim();
+  const savedApiKey = await getSavedPrintifyApiKey();
+  const apiKey = savedApiKey || String(request.body?.apiKey || '').trim();
   if (!apiKey) {
     sendJson(response, 400, { error: 'Printify API Access Token is required.' });
     return;

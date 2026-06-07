@@ -24,11 +24,16 @@ const callPrintifyGateway = async <T,>(payload: PrintifyGatewayRequest): Promise
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json().catch(() => null);
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await response.json().catch(() => null) : null;
 
   if (!response.ok) {
     const message = data?.error || data?.message || `Printify API returned status ${response.status}`;
     throw new Error(message);
+  }
+
+  if (!data) {
+    throw new Error('Printify gateway returned a non-JSON response. Please confirm the /api/printify/catalog route is deployed.');
   }
 
   return data as T;

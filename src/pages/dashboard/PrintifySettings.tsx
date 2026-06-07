@@ -110,6 +110,7 @@ export const PrintifySettings: React.FC = () => {
               shopId: detectedShopId
             }
           });
+          await savePrintifyCredentials({ apiKey: token });
           
           setConnectionStatus('success');
           setSyncLogs(prev => [
