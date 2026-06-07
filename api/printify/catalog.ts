@@ -106,8 +106,9 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
+  const bodyApiKey = String(request.body?.apiKey || '').trim();
   const savedApiKey = await getSavedPrintifyApiKey();
-  const apiKey = savedApiKey || String(request.body?.apiKey || '').trim();
+  const apiKey = bodyApiKey || savedApiKey;
   if (!apiKey) {
     sendJson(response, 400, { error: 'Printify API Access Token is required.' });
     return;

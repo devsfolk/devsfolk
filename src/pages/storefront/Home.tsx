@@ -529,6 +529,17 @@ export const Home: React.FC = () => {
   return (
     <div className="flex flex-col">
       {settings.sections.sort((a, b) => a.order - b.order).map(renderSection)}
+      {settings.printifySettings?.enabled && !settings.sections.some((section) => section.type === 'CUSTOMIZER') && products.some((product) => product.isPrintify) && (
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="text-center mb-8 md:mb-12">
+              <h2 className="text-4xl font-black uppercase tracking-tight mb-2" style={{ fontFamily: settings.fontDisplay }}>Design Your Own</h2>
+              <p className="text-gray-500 max-w-2xl mx-auto uppercase font-bold tracking-widest opacity-60">Choose a custom product and personalize it in our live editor.</p>
+            </div>
+            <BespokeCustomizer showHeader={false} />
+          </div>
+        </section>
+      )}
       
       {settings.trustFeatures.some((feature) => feature.enabled) && (
         <section className="py-12 bg-gray-50 border-y">

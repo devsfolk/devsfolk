@@ -426,26 +426,34 @@ const mapCategoryRow = (row: any): Category => ({
   createdAt: row.created_at ?? Date.now(),
 });
 
-const mapProductRow = (row: any): Product => ({
-  id: row.id,
-  categoryId: row.category_id,
-  name: row.name,
-  slug: row.slug,
-  description: row.description,
-  price: Number(row.price),
-  discountPrice: row.discount_price == null ? undefined : Number(row.discount_price),
-  images: row.images || [],
-  stock: row.stock ?? 0,
-  isFeatured: Boolean(row.is_featured),
-  order: row.display_order ?? 0,
-  colors: row.colors || [],
-  sizes: row.sizes || [],
-  variants: row.variants || [],
-  createdAt: row.created_at ?? Date.now(),
-  isPrintify: Boolean(row.is_printify),
-  printifyProductId: row.printify_product_id ?? undefined,
-  printifyCatalogId: row.printify_catalog_id ?? undefined,
-});
+const mapProductRow = (row: any): Product => {
+  const variants = row.variants || [];
+  const printifyMeta = Array.isArray(variants)
+    ? variants.find((variant: any) => variant?.id === '__printify_meta')
+    : null;
+  const printifyData = printifyMeta?.printify || {};
+
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    price: Number(row.price),
+    discountPrice: row.discount_price == null ? undefined : Number(row.discount_price),
+    images: row.images || [],
+    stock: row.stock ?? 0,
+    isFeatured: Boolean(row.is_featured),
+    order: row.display_order ?? 0,
+    colors: row.colors || [],
+    sizes: row.sizes || [],
+    variants: Array.isArray(variants) ? variants.filter((variant: any) => variant?.id !== '__printify_meta') : [],
+    createdAt: row.created_at ?? Date.now(),
+    isPrintify: Boolean(row.is_printify) || Boolean(printifyData.isPrintify),
+    printifyProductId: row.printify_product_id ?? printifyData.printifyProductId ?? undefined,
+    printifyCatalogId: row.printify_catalog_id ?? printifyData.printifyCatalogId ?? undefined,
+  };
+};
 
 const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => ({
   id: row.id,
@@ -518,6 +526,43 @@ const toProductRow = (product: Product) => ({
   printify_product_id: product.printifyProductId ?? null,
   printify_catalog_id: product.printifyCatalogId ?? null,
 });
+
+const toLegacyProductRow = (product: Product) => {
+  const variants = (product.variants || []).filter((variant: any) => variant?.id !== '__printify_meta');
+
+  return {
+    id: product.id,
+    category_id: product.categoryId,
+    name: product.name,
+    slug: product.slug,
+    description: product.description,
+    price: product.price,
+    discount_price: product.discountPrice ?? null,
+    images: product.images,
+    stock: product.stock,
+    is_featured: product.isFeatured,
+    display_order: product.order ?? 0,
+    colors: product.colors || [],
+    sizes: product.sizes || [],
+    variants: product.isPrintify
+      ? [
+          ...variants,
+          {
+            id: '__printify_meta',
+            name: 'Printify Metadata',
+            price: product.price,
+            stock: 0,
+            printify: {
+              isPrintify: true,
+              printifyProductId: product.printifyProductId ?? null,
+              printifyCatalogId: product.printifyCatalogId ?? null,
+            },
+          },
+        ]
+      : variants,
+    created_at: product.createdAt,
+  };
+};
 
 const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => ({
   id: template.id,
@@ -1214,7 +1259,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       const { error } = await supabase.from('products').upsert(rowsToUpsert.map(toProductRow));
       if (error) {
-        throw new Error(`Failed to save Printify shop products: ${error.message}`);
+        if (error.message.includes('is_printify') || error.message.includes('printify_product_id') || error.message.includes('printify_catalog_id')) {
+          const legacyResult = await supabase.from('products').upsert(rowsToUpsert.map(toLegacyProductRow));
+          if (legacyResult.error) {
+            throw new Error(`Failed to save Printify shop products: ${legacyResult.error.message}`);
+          }
+        } else {
+          throw new Error(`Failed to save Printify shop products: ${error.message}`);
+        }
       }
     }
 
