@@ -597,40 +597,52 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
       // Load base mockup
       const baseImg = new Image();
+      baseImg.crossOrigin = 'anonymous';
       baseImg.src = activeProduct.images[0] || '/custom-tee-mockup.png';
       baseImg.onload = () => {
-        // Draw shirt mockup multiplying background color
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.drawImage(baseImg, 0, 0, 600, 600);
-        ctx.globalCompositeOperation = 'source-over';
+        try {
+          // Draw shirt mockup multiplying background color
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.drawImage(baseImg, 0, 0, 600, 600);
+          ctx.globalCompositeOperation = 'source-over';
 
-        // Coordinates matching the relative boundary size (35% x 45%)
-        const pw = 600 * 0.35;
-        const ph = 600 * 0.45;
-        const px = (600 - pw) / 2;
-        const py = 600 * 0.28;
+          // Coordinates matching the relative boundary size (35% x 45%)
+          const pw = 600 * 0.35;
+          const ph = 600 * 0.45;
+          const px = (600 - pw) / 2;
+          const py = 600 * 0.28;
 
-        // Discard active selection line before compilation
-        const activeObj = fCanvas.getActiveObject();
-        if (activeObj) {
-          fCanvas.discardActiveObject();
-          fCanvas.renderAll();
-        }
-
-        const fabricDataUrl = fCanvas.toDataURL({ format: 'png' });
-        const fabricImg = new Image();
-        fabricImg.src = fabricDataUrl;
-        fabricImg.onload = () => {
-          ctx.drawImage(fabricImg, px, py, pw, ph);
-
-          // Restore selection state
+          // Discard active selection line before compilation
+          const activeObj = fCanvas.getActiveObject();
           if (activeObj) {
-            fCanvas.setActiveObject(activeObj);
+            fCanvas.discardActiveObject();
             fCanvas.renderAll();
           }
 
-          resolve(canvas.toDataURL('image/webp', 0.85));
-        };
+          const fabricDataUrl = fCanvas.toDataURL({ format: 'png' });
+          const fabricImg = new Image();
+          fabricImg.src = fabricDataUrl;
+          fabricImg.onload = () => {
+            try {
+              ctx.drawImage(fabricImg, px, py, pw, ph);
+
+              // Restore selection state
+              if (activeObj) {
+                fCanvas.setActiveObject(activeObj);
+                fCanvas.renderAll();
+              }
+
+              resolve(canvas.toDataURL('image/webp', 0.85));
+            } catch (error) {
+              console.warn('Preview compilation failed; continuing without compiled preview.', error);
+              resolve('');
+            }
+          };
+          fabricImg.onerror = () => resolve('');
+        } catch (error) {
+          console.warn('Preview generation failed; continuing without compiled preview.', error);
+          resolve('');
+        }
       };
       baseImg.onerror = () => resolve('');
     });
@@ -638,9 +650,24 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Add compiled customization item to cart
   const handleAddToCart = async () => {
-    const previewUrl = await generatePreviewDataUrl();
+    if (!activeProduct) {
+      return;
+    }
+
     const fCanvas = fabricCanvasRef.current;
-    if (!fCanvas) return;
+    if (!fCanvas) {
+      addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
+        color: selectedColor,
+        size: selectedSize,
+      });
+      navigate('/cart');
+      return;
+    }
+
+    const previewUrl = await generatePreviewDataUrl().catch((error) => {
+      console.warn('Preview generation failed; adding item with fallback image.', error);
+      return '';
+    });
 
     const imgObj = fCanvas.getObjects('image')[0];
     const textObj = fCanvas.getObjects('i-text')[0] as fabric.IText;
