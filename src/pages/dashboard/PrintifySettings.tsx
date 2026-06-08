@@ -745,14 +745,14 @@ export const PrintifySettings: React.FC = () => {
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <ShoppingCart className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Template Pricing</CardTitle>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Template Estimate Pricing</CardTitle>
                 </div>
-                <CardDescription className="text-xs">Control customer-facing template prices and customization fees.</CardDescription>
+                <CardDescription className="text-xs">Control estimated customer-facing prices for raw editor templates.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 p-5 md:p-6 pt-0">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Profit Margin %</Label>
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Estimate Margin %</Label>
                     <Input
                       type="number"
                       min="0"
@@ -765,11 +765,11 @@ export const PrintifySettings: React.FC = () => {
                       })}
                       className="rounded-xl h-11 text-xs border-gray-200"
                     />
-                    <p className="text-[9px] text-gray-400 pl-1">Example: 40 makes a $10 base template show as $14.</p>
+                    <p className="text-[9px] text-gray-400 pl-1">Applies only to blank editor templates, not existing Printify shop products.</p>
                   </div>
 
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Design Fee</Label>
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Estimated Design Fee</Label>
                     <Input
                       type="number"
                       min="0"
@@ -782,11 +782,11 @@ export const PrintifySettings: React.FC = () => {
                       })}
                       className="rounded-xl h-11 text-xs border-gray-200"
                     />
-                    <p className="text-[9px] text-gray-400 pl-1">Added when a customer customizes a template.</p>
+                    <p className="text-[9px] text-gray-400 pl-1">Shown in the editor estimate when a customer customizes a template.</p>
                   </div>
 
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Edit Fee</Label>
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Estimated Edit Fee</Label>
                     <Input
                       type="number"
                       min="0"
@@ -804,8 +804,8 @@ export const PrintifySettings: React.FC = () => {
                 </div>
 
                 <div className="rounded-2xl border bg-blue-50 border-blue-100 p-4 text-[11px] text-blue-700 leading-relaxed">
-                  <p className="font-bold mb-1">Pricing Formula</p>
-                  <p>Template price = Printify base price + profit margin. Customized order price = template price + design fee.</p>
+                  <p className="font-bold mb-1">Estimate Formula</p>
+                  <p>Raw template estimate = Printify base/catalog price + template estimate margin. Customized estimate = template estimate + design fee. Existing Printify shop products keep their Printify retail price.</p>
                 </div>
               </CardContent>
             </Card>

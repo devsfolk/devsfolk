@@ -814,9 +814,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   <div className="rounded-2xl border bg-emerald-50/60 border-emerald-100 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Current Template Price</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Estimated Template Price</p>
                         <p className="text-[10px] text-emerald-700/70 mt-1">
-                          Includes {activeMarginPercent}% store margin{activeDesignFee > 0 ? ` + ${settings.currencySymbol}${activeDesignFee.toFixed(2)} design fee` : ''}.
+                          Includes {activeMarginPercent}% template estimate margin{activeDesignFee > 0 ? ` + ${settings.currencySymbol}${activeDesignFee.toFixed(2)} design fee` : ''}.
                         </p>
                       </div>
                       <p className="text-lg font-black text-emerald-800">
