@@ -402,7 +402,7 @@ export const PrintifySettings: React.FC = () => {
       }
 
       const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId);
-      await upsertPrintifyCatalogTemplates(templatesWithProviders);
+      await upsertPrintifyCatalogTemplates(templatesWithProviders, { replaceVisible: true });
 
       handleUpdate({
         sync: {

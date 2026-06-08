@@ -733,6 +733,40 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                     placeholder="Search T-shirts, hoodies, mugs, posters..."
                     className="rounded-xl h-11 text-xs border-gray-200"
                   />
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-2 max-h-52 overflow-y-auto space-y-1">
+                    {filteredProducts.slice(0, 10).map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => setActiveProduct(product)}
+                        className={`w-full flex items-center gap-3 rounded-xl p-2 text-left transition-colors ${
+                          activeProduct.id === product.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-100 text-black'
+                        }`}
+                      >
+                        <img
+                          src={product.images[0] || '/custom-tee-mockup.png'}
+                          alt={product.name}
+                          className="h-9 w-9 rounded-lg object-cover bg-gray-100 shrink-0"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[10px] font-black uppercase tracking-tight truncate">{product.name}</span>
+                          <span className={`block text-[9px] truncate ${activeProduct.id === product.id ? 'text-white/60' : 'text-gray-400'}`}>
+                            Template ID: {product.printifyCatalogId || product.id}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                    {filteredProducts.length > 10 && (
+                      <p className="px-2 pt-1 text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                        Showing first 10 matches. Keep typing to narrow results.
+                      </p>
+                    )}
+                    {filteredProducts.length === 0 && (
+                      <p className="px-2 py-3 text-[10px] text-amber-600 font-bold uppercase tracking-wider">
+                        No matching templates found. Try a broader search.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Product Selector Dropdown */}
@@ -754,11 +788,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       </option>
                     ))}
                   </select>
-                  {filteredProducts.length === 0 && (
-                    <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider pl-1">
-                      No matching templates found. Try a broader search.
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-3 pt-2">

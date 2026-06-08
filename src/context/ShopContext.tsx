@@ -24,7 +24,7 @@ interface ShopContextType {
   deleteProduct: (id: string) => void;
   upsertPrintifyShopProducts: (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => Promise<{ importedCount: number; updatedCount: number }>;
   printifyCatalog: PrintifyCatalogTemplate[];
-  upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[]) => Promise<void>;
+  upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[], options?: { replaceVisible?: boolean }) => Promise<void>;
   categories: Category[];
   addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
@@ -1338,22 +1338,31 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { importedCount, updatedCount };
   };
 
-  const upsertPrintifyCatalogTemplates = async (templates: PrintifyCatalogTemplate[]) => {
+  const upsertPrintifyCatalogTemplates = async (templates: PrintifyCatalogTemplate[], options?: { replaceVisible?: boolean }) => {
     if (templates.length === 0) {
       return;
     }
 
     const byId = new Map<string, PrintifyCatalogTemplate>(printifyCatalog.map((template) => [template.id, template]));
+    const visibleTemplateIds = new Set(templates.map((template) => template.id));
+    if (options?.replaceVisible) {
+      byId.forEach((template, id) => {
+        if (!visibleTemplateIds.has(id)) {
+          byId.set(id, { ...template, isEnabled: false });
+        }
+      });
+    }
     templates.forEach((template) => {
-      byId.set(template.id, template);
+      byId.set(template.id, { ...template, isEnabled: true });
     });
     const updated = Array.from(byId.values()).sort((a, b) => a.title.localeCompare(b.title));
+    const selectedTemplateProductIds = new Set(templates.map((template) => `printify_template_${template.id}`));
 
     setPrintifyCatalog(updated);
     localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(updated));
 
     if (supabase) {
-      const { error } = await supabase.from('printify_catalog').upsert(templates.map(toPrintifyCatalogRow));
+      const { error } = await supabase.from('printify_catalog').upsert(updated.map(toPrintifyCatalogRow));
       if (error) {
         if (isMissingSupabaseRelationError(error.message, 'printify_catalog')) {
           const categoryExists = categories.some((category) => category.id === PRINTIFY_CATEGORY.id);
@@ -1387,12 +1396,33 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           setProducts((currentProducts) => {
             const byProductId = new Map<string, Product>(currentProducts.map((product) => [product.id, product]));
+            if (options?.replaceVisible) {
+              byProductId.forEach((product, id) => {
+                if (
+                  (id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+                  !selectedTemplateProductIds.has(id)
+                ) {
+                  byProductId.delete(id);
+                }
+              });
+            }
             fallbackProducts.forEach((product) => {
               const existing = byProductId.get(product.id);
               byProductId.set(product.id, existing ? { ...existing, ...product, createdAt: existing.createdAt } : product);
             });
             return Array.from(byProductId.values());
           });
+          if (options?.replaceVisible) {
+            const obsoleteProductIds = products
+              .filter((product) => (
+                (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+                !selectedTemplateProductIds.has(product.id)
+              ))
+              .map((product) => product.id);
+            if (obsoleteProductIds.length > 0) {
+              await supabase.from('products').delete().in('id', obsoleteProductIds);
+            }
+          }
           reportSyncSuccess('Printify templates published through product fallback.');
           return;
         }
