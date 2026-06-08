@@ -1,4 +1,4 @@
-import { PrintifyCatalogTemplate } from '@/types';
+import { Order, PrintifyCatalogTemplate } from '@/types';
 import { supabase } from '@/lib/supabase';
 
 type PrintifyRequestMode = 'shops' | 'shop-products' | 'blueprints' | 'blueprint' | 'providers' | 'variants' | 'shipping';
@@ -45,6 +45,35 @@ export const fetchPrintifyShops = (apiKey: string) => {
 
 export const fetchPrintifyShopProducts = (apiKey: string, shopId: string) => {
   return callPrintifyGateway<any>({ apiKey, mode: 'shop-products', shopId });
+};
+
+export const submitPrintifyOrder = async (shopId: string, order: Order, apiKey = '') => {
+  const sessionResult = supabase ? await supabase.auth.getSession() : null;
+  const accessToken = sessionResult?.data.session?.access_token;
+
+  const response = await fetch('/api/printify/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({ shopId, order, apiKey }),
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await response.json().catch(() => null) : null;
+
+  if (!response.ok) {
+    const missing = Array.isArray(data?.missing) && data.missing.length > 0 ? ` Missing: ${data.missing.join(', ')}` : '';
+    const message = data?.error || data?.message || `Printify order API returned status ${response.status}`;
+    throw new Error(`${message}${missing}`);
+  }
+
+  if (!data) {
+    throw new Error('Printify order gateway returned a non-JSON response. Please confirm the /api/printify/orders route is deployed.');
+  }
+
+  return data;
 };
 
 export const fetchPrintifyBlueprints = (apiKey: string) => {

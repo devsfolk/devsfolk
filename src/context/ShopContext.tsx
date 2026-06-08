@@ -31,6 +31,7 @@ interface ShopContextType {
   deleteCategory: (id: string) => void;
   orders: Order[];
   updateOrderStatus: (id: string, status: Order['status']) => void;
+  updateOrderPrintifySync: (id: string, updates: Pick<Order, 'printifySyncStatus' | 'printifyOrderId' | 'printifyErrorLog'>) => void;
   refreshOrders: () => Promise<void>;
   cart: CartItem[];
   addToCart: (product: Product, variant?: ProductVariant, quantity?: number, options?: { color?: string; size?: string; customization?: PrintifyCustomization }) => void;
@@ -1519,6 +1520,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateOrderPrintifySync = (id: string, updates: Pick<Order, 'printifySyncStatus' | 'printifyOrderId' | 'printifyErrorLog'>) => {
+    const updated = orders.map((order) => (order.id === id ? { ...order, ...updates } : order));
+    setOrders(updated);
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updated));
+
+    if (supabase) {
+      void (async () => {
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            printify_sync_status: updates.printifySyncStatus,
+            printify_order_id: updates.printifyOrderId ?? null,
+            printify_error_log: updates.printifyErrorLog ?? null,
+          })
+          .eq('id', id);
+        if (error) {
+          console.error('Failed to update Printify order sync fields:', error.message);
+        }
+      })();
+    }
+  };
+
   const cartTotal = useMemo(() => cart.reduce((accumulator, item) => accumulator + item.price * item.quantity, 0), [cart]);
 
   const addToCart = (product: Product, variant?: ProductVariant, quantity = 1, options?: { color?: string; size?: string; customization?: PrintifyCustomization }) => {
@@ -1767,6 +1790,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deleteCategory,
       orders,
       updateOrderStatus,
+      updateOrderPrintifySync,
       refreshOrders: syncOrdersFromSupabase,
       cart,
       addToCart,

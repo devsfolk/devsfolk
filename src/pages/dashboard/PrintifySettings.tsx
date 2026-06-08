@@ -10,10 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 
 export const PrintifySettings: React.FC = () => {
-  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts } = useShop();
+  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts, updateOrderPrintifySync } = useShop();
   
   const printifySettings = settings.printifySettings || {
     enabled: false,
@@ -37,6 +37,7 @@ export const PrintifySettings: React.FC = () => {
   const [credentialsLoaded, setCredentialsLoaded] = useState(false);
   const [templateSyncSearch, setTemplateSyncSearch] = useState('');
   const [templateSyncLimit, setTemplateSyncLimit] = useState('100');
+  const [submittingOrderId, setSubmittingOrderId] = useState('');
 
   const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
@@ -439,6 +440,31 @@ export const PrintifySettings: React.FC = () => {
   const customPrintOrders = orders.filter((order) => (
     order.printifySyncStatus && order.printifySyncStatus !== 'NOT_REQUIRED'
   ));
+
+  const handlePrintifyOrderRetry = async (orderId: string) => {
+    const order = orders.find((entry) => entry.id === orderId);
+    if (!order) {
+      return;
+    }
+
+    setSubmittingOrderId(orderId);
+    try {
+      const response = await submitPrintifyOrder(printifySettings.providerSettings.shopId, order, privateApiKey);
+      updateOrderPrintifySync(order.id, {
+        printifySyncStatus: 'SYNCED',
+        printifyOrderId: response?.id || response?.data?.id || null,
+        printifyErrorLog: null,
+      });
+    } catch (err: any) {
+      updateOrderPrintifySync(order.id, {
+        printifySyncStatus: 'FAILED',
+        printifyOrderId: order.printifyOrderId || null,
+        printifyErrorLog: err?.message || 'Printify order submission failed.',
+      });
+    } finally {
+      setSubmittingOrderId('');
+    }
+  };
 
   return (
     <div className="space-y-4 md:space-y-8 pb-10">
@@ -1267,8 +1293,10 @@ export const PrintifySettings: React.FC = () => {
                               <Button 
                                 variant="outline" 
                                 className="rounded-lg h-8 px-3 text-[9px] font-black uppercase tracking-wider"
-                                onClick={() => alert(`Retrying Printify push for Order #${ord.id}`)}
+                                disabled={submittingOrderId === ord.id || !printifySettings.providerSettings.shopId}
+                                onClick={() => handlePrintifyOrderRetry(ord.id)}
                               >
+                                {submittingOrderId === ord.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                                 Push / Retry
                               </Button>
                             </td>
