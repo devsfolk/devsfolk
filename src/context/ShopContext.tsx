@@ -1575,6 +1575,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isPrintify: product.isPrintify,
           printifyProductId: product.printifyProductId,
           printifyCatalogId: product.printifyCatalogId,
+          printifyBlueprintId: options?.customization?.printifyBlueprintId,
+          printifyPrintProviderId: options?.customization?.printifyPrintProviderId,
+          printifyVariantId: options?.customization?.printifyVariantId,
+          printifyPrintAreas: options?.customization?.printifyPrintAreas,
         });
       }
 

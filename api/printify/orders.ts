@@ -126,7 +126,7 @@ const buildLineItems = (order: any, missing: string[]) => {
     const existingProductId = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();
     const blueprintId = toPositiveInteger(getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id']));
     const printProviderId = toPositiveInteger(getItemMetaValue(item, ['printifyPrintProviderId', 'print_provider_id']));
-    const printAreas = item?.printAreas || item?.print_areas || item?.customization?.printAreas || null;
+    const printAreas = item?.printifyPrintAreas || item?.printAreas || item?.print_areas || item?.customization?.printifyPrintAreas || item?.customization?.printAreas || null;
 
     if (!variantId) {
       missing.push(`line_items[${index}].variant_id`);

@@ -86,6 +86,24 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     ));
   }, [customProducts, templateSearch]);
 
+  const getTemplateForProduct = (product?: Product) => {
+    if (!product?.printifyCatalogId) {
+      return undefined;
+    }
+
+    return enabledTemplates.find((template) => String(template.blueprintId) === String(product.printifyCatalogId));
+  };
+
+  const getPrimaryPrintifyProvider = (template?: PrintifyCatalogTemplate) => {
+    const providers = Array.isArray(template?.providers) ? template.providers : [];
+    return providers[0];
+  };
+
+  const getPrimaryPrintifyVariant = (template?: PrintifyCatalogTemplate) => {
+    const variants = Array.isArray(template?.variants) ? template.variants : [];
+    return variants.find((variant: any) => variant?.is_enabled !== false && variant?.is_available !== false) || variants[0];
+  };
+
   // Active product state
   const [activeProduct, setActiveProduct] = useState(() => {
     return customProducts.find((p) => p.slug === productSlug) || 
@@ -106,6 +124,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
   const activeDesignFee = Math.max(0, Number(settings.printifySettings?.charges?.designFee ?? 0));
   const activeMarginPercent = Math.max(0, Number(settings.printifySettings?.charges?.profitMarginPercent ?? 0));
+  const activeTemplate = getTemplateForProduct(activeProduct);
+  const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
+  const activePrintifyVariant = getPrimaryPrintifyVariant(activeTemplate);
 
   useEffect(() => {
     const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];
@@ -632,6 +653,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       imagePosition: imgObj ? { x: imgObj.left || 0, y: imgObj.top || 0, scale: imgObj.scaleX || 1, rotate: imgObj.angle || 0 } : undefined,
       textPosition: textObj ? { x: textObj.left || 0, y: textObj.top || 0, scale: textObj.scaleX || 1, rotate: textObj.angle || 0 } : undefined,
       previewUrl: previewUrl || undefined,
+      printifyBlueprintId: activeTemplate?.blueprintId,
+      printifyPrintProviderId: Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id) || undefined,
+      printifyVariantId: Number(activePrintifyVariant?.id || activePrintifyVariant?.variant_id) || undefined,
+      printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
     };
 
     addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {

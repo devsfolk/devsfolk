@@ -254,6 +254,10 @@ export interface PrintifyCustomization {
   textPosition?: { x: number; y: number; rotate: number; scale: number };
   imagePosition?: { x: number; y: number; rotate: number; scale: number };
   previewUrl?: string;
+  printifyBlueprintId?: number;
+  printifyPrintProviderId?: number;
+  printifyVariantId?: number;
+  printifyPrintAreas?: any;
 }
 
 export interface OrderItem {
@@ -269,6 +273,10 @@ export interface OrderItem {
   isPrintify?: boolean;
   printifyProductId?: string;
   printifyCatalogId?: string;
+  printifyBlueprintId?: number;
+  printifyPrintProviderId?: number;
+  printifyVariantId?: number;
+  printifyPrintAreas?: any;
 }
 
 export interface Order {
@@ -277,6 +285,18 @@ export interface Order {
   customerEmail: string;
   customerPhone: string;
   customerAddress: string;
+  shippingAddress?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    country?: string;
+    region?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    zip?: string;
+  };
   items: OrderItem[];
   total: number;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'ABANDONED';
