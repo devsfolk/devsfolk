@@ -489,6 +489,17 @@ const mapReviewRow = (row: any): Review => ({
   createdAt: row.created_at ?? Date.now(),
 });
 
+const orderHasPrintifyItems = (items: any[] = []) => items.some((item) => (
+  item?.isPrintify ||
+  item?.printifyProductId ||
+  item?.printifyCatalogId ||
+  item?.printifyBlueprintId ||
+  item?.customization?.printifyBlueprintId ||
+  item?.customization?.previewUrl ||
+  item?.customization?.customText ||
+  item?.customization?.customImageUrl
+));
+
 const mapOrderRow = (row: any): Order => ({
   id: row.id,
   customerName: row.customer_name,
@@ -501,8 +512,8 @@ const mapOrderRow = (row: any): Order => ({
   createdAt: row.created_at ?? Date.now(),
   paymentMethod: row.payment_method,
   printifyOrderId: row.printify_order_id ?? null,
-  printifySyncStatus: row.printify_sync_status ?? undefined,
-  printifyErrorLog: row.printify_error_log ?? null,
+  printifySyncStatus: row.printify_sync_status ?? (orderHasPrintifyItems(row.items || []) ? 'PENDING' : undefined),
+  printifyErrorLog: row.printify_error_log ?? (orderHasPrintifyItems(row.items || []) ? 'Queued for Printify fulfillment bridge.' : null),
 });
 
 const toCategoryRow = (category: Category) => ({
