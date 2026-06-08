@@ -20,7 +20,7 @@ export const PrintifySettings: React.FC = () => {
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: '' } },
-    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    charges: { profitMarginPercent: 40, designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true }
   };
 
@@ -737,6 +737,75 @@ export const PrintifySettings: React.FC = () => {
                       {printifySettings.editor.selected === 'alternative' ? 'Selected Editor' : 'Select Alternative Editor'}
                     </Button>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="p-5 md:p-6">
+                <div className="flex items-center gap-3">
+                  <ShoppingCart className="h-5 w-5 text-gray-400" />
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Template Pricing</CardTitle>
+                </div>
+                <CardDescription className="text-xs">Control customer-facing template prices and customization fees.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5 p-5 md:p-6 pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Profit Margin %</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={printifySettings.charges.profitMarginPercent ?? 0}
+                      onChange={(event) => handleUpdate({
+                        charges: {
+                          ...printifySettings.charges,
+                          profitMarginPercent: Math.max(0, Number(event.target.value) || 0)
+                        }
+                      })}
+                      className="rounded-xl h-11 text-xs border-gray-200"
+                    />
+                    <p className="text-[9px] text-gray-400 pl-1">Example: 40 makes a $10 base template show as $14.</p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Design Fee</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={printifySettings.charges.designFee}
+                      onChange={(event) => handleUpdate({
+                        charges: {
+                          ...printifySettings.charges,
+                          designFee: Math.max(0, Number(event.target.value) || 0)
+                        }
+                      })}
+                      className="rounded-xl h-11 text-xs border-gray-200"
+                    />
+                    <p className="text-[9px] text-gray-400 pl-1">Added when a customer customizes a template.</p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Edit Fee</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={printifySettings.charges.editFee}
+                      onChange={(event) => handleUpdate({
+                        charges: {
+                          ...printifySettings.charges,
+                          editFee: Math.max(0, Number(event.target.value) || 0)
+                        }
+                      })}
+                      className="rounded-xl h-11 text-xs border-gray-200"
+                    />
+                    <p className="text-[9px] text-gray-400 pl-1">Reserved for future customer edit/revision flows.</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border bg-blue-50 border-blue-100 p-4 text-[11px] text-blue-700 leading-relaxed">
+                  <p className="font-bold mb-1">Pricing Formula</p>
+                  <p>Template price = Printify base price + profit margin. Customized order price = template price + design fee.</p>
                 </div>
               </CardContent>
             </Card>

@@ -28,6 +28,17 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return image.src || image.url || image.preview_url || '';
   };
 
+  const calculateTemplateRetailPrice = (basePrice: number) => {
+    const charges = settings.printifySettings?.charges;
+    const profitMarginPercent = Math.max(0, Number(charges?.profitMarginPercent ?? 0));
+    return Number((basePrice * (1 + profitMarginPercent / 100)).toFixed(2));
+  };
+
+  const calculateCustomizedPrice = (retailPrice: number) => {
+    const designFee = Math.max(0, Number(settings.printifySettings?.charges?.designFee ?? 0));
+    return Number((retailPrice + designFee).toFixed(2));
+  };
+
   const templateToEditorProduct = (template: PrintifyCatalogTemplate): Product => {
     const images = template.images.map(normalizeTemplateImage).filter(Boolean);
 
@@ -37,7 +48,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       name: template.title,
       slug: `custom-template-${template.blueprintId}`,
       description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
-      price: template.retailPrice ?? 24.99,
+      price: calculateTemplateRetailPrice(template.baseCost ?? template.retailPrice ?? 24.99),
       images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
       stock: 999,
       isFeatured: false,
@@ -62,7 +73,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       .map(templateToEditorProduct);
 
     return [...syncedTemplateProducts, ...catalogTemplateProducts];
-  }, [products, enabledTemplates]);
+  }, [products, enabledTemplates, settings.printifySettings?.charges]);
 
   const filteredProducts = useMemo(() => {
     const query = templateSearch.trim().toLowerCase();
@@ -91,6 +102,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const printifyEnabled = settings.printifySettings?.enabled;
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
+  const activeBasePrice = activeProduct?.price ?? 0;
+  const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
+  const activeDesignFee = Math.max(0, Number(settings.printifySettings?.charges?.designFee ?? 0));
+  const activeMarginPercent = Math.max(0, Number(settings.printifySettings?.charges?.profitMarginPercent ?? 0));
 
   useEffect(() => {
     const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];
@@ -619,7 +634,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       previewUrl: previewUrl || undefined,
     };
 
-    addToCart(activeProduct, undefined, 1, {
+    addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
       color: selectedColor,
       size: selectedSize,
       customization,
@@ -749,7 +764,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                           className="h-9 w-9 rounded-lg object-cover bg-gray-100 shrink-0"
                         />
                         <span className="min-w-0">
-                          <span className="block text-[10px] font-black uppercase tracking-tight truncate">{product.name}</span>
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="block text-[10px] font-black uppercase tracking-tight truncate">{product.name}</span>
+                            <span className="text-[10px] font-black shrink-0">
+                              {settings.currencySymbol}{calculateCustomizedPrice(product.price).toFixed(2)}
+                            </span>
+                          </span>
                           <span className={`block text-[9px] truncate ${activeProduct.id === product.id ? 'text-white/60' : 'text-gray-400'}`}>
                             Template ID: {product.printifyCatalogId || product.id}
                           </span>
@@ -791,6 +811,20 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 </div>
 
                 <div className="space-y-3 pt-2">
+                  <div className="rounded-2xl border bg-emerald-50/60 border-emerald-100 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Current Template Price</p>
+                        <p className="text-[10px] text-emerald-700/70 mt-1">
+                          Includes {activeMarginPercent}% store margin{activeDesignFee > 0 ? ` + ${settings.currencySymbol}${activeDesignFee.toFixed(2)} design fee` : ''}.
+                        </p>
+                      </div>
+                      <p className="text-lg font-black text-emerald-800">
+                        {settings.currencySymbol}{activeCustomerPrice.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color ({colorMap[selectedColor] || 'Custom Color'})</Label>
                   <div className="flex flex-wrap gap-3">
                     {activeProduct.colors?.map((color) => (

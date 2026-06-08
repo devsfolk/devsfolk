@@ -123,7 +123,7 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: 'Generate a photorealistic product mockup with soft studio lighting, neutral background, and a slight shadow beneath the product. Show the design clearly on the product surface.' } },
-    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    charges: { profitMarginPercent: 40, designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true },
   },
 };
@@ -597,8 +597,19 @@ const normalizeTemplateImage = (image: any) => {
   return image.src || image.url || image.preview_url || '';
 };
 
-const templateToProduct = (template: PrintifyCatalogTemplate): Product => {
+const calculatePrintifyRetailPrice = (
+  basePrice: number,
+  charges?: ThemeSettings['printifySettings']['charges'],
+  includeDesignFee = false,
+) => {
+  const profitMarginPercent = Math.max(0, Number(charges?.profitMarginPercent ?? 0));
+  const designFee = includeDesignFee ? Math.max(0, Number(charges?.designFee ?? 0)) : 0;
+  return Number((basePrice * (1 + profitMarginPercent / 100) + designFee).toFixed(2));
+};
+
+const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSettings['printifySettings']['charges']): Product => {
   const images = template.images.map(normalizeTemplateImage).filter(Boolean);
+  const basePrice = template.baseCost ?? template.retailPrice ?? 24.99;
 
   return {
     id: `printify_template_${template.id}`,
@@ -606,7 +617,7 @@ const templateToProduct = (template: PrintifyCatalogTemplate): Product => {
     name: template.title,
     slug: `printify-template-${template.blueprintId}`,
     description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
-    price: template.retailPrice ?? 24.99,
+    price: calculatePrintifyRetailPrice(basePrice, charges),
     images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
     stock: 999,
     isFeatured: false,
@@ -1379,7 +1390,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ));
           }
 
-          const fallbackProducts = templates.map(templateToProduct);
+          const fallbackProducts = templates.map((template) => templateToProduct(template, settings.printifySettings?.charges));
           const { error: productError } = await supabase.from('products').upsert(fallbackProducts.map(toProductRow));
           if (productError) {
             if (productError.message.includes('is_printify') || productError.message.includes('printify_product_id') || productError.message.includes('printify_catalog_id')) {
