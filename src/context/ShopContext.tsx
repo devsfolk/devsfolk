@@ -500,21 +500,34 @@ const orderHasPrintifyItems = (items: any[] = []) => items.some((item) => (
   item?.customization?.customImageUrl
 ));
 
-const mapOrderRow = (row: any): Order => ({
-  id: row.id,
-  customerName: row.customer_name,
-  customerEmail: row.customer_email,
-  customerPhone: row.customer_phone,
-  customerAddress: row.customer_address,
-  items: row.items || [],
-  total: Number(row.total),
-  status: row.status,
-  createdAt: row.created_at ?? Date.now(),
-  paymentMethod: row.payment_method,
-  printifyOrderId: row.printify_order_id ?? null,
-  printifySyncStatus: row.printify_sync_status ?? (orderHasPrintifyItems(row.items || []) ? 'PENDING' : undefined),
-  printifyErrorLog: row.printify_error_log ?? (orderHasPrintifyItems(row.items || []) ? 'Queued for Printify fulfillment bridge.' : null),
-});
+const getLegacyPrintifySyncMeta = (items: any[] = []) => {
+  const meta = items.find((item) => item?.productId === '__printify_sync_meta')?.printifySync;
+  return meta && typeof meta === 'object' ? meta : null;
+};
+
+const stripLegacyPrintifySyncMeta = (items: any[] = []) => items.filter((item) => item?.productId !== '__printify_sync_meta');
+
+const mapOrderRow = (row: any): Order => {
+  const rawItems = row.items || [];
+  const legacyPrintifySync = getLegacyPrintifySyncMeta(rawItems);
+  const items = stripLegacyPrintifySyncMeta(rawItems);
+
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    customerPhone: row.customer_phone,
+    customerAddress: row.customer_address,
+    items,
+    total: Number(row.total),
+    status: row.status,
+    createdAt: row.created_at ?? Date.now(),
+    paymentMethod: row.payment_method,
+    printifyOrderId: row.printify_order_id ?? legacyPrintifySync?.printifyOrderId ?? null,
+    printifySyncStatus: row.printify_sync_status ?? legacyPrintifySync?.printifySyncStatus ?? (orderHasPrintifyItems(items) ? 'PENDING' : undefined),
+    printifyErrorLog: row.printify_error_log ?? legacyPrintifySync?.printifyErrorLog ?? (orderHasPrintifyItems(items) ? 'Queued for Printify fulfillment bridge.' : null),
+  };
+};
 
 const toCategoryRow = (category: Category) => ({
   id: category.id,
@@ -1548,6 +1561,36 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('id', id);
         if (error) {
           console.error('Failed to update Printify order sync fields:', error.message);
+          if (
+            error.message.includes('printify_order_id') ||
+            error.message.includes('printify_sync_status') ||
+            error.message.includes('printify_error_log')
+          ) {
+            const order = updated.find((entry) => entry.id === id);
+            if (order) {
+              const legacyItems = [
+                ...stripLegacyPrintifySyncMeta(order.items),
+                {
+                  productId: '__printify_sync_meta',
+                  name: 'Printify Sync Metadata',
+                  price: 0,
+                  quantity: 0,
+                  printifySync: {
+                    printifySyncStatus: updates.printifySyncStatus,
+                    printifyOrderId: updates.printifyOrderId ?? null,
+                    printifyErrorLog: updates.printifyErrorLog ?? null,
+                  },
+                },
+              ];
+              const { error: legacyError } = await supabase
+                .from('orders')
+                .update({ items: legacyItems })
+                .eq('id', id);
+              if (legacyError) {
+                console.error('Failed to update legacy Printify order sync metadata:', legacyError.message);
+              }
+            }
+          }
         }
       })();
     }
