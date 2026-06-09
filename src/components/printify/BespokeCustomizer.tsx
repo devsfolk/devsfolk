@@ -65,16 +65,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const customProducts = useMemo(() => {
     const syncedTemplateProducts = products.filter((product) => (
       product.isPrintify &&
-      (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
-      Boolean(enabledTemplates.find((template) => (
-        String(template.blueprintId) === String(product.printifyCatalogId) &&
-        Array.isArray(template.variants) &&
-        template.variants.length > 0
-      )))
+      (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_'))
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
     const catalogTemplateProducts = enabledTemplates
-      .filter((template) => Array.isArray(template.variants) && template.variants.length > 0)
       .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
       .map(templateToEditorProduct);
 
@@ -672,6 +666,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     const fCanvas = fabricCanvasRef.current;
     if (!fCanvas) {
+      if (!getPrintifyVariantId(activePrintifyVariant)) {
+        alert('This template needs variant metadata before checkout. Please run Template Sync again in Dashboard → Printify, then refresh the storefront.');
+        return;
+      }
+
       addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
         color: selectedColor,
         size: selectedSize,
@@ -687,6 +686,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     const imgObj = fCanvas.getObjects('image')[0];
     const textObj = fCanvas.getObjects('i-text')[0] as fabric.IText;
+    const printifyVariantId = getPrintifyVariantId(activePrintifyVariant);
+
+    if (!printifyVariantId) {
+      alert('This template needs variant metadata before checkout. Please run Template Sync again in Dashboard → Printify, then refresh the storefront.');
+      return;
+    }
 
     const customization = {
       customImageUrl: customImage || undefined,
@@ -698,7 +703,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       previewUrl: previewUrl || undefined,
       printifyBlueprintId: activeTemplate?.blueprintId,
       printifyPrintProviderId: Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id) || undefined,
-      printifyVariantId: getPrintifyVariantId(activePrintifyVariant),
+      printifyVariantId,
       printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
     };
 
