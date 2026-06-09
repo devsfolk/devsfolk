@@ -211,6 +211,33 @@ const isMissingSupabaseRelationError = (message = '', relation: string) => (
   (message.includes('schema cache') || message.includes('does not exist') || message.includes('relation'))
 );
 
+const compactPrintifyCatalogForStorage = (templates: PrintifyCatalogTemplate[]) => (
+  templates
+    .filter((template) => template.isEnabled || template.providers.length > 0 || template.variants.length > 0)
+    .map((template) => ({
+      ...template,
+      description: template.description?.slice(0, 500) || '',
+      images: template.images.slice(0, 3),
+      providers: template.providers.slice(0, 3),
+      variants: template.variants.slice(0, 25),
+      printAreas: template.printAreas.slice(0, 5),
+      shipping: [],
+    }))
+);
+
+const savePrintifyCatalogLocally = (templates: PrintifyCatalogTemplate[]) => {
+  try {
+    localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(compactPrintifyCatalogForStorage(templates)));
+  } catch (error) {
+    console.warn('Printify catalog local cache skipped because browser storage quota is full.', error);
+    try {
+      localStorage.removeItem(PRINTIFY_CATALOG_STORAGE_KEY);
+    } catch {
+      // Safe ignore
+    }
+  }
+};
+
 const readLocalJson = <T,>(key: string, fallback: T): T => {
   const saved = localStorage.getItem(key);
   if (saved) {
@@ -798,7 +825,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       const remoteCatalog = (printifyCatalogResult.data ?? []).map(mapPrintifyCatalogRow);
       setPrintifyCatalog(remoteCatalog);
-      localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(remoteCatalog));
+      savePrintifyCatalogLocally(remoteCatalog);
     }
   };
 
@@ -1427,7 +1454,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const selectedTemplateProductIds = new Set(templates.map((template) => `printify_template_${template.id}`));
 
     setPrintifyCatalog(updated);
-    localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(updated));
+    savePrintifyCatalogLocally(updated);
 
     if (supabase) {
       const { error } = await supabase.from('printify_catalog').upsert(updated.map(toPrintifyCatalogRow));

@@ -453,7 +453,9 @@ export const PrintifySettings: React.FC = () => {
       setSyncLogs(prev => [
         ...prev,
         `[ERROR] Template sync failed: ${err.message || err}`,
-        '[TIP] Confirm the PAT includes catalog.read and print_providers.read scopes.'
+        String(err.message || err).includes('quota')
+          ? '[TIP] Browser storage was full. The system now keeps a compact template cache; run Template Sync again after this update deploys.'
+          : '[TIP] Confirm the PAT includes catalog.read and print_providers.read scopes.'
       ]);
     } finally {
       setSyncingTemplates(false);
