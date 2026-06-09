@@ -1,6 +1,6 @@
 # Project Progress Handoff
 
-Last updated: 2026-06-09  
+Last updated: 2026-06-10  
 Active working branch: `feat/printify-editor`  
 Preview branch also updated: `feat/printify-mini-platform`  
 Preview URL: `https://aurabloom-git-feat-printify-mini-platform-devsfolks-projects.vercel.app`
@@ -88,9 +88,25 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-10 - Stabilize Printify Push And Product Sync
+
+- Commit: `82c09cb`
+- Files:
+  - `api/printify/orders.ts`
+  - `src/context/ShopContext.tsx`
+  - `src/lib/printifyApi.ts`
+  - `PROGRESS.md`
+- What changed:
+  - Printify order push now preserves non-JSON Printify responses and exposes backend details in the dashboard alert.
+  - Printify shop product sync now checks existing Supabase products by slug before upserting, preventing duplicate `products_slug_key` failures.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - After deploy, retry Printify Shop Product Sync and then retry `Push / Retry`; if Printify rejects the custom order payload, the dashboard should now show the specific Printify error instead of only `Internal Server Error`.
+
 ### 2026-06-10 - Persist Fallback Template Variant IDs
 
-- Commit: `e2d4e16`
+- Commit: `2bcc0dc`
 - Files:
   - `src/context/ShopContext.tsx`
   - `src/components/printify/BespokeCustomizer.tsx`

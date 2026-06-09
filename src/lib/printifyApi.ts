@@ -65,8 +65,9 @@ export const submitPrintifyOrder = async (shopId: string, order: Order, apiKey =
 
   if (!response.ok) {
     const missing = Array.isArray(data?.missing) && data.missing.length > 0 ? ` Missing: ${data.missing.join(', ')}` : '';
+    const detailText = data?.details ? ` ${data.details}` : '';
     const message = data?.error || data?.message || `Printify order API returned status ${response.status}`;
-    throw new Error(`${message}${missing}`);
+    throw new Error(`${message}${missing}${detailText}`);
   }
 
   if (!data) {

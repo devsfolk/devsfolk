@@ -13,6 +13,22 @@ const sendJson = (response: any, status: number, payload: unknown) => {
   response.status(status).json(payload);
 };
 
+const parsePrintifyResponse = async (printifyResponse: any) => {
+  const text = await printifyResponse.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      error: text,
+      details: `Printify returned a non-JSON response with status ${printifyResponse.status}.`,
+    };
+  }
+};
+
 const isAuthorizedAdminRequest = async (request: any) => {
   const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -229,9 +245,8 @@ export default async function handler(request: any, response: any) {
       body: JSON.stringify(payload),
     });
 
-    const text = await printifyResponse.text();
-    const data = text ? JSON.parse(text) : null;
-    sendJson(response, printifyResponse.status, data);
+    const data = await parsePrintifyResponse(printifyResponse);
+    sendJson(response, printifyResponse.status, data || { status: printifyResponse.status });
   } catch (error: any) {
     sendJson(response, 502, {
       error: 'Printify order submission failed.',

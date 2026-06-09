@@ -1426,10 +1426,31 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!supabase) {
       localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(nextProducts));
     } else {
-      const { error } = await supabase.from('products').upsert(rowsToUpsert.map(toProductRow));
+      const slugsToUpsert = [...new Set(rowsToUpsert.map((product) => product.slug).filter(Boolean))];
+      if (slugsToUpsert.length > 0) {
+        const { data: existingRows, error: existingRowsError } = await supabase
+          .from('products')
+          .select('id, slug, created_at')
+          .in('slug', slugsToUpsert);
+
+        if (existingRowsError) {
+          throw new Error(`Failed to check existing Printify shop products: ${existingRowsError.message}`);
+        }
+
+        const existingBySlug = new Map((existingRows || []).map((row: any) => [row.slug, row]));
+        rowsToUpsert.forEach((product) => {
+          const existingRow = existingBySlug.get(product.slug);
+          if (existingRow?.id) {
+            product.id = existingRow.id;
+            product.createdAt = existingRow.created_at ?? product.createdAt;
+          }
+        });
+      }
+
+      const { error } = await supabase.from('products').upsert(rowsToUpsert.map(toProductRow), { onConflict: 'id' });
       if (error) {
         if (error.message.includes('is_printify') || error.message.includes('printify_product_id') || error.message.includes('printify_catalog_id')) {
-          const legacyResult = await supabase.from('products').upsert(rowsToUpsert.map(toLegacyProductRow));
+          const legacyResult = await supabase.from('products').upsert(rowsToUpsert.map(toLegacyProductRow), { onConflict: 'id' });
           if (legacyResult.error) {
             throw new Error(`Failed to save Printify shop products: ${legacyResult.error.message}`);
           }
