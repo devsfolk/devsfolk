@@ -44,6 +44,16 @@ export const PrintifySettings: React.FC = () => {
 
   const normalizeToken = (token: string) => token.trim().replace(/^Bearer\s+/i, '').trim();
 
+  const normalizePrintifyList = (payload: any, keys: string[] = []) => {
+    if (Array.isArray(payload)) return payload;
+    for (const key of keys) {
+      if (Array.isArray(payload?.[key])) return payload[key];
+      if (Array.isArray(payload?.data?.[key])) return payload.data[key];
+    }
+    if (Array.isArray(payload?.data)) return payload.data;
+    return [];
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -401,8 +411,7 @@ export const PrintifySettings: React.FC = () => {
           const primaryProviderId = Number(primaryProvider?.id || primaryProvider?.print_provider_id);
           if (primaryProviderId) {
             const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
-            const variantList = variantData.variants || variantData.data || variantData || [];
-            variantsByBlueprintId[template.blueprintId] = Array.isArray(variantList) ? variantList : [];
+            variantsByBlueprintId[template.blueprintId] = normalizePrintifyList(variantData, ['variants']);
           }
         } catch (providerError: any) {
           providersByBlueprintId[template.blueprintId] = [];
@@ -415,6 +424,7 @@ export const PrintifySettings: React.FC = () => {
         ...template,
         variants: variantsByBlueprintId[template.blueprintId] || template.variants,
       }));
+      const variantReadyCount = templatesWithProviders.filter((template) => template.variants.length > 0).length;
       await upsertPrintifyCatalogTemplates(templatesWithProviders, { replaceVisible: true });
 
       handleUpdate({
@@ -428,6 +438,7 @@ export const PrintifySettings: React.FC = () => {
       setSyncLogs(prev => [
         ...prev,
         `[SUCCESS] Cached ${templatesWithProviders.length} customer template records.`,
+        `[SUCCESS] ${variantReadyCount} templates have variant metadata ready for checkout.`,
         `[INFO] Editor-ready provider and variant metadata included for ${providerLimit} selected templates.`
       ]);
     } catch (err: any) {
