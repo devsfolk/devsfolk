@@ -672,6 +672,15 @@ const calculatePrintifyRetailPrice = (
 const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSettings['printifySettings']['charges']): Product => {
   const images = template.images.map(normalizeTemplateImage).filter(Boolean);
   const basePrice = template.baseCost ?? template.retailPrice ?? 24.99;
+  const templateVariants = (template.variants || [])
+    .slice(0, 25)
+    .map((variant: any) => ({
+      id: String(variant.id || variant.variant_id || variant.printify_variant_id || ''),
+      name: variant.title || variant.name || variant.options?.title || `Variant ${variant.id || variant.variant_id || ''}`,
+      price: calculatePrintifyRetailPrice(basePrice, charges),
+      stock: variant.is_available === false || variant.is_enabled === false ? 0 : 999,
+    }))
+    .filter((variant) => variant.id);
 
   return {
     id: `printify_template_${template.id}`,
@@ -685,7 +694,7 @@ const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSet
     isFeatured: false,
     colors: ['#FFFFFF', '#111827'],
     sizes: ['S', 'M', 'L', 'XL'],
-    variants: [],
+    variants: templateVariants,
     createdAt: Date.now(),
     isPrintify: true,
     printifyProductId: `template_${template.blueprintId}`,

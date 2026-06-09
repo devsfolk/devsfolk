@@ -163,7 +163,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeMarginPercent = Math.max(0, Number(settings.printifySettings?.charges?.profitMarginPercent ?? 0));
   const activeTemplate = getTemplateForProduct(activeProduct);
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
-  const activePrintifyVariant = getPrimaryPrintifyVariant(activeTemplate);
+  const activePrintifyVariant = getPrimaryPrintifyVariant(activeTemplate) || activeProduct?.variants?.[0];
 
   useEffect(() => {
     const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];

@@ -88,9 +88,24 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-10 - Persist Fallback Template Variant IDs
+
+- Commit: `e2d4e16`
+- Files:
+  - `src/context/ShopContext.tsx`
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `PROGRESS.md`
+- What changed:
+  - Template fallback products now store lightweight Printify variant IDs in `product.variants`.
+  - Editor uses synced catalog variants first, then falls back to the selected product's stored variants.
+- Reason:
+  - Template Sync reported variants ready, but Add to Cart still showed the missing variant metadata alert because fallback products did not retain variant IDs.
+- Current issue / next step:
+  - After deploy, run Template Sync again for `hoodie` so fallback products are republished with variant IDs, then retry Add to Cart.
+
 ### 2026-06-09 - Editor Variant Metadata Matching Fix
 
-- Commit: `eaf58f5`
+- Commit: `daade05`
 - Files:
   - `src/components/printify/BespokeCustomizer.tsx`
 - What changed:
