@@ -90,7 +90,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### 2026-06-10 - Stabilize Printify Push And Product Sync
 
-- Commit: `82c09cb`
+- Commit: `ff4c792`
 - Files:
   - `api/printify/orders.ts`
   - `src/context/ShopContext.tsx`
