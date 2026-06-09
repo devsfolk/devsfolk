@@ -88,6 +88,23 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-09 - Editor Variant Metadata Matching Fix
+
+- Commit: `eaf58f5`
+- Files:
+  - `src/components/printify/BespokeCustomizer.tsx`
+- What changed:
+  - Storefront editor now matches selected fallback template products to synced catalog templates using multiple identifiers:
+    - `printifyCatalogId`
+    - `printifyProductId`
+    - generated `printify_template_*` product IDs
+    - `bp_*` template IDs
+  - Variant ID extraction now checks direct and nested Printify response shapes.
+- Reason:
+  - Template Sync reported `54 templates have variant metadata ready for checkout`, but Add to Cart still showed the missing variant metadata alert.
+- Current issue / next step:
+  - After deploy, refresh storefront and retry hoodie Add to Cart without re-syncing unless the editor still uses stale cache.
+
 ### 2026-06-09 - Compact Printify Catalog Cache
 
 - Commit: `8d51e6f`

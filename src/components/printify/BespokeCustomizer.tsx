@@ -87,11 +87,22 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   }, [customProducts, templateSearch]);
 
   const getTemplateForProduct = (product?: Product) => {
-    if (!product?.printifyCatalogId) {
+    if (!product) {
       return undefined;
     }
 
-    return enabledTemplates.find((template) => String(template.blueprintId) === String(product.printifyCatalogId));
+    const candidateIds = [
+      product.printifyCatalogId,
+      product.printifyProductId?.replace(/^template_/, ''),
+      product.id.replace(/^printify_template_/, ''),
+      product.id.replace(/^printify_template_bp_/, ''),
+    ].filter(Boolean).map(String);
+
+    return enabledTemplates.find((template) => (
+      candidateIds.includes(String(template.blueprintId)) ||
+      candidateIds.includes(String(template.id)) ||
+      candidateIds.includes(template.id.replace(/^bp_/, ''))
+    ));
   };
 
   const getPrimaryPrintifyProvider = (template?: PrintifyCatalogTemplate) => {
@@ -105,13 +116,29 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   };
 
   const getPrintifyVariantId = (variant: any) => {
-    return Number(
-      variant?.id ||
-      variant?.variant_id ||
-      variant?.printify_variant_id ||
-      variant?.options?.id ||
-      variant?.options?.variant_id,
-    ) || undefined;
+    if (!variant || typeof variant !== 'object') {
+      return undefined;
+    }
+
+    const directId = Number(variant.id || variant.variant_id || variant.printify_variant_id);
+    if (directId) {
+      return directId;
+    }
+
+    const nestedValues = [variant.options, variant.variant, variant.data].filter(Boolean);
+    for (const value of nestedValues) {
+      if (Array.isArray(value)) {
+        const found = value
+          .map((entry) => getPrintifyVariantId(entry))
+          .find(Boolean);
+        if (found) return found;
+      } else {
+        const found = getPrintifyVariantId(value);
+        if (found) return found;
+      }
+    }
+
+    return undefined;
   };
 
   // Active product state
