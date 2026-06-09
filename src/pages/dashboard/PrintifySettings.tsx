@@ -388,7 +388,7 @@ export const PrintifySettings: React.FC = () => {
         `[INFO] Syncing ${templates.length} templates${query ? ` matching "${templateSyncSearch.trim()}"` : ''}.`
       ]);
 
-      const providerLimit = Math.min(templates.length, 24);
+      const providerLimit = templates.length;
       const providersByBlueprintId: Record<number, any[]> = {};
       const variantsByBlueprintId: Record<number, any[]> = {};
 
@@ -428,7 +428,7 @@ export const PrintifySettings: React.FC = () => {
       setSyncLogs(prev => [
         ...prev,
         `[SUCCESS] Cached ${templatesWithProviders.length} customer template records.`,
-        `[INFO] Editor-ready provider and variant metadata included for the first ${providerLimit} templates to avoid unsafe API fan-out.`
+        `[INFO] Editor-ready provider and variant metadata included for ${providerLimit} selected templates.`
       ]);
     } catch (err: any) {
       console.error('Printify template sync failed:', err);

@@ -65,10 +65,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const customProducts = useMemo(() => {
     const syncedTemplateProducts = products.filter((product) => (
       product.isPrintify &&
-      (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_'))
+      (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+      Boolean(enabledTemplates.find((template) => (
+        String(template.blueprintId) === String(product.printifyCatalogId) &&
+        Array.isArray(template.variants) &&
+        template.variants.length > 0
+      )))
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
     const catalogTemplateProducts = enabledTemplates
+      .filter((template) => Array.isArray(template.variants) && template.variants.length > 0)
       .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
       .map(templateToEditorProduct);
 
@@ -102,6 +108,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const getPrimaryPrintifyVariant = (template?: PrintifyCatalogTemplate) => {
     const variants = Array.isArray(template?.variants) ? template.variants : [];
     return variants.find((variant: any) => variant?.is_enabled !== false && variant?.is_available !== false) || variants[0];
+  };
+
+  const getPrintifyVariantId = (variant: any) => {
+    return Number(
+      variant?.id ||
+      variant?.variant_id ||
+      variant?.printify_variant_id ||
+      variant?.options?.id ||
+      variant?.options?.variant_id,
+    ) || undefined;
   };
 
   // Active product state
@@ -682,7 +698,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       previewUrl: previewUrl || undefined,
       printifyBlueprintId: activeTemplate?.blueprintId,
       printifyPrintProviderId: Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id) || undefined,
-      printifyVariantId: Number(activePrintifyVariant?.id || activePrintifyVariant?.variant_id) || undefined,
+      printifyVariantId: getPrintifyVariantId(activePrintifyVariant),
       printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
     };
 
