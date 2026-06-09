@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts, updateOrderPrintifySync } = useShop();
@@ -390,19 +390,31 @@ export const PrintifySettings: React.FC = () => {
 
       const providerLimit = Math.min(templates.length, 24);
       const providersByBlueprintId: Record<number, any[]> = {};
+      const variantsByBlueprintId: Record<number, any[]> = {};
 
       for (const template of templates.slice(0, providerLimit)) {
         try {
           const providerData = await fetchPrintifyBlueprintProviders(apiKey, template.blueprintId);
           const providerList = providerData.data || providerData || [];
           providersByBlueprintId[template.blueprintId] = Array.isArray(providerList) ? providerList : [];
+          const primaryProvider = providersByBlueprintId[template.blueprintId][0];
+          const primaryProviderId = Number(primaryProvider?.id || primaryProvider?.print_provider_id);
+          if (primaryProviderId) {
+            const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
+            const variantList = variantData.variants || variantData.data || variantData || [];
+            variantsByBlueprintId[template.blueprintId] = Array.isArray(variantList) ? variantList : [];
+          }
         } catch (providerError: any) {
           providersByBlueprintId[template.blueprintId] = [];
+          variantsByBlueprintId[template.blueprintId] = [];
           setSyncLogs(prev => [...prev, `[WARNING] Provider lookup skipped for ${template.title}: ${providerError.message || providerError}`]);
         }
       }
 
-      const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId);
+      const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId).map((template) => ({
+        ...template,
+        variants: variantsByBlueprintId[template.blueprintId] || template.variants,
+      }));
       await upsertPrintifyCatalogTemplates(templatesWithProviders, { replaceVisible: true });
 
       handleUpdate({
@@ -416,7 +428,7 @@ export const PrintifySettings: React.FC = () => {
       setSyncLogs(prev => [
         ...prev,
         `[SUCCESS] Cached ${templatesWithProviders.length} customer template records.`,
-        `[INFO] Editor-ready provider metadata included for the first ${providerLimit} templates to avoid unsafe API fan-out.`
+        `[INFO] Editor-ready provider and variant metadata included for the first ${providerLimit} templates to avoid unsafe API fan-out.`
       ]);
     } catch (err: any) {
       console.error('Printify template sync failed:', err);

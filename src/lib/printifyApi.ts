@@ -84,6 +84,10 @@ export const fetchPrintifyBlueprintProviders = (apiKey: string, blueprintId: num
   return callPrintifyGateway<any>({ apiKey, mode: 'providers', blueprintId });
 };
 
+export const fetchPrintifyBlueprintVariants = (apiKey: string, blueprintId: number, printProviderId: number) => {
+  return callPrintifyGateway<any>({ apiKey, mode: 'variants', blueprintId, printProviderId });
+};
+
 const normalizeBlueprintList = (data: any) => {
   const list = data?.data || data || [];
   return Array.isArray(list) ? list : [];

@@ -505,12 +505,21 @@ const getLegacyPrintifySyncMeta = (items: any[] = []) => {
   return meta && typeof meta === 'object' ? meta : null;
 };
 
-const stripLegacyPrintifySyncMeta = (items: any[] = []) => items.filter((item) => item?.productId !== '__printify_sync_meta');
+const getLegacyShippingAddressMeta = (items: any[] = []) => {
+  const shippingAddress = items.find((item) => item?.productId === '__shipping_address_meta')?.shippingAddress;
+  return shippingAddress && typeof shippingAddress === 'object' ? shippingAddress : null;
+};
+
+const stripLegacyOrderMeta = (items: any[] = []) => items.filter((item) => (
+  item?.productId !== '__printify_sync_meta' &&
+  item?.productId !== '__shipping_address_meta'
+));
 
 const mapOrderRow = (row: any): Order => {
   const rawItems = row.items || [];
   const legacyPrintifySync = getLegacyPrintifySyncMeta(rawItems);
-  const items = stripLegacyPrintifySyncMeta(rawItems);
+  const legacyShippingAddress = getLegacyShippingAddressMeta(rawItems);
+  const items = stripLegacyOrderMeta(rawItems);
 
   return {
     id: row.id,
@@ -518,6 +527,7 @@ const mapOrderRow = (row: any): Order => {
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
     customerAddress: row.customer_address,
+    shippingAddress: legacyShippingAddress ?? undefined,
     items,
     total: Number(row.total),
     status: row.status,
@@ -671,7 +681,18 @@ const toOrderRow = (order: Order, paymentMethod?: string) => ({
   customer_email: order.customerEmail,
   customer_phone: order.customerPhone,
   customer_address: order.customerAddress,
-  items: order.items,
+  items: order.shippingAddress
+    ? [
+        ...stripLegacyOrderMeta(order.items),
+        {
+          productId: '__shipping_address_meta',
+          name: 'Shipping Address Metadata',
+          price: 0,
+          quantity: 0,
+          shippingAddress: order.shippingAddress,
+        },
+      ]
+    : order.items,
   total: order.total,
   status: order.status,
   payment_method: paymentMethod ?? order.paymentMethod ?? null,
@@ -687,7 +708,18 @@ const toLegacyOrderRow = (order: Order, paymentMethod?: string) => ({
   customer_email: order.customerEmail,
   customer_phone: order.customerPhone,
   customer_address: order.customerAddress,
-  items: order.items,
+  items: order.shippingAddress
+    ? [
+        ...stripLegacyOrderMeta(order.items),
+        {
+          productId: '__shipping_address_meta',
+          name: 'Shipping Address Metadata',
+          price: 0,
+          quantity: 0,
+          shippingAddress: order.shippingAddress,
+        },
+      ]
+    : order.items,
   total: order.total,
   status: order.status,
   payment_method: paymentMethod ?? order.paymentMethod ?? null,
@@ -1569,7 +1601,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const order = updated.find((entry) => entry.id === id);
             if (order) {
               const legacyItems = [
-                ...stripLegacyPrintifySyncMeta(order.items),
+                ...stripLegacyOrderMeta(order.items),
+                ...(order.shippingAddress
+                  ? [{
+                      productId: '__shipping_address_meta',
+                      name: 'Shipping Address Metadata',
+                      price: 0,
+                      quantity: 0,
+                      shippingAddress: order.shippingAddress,
+                    }]
+                  : []),
                 {
                   productId: '__printify_sync_meta',
                   name: 'Printify Sync Metadata',
