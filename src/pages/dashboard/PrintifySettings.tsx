@@ -456,11 +456,13 @@ export const PrintifySettings: React.FC = () => {
         printifyErrorLog: null,
       });
     } catch (err: any) {
+      const errorMessage = err?.message || 'Printify order submission failed.';
       updateOrderPrintifySync(order.id, {
         printifySyncStatus: 'FAILED',
         printifyOrderId: order.printifyOrderId || null,
-        printifyErrorLog: err?.message || 'Printify order submission failed.',
+        printifyErrorLog: errorMessage,
       });
+      alert(errorMessage);
     } finally {
       setSubmittingOrderId('');
     }
@@ -1285,7 +1287,7 @@ export const PrintifySettings: React.FC = () => {
                                 </span>
                               </div>
                               {ord.printifySyncStatus === 'FAILED' && (
-                                <p className="text-[9px] text-red-500 mt-1 pl-2 text-center max-w-[200px] truncate">{ord.printifyErrorLog}</p>
+                                <p className="text-[9px] text-red-500 mt-1 pl-2 text-center max-w-[200px] truncate" title={ord.printifyErrorLog || undefined}>{ord.printifyErrorLog}</p>
                               )}
                             </td>
                             <td className="py-4 font-mono text-gray-500">{ord.printifyOrderId || 'N/A'}</td>
