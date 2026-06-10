@@ -90,6 +90,28 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-10 - Prepare Custom Orders For Printify Submission
+
+- Commit: pending
+- Files:
+  - `api/printify/orders.ts`
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `PROGRESS.md`
+- What changed:
+  - Raw template orders no longer treat `template_*` IDs as existing Printify product IDs.
+  - Editor compiled previews now export as PNG instead of WebP so Printify image upload can accept them.
+  - `Push / Retry` now uploads PNG/JPG data-url artwork to Printify Media Library before creating a custom order.
+  - Custom template line items now generate Printify `print_areas` from uploaded artwork/public artwork URLs.
+  - Missing fulfillment errors now distinguish artwork preparation from other metadata problems.
+  - Storefront editor now shows all checkout-ready matching templates instead of only the first 10.
+  - Templates without provider/variant metadata are hidden from the customer editor instead of showing technical sync warnings.
+  - Removed customer-facing editor panels for duplicate product price, template IDs, and Printify metadata status.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - After deploy, create a fresh customized order and click `Push / Retry`. If Printify rejects the request, the dashboard should show the next exact API error, most likely related to provider-specific print-area position/placement rules.
+  - Production workflow should not require admins to manually click `Push / Retry` for every order. Once manual submission is stable, add automatic queued fulfillment submission on order placement plus retry/backoff, keeping `Push / Retry` only as a manual fallback.
+
 ### 2026-06-10 - Remove Editor Margin Wording And Fake Color Controls
 
 - Commit: `0c92673`
@@ -110,7 +132,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### Critical Priority Order For Continuation
 
-1. Fix Printify order submission / `Push / Retry` fulfillment failure.
+1. Fix Printify order submission / `Push / Retry` fulfillment failure, then automate queued order submission so admins do not manually push every order.
 2. Keep `PROGRESS.md` updated after every completed task.
 3. Replace remaining editor placeholder logic with real Printify data: variants, colors, sizes, print areas, print positions, provider capabilities, restrictions, mockups, and previews where API support exists.
 4. Keep only the preview-based `Search Blank Templates` experience and show only admin-synced/approved templates.

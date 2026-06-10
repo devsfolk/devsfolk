@@ -90,6 +90,16 @@ const toPositiveInteger = (value: unknown) => {
   return Number.isInteger(number) && number > 0 ? number : null;
 };
 
+const isTemplateProductReference = (value: unknown) => (
+  String(value || '').startsWith('template_') ||
+  String(value || '').startsWith('printify_template_') ||
+  String(value || '').startsWith('bp_')
+);
+
+const isRealPrintifyProductId = (value: unknown) => (
+  /^[a-f0-9]{24}$/i.test(String(value || '').trim())
+);
+
 const getItemMetaValue = (item: any, keys: string[]) => {
   for (const key of keys) {
     const value = item?.[key] ?? item?.customization?.[key] ?? item?.metadata?.[key];
@@ -129,32 +139,156 @@ const buildAddress = (order: any, missing: string[]) => {
   return addressTo;
 };
 
-const buildLineItems = (order: any, missing: string[]) => {
+const extractDataUrl = (value: unknown) => {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^data:(image\/(?:png|jpe?g));base64,(.+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    mimeType: match[1].toLowerCase(),
+    contents: match[2],
+    extension: match[1].toLowerCase().includes('png') ? 'png' : 'jpg',
+  };
+};
+
+const getPublicArtworkUrl = (item: any) => {
+  const candidates = [
+    item?.customization?.previewUrl,
+    item?.customization?.customImageUrl,
+    item?.previewUrl,
+    item?.image,
+  ];
+
+  return candidates
+    .map((candidate) => String(candidate || '').trim())
+    .find((candidate) => /^https?:\/\//i.test(candidate)) || '';
+};
+
+const getArtworkDataUrl = (item: any) => {
+  const candidates = [
+    item?.customization?.previewUrl,
+    item?.customization?.customImageUrl,
+    item?.previewUrl,
+    item?.image,
+  ];
+
+  return candidates.find((candidate) => extractDataUrl(candidate)) || '';
+};
+
+const uploadArtworkDataUrl = async (apiKey: string, dataUrl: unknown, fileNamePrefix: string) => {
+  const parsed = extractDataUrl(dataUrl);
+  if (!parsed) {
+    throw new Error('Customer artwork must be a PNG/JPG data URL or a public HTTPS URL before it can be sent to Printify.');
+  }
+
+  const uploadResponse = await fetch(`${PRINTIFY_API_BASE}/uploads/images.json`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json;charset=utf-8',
+    },
+    body: JSON.stringify({
+      file_name: `${fileNamePrefix}.${parsed.extension}`,
+      contents: parsed.contents,
+    }),
+  });
+
+  const uploadData = await parsePrintifyResponse(uploadResponse);
+  if (!uploadResponse.ok) {
+    const message = uploadData?.message || uploadData?.error || 'Printify artwork upload failed.';
+    const reason = uploadData?.errors?.reason ? ` ${uploadData.errors.reason}` : '';
+    throw new Error(`${message}${reason}`);
+  }
+
+  const previewUrl = String(uploadData?.preview_url || uploadData?.url || '').trim();
+  if (!previewUrl) {
+    throw new Error('Printify artwork upload succeeded but did not return a usable preview URL.');
+  }
+
+  return previewUrl;
+};
+
+const getPrintAreaPosition = (printAreas: any) => {
+  if (printAreas && typeof printAreas === 'object') {
+    if (!Array.isArray(printAreas)) {
+      const directKeys = Object.keys(printAreas).filter((key) => key && !['variant_ids', 'placeholders', 'images', 'background'].includes(key));
+      const directPosition = directKeys.find((key) => ['front', 'back', 'left', 'right', 'sleeve', 'hood'].some((known) => key.toLowerCase().includes(known)));
+      if (directPosition) {
+        return directPosition;
+      }
+
+      const placeholderPosition = printAreas.placeholders?.find?.((placeholder: any) => placeholder?.position)?.position;
+      if (placeholderPosition) {
+        return placeholderPosition;
+      }
+    }
+
+    if (Array.isArray(printAreas)) {
+      const firstPlaceholder = printAreas
+        .flatMap((area: any) => Array.isArray(area?.placeholders) ? area.placeholders : [])
+        .find((placeholder: any) => placeholder?.position);
+      if (firstPlaceholder?.position) {
+        return firstPlaceholder.position;
+      }
+    }
+  }
+
+  return 'front';
+};
+
+const buildPrintAreasForItem = async (apiKey: string, item: any, index: number, orderId: string, missing: string[]) => {
+  const existingPrintAreas = item?.printifyPrintAreas || item?.printAreas || item?.print_areas || item?.customization?.printifyPrintAreas || item?.customization?.printAreas || null;
+  const publicArtworkUrl = getPublicArtworkUrl(item);
+  const dataUrl = getArtworkDataUrl(item);
+
+  let artworkUrl = publicArtworkUrl;
+  if (!artworkUrl && dataUrl) {
+    artworkUrl = await uploadArtworkDataUrl(apiKey, dataUrl, `${orderId || 'order'}-${index}-artwork`);
+  }
+
+  if (!artworkUrl) {
+    missing.push(`line_items[${index}].artwork_url`);
+    return null;
+  }
+
+  return {
+    [getPrintAreaPosition(existingPrintAreas)]: artworkUrl,
+  };
+};
+
+const buildLineItems = async (apiKey: string, order: any, missing: string[]) => {
   const items = Array.isArray(order?.items) ? order.items : [];
   if (items.length === 0) {
     missing.push('line_items');
     return [];
   }
 
-  return items.map((item: any, index: number) => {
+  const lineItems = [];
+
+  for (const [index, item] of items.entries()) {
     const quantity = toPositiveInteger(item?.quantity) || 1;
     const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variant_id']));
-    const existingProductId = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();
+    const productIdCandidate = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();
+    const existingProductId = !isTemplateProductReference(productIdCandidate) && isRealPrintifyProductId(productIdCandidate)
+      ? productIdCandidate
+      : '';
     const blueprintId = toPositiveInteger(getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id']));
     const printProviderId = toPositiveInteger(getItemMetaValue(item, ['printifyPrintProviderId', 'print_provider_id']));
-    const printAreas = item?.printifyPrintAreas || item?.printAreas || item?.print_areas || item?.customization?.printifyPrintAreas || item?.customization?.printAreas || null;
 
     if (!variantId) {
       missing.push(`line_items[${index}].variant_id`);
     }
 
     if (existingProductId) {
-      return {
+      lineItems.push({
         product_id: existingProductId,
         variant_id: variantId,
         quantity,
         external_id: `${order.id}-${index}`,
-      };
+      });
+      continue;
     }
 
     if (!blueprintId) {
@@ -163,29 +297,30 @@ const buildLineItems = (order: any, missing: string[]) => {
     if (!printProviderId) {
       missing.push(`line_items[${index}].print_provider_id`);
     }
-    if (!printAreas || Object.keys(printAreas).length === 0) {
-      missing.push(`line_items[${index}].print_areas`);
-    }
 
-    return {
+    const printAreas = await buildPrintAreasForItem(apiKey, item, index, String(order?.id || ''), missing);
+
+    lineItems.push({
       blueprint_id: blueprintId,
       print_provider_id: printProviderId,
       variant_id: variantId,
       print_areas: printAreas,
       quantity,
       external_id: `${order.id}-${index}`,
-    };
-  });
+    });
+  }
+
+  return lineItems;
 };
 
-const buildOrderPayload = (order: any) => {
+const buildOrderPayload = async (apiKey: string, order: any) => {
   const missing: string[] = [];
   if (!order?.id) {
     missing.push('order.id');
   }
 
   const addressTo = buildAddress(order, missing);
-  const lineItems = buildLineItems(order, missing);
+  const lineItems = await buildLineItems(apiKey, order, missing);
 
   return {
     missing: [...new Set(missing)],
@@ -225,12 +360,25 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
-  const { missing, payload } = buildOrderPayload(request.body?.order);
+  let missing: string[] = [];
+  let payload: any = null;
+  try {
+    const built = await buildOrderPayload(apiKey, request.body?.order);
+    missing = built.missing;
+    payload = built.payload;
+  } catch (error: any) {
+    sendJson(response, 422, {
+      error: 'Printify fulfillment artwork preparation failed.',
+      details: error?.message || String(error),
+    });
+    return;
+  }
+
   if (missing.length > 0) {
     sendJson(response, 422, {
       error: 'Order is missing Printify fulfillment metadata.',
       missing,
-      details: 'Existing Printify products require product_id and variant_id. Custom template orders require blueprint_id, print_provider_id, variant_id, print_areas, and structured shipping address fields.',
+      details: 'Existing Printify products require a real Printify product_id and variant_id. Custom template orders require blueprint_id, print_provider_id, variant_id, uploaded artwork/public artwork URL, generated print_areas, and structured shipping address fields.',
     });
     return;
   }

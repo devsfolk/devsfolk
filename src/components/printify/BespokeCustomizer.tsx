@@ -60,13 +60,34 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     };
   };
 
+  const getSyncedVariantId = (variant: any) => (
+    Number(variant?.id || variant?.variant_id || variant?.printify_variant_id) || 0
+  );
+
+  const templateHasCheckoutMetadata = (template?: PrintifyCatalogTemplate) => (
+    !!template &&
+    Array.isArray(template.providers) &&
+    template.providers.length > 0 &&
+    Array.isArray(template.variants) &&
+    template.variants.some((variant: any) => (
+      getSyncedVariantId(variant) > 0 &&
+      variant?.is_enabled !== false &&
+      variant?.is_available !== false
+    ))
+  );
+
   // Filter raw Printify templates only. Admin-created Printify shop products remain storefront products.
   const customProducts = useMemo(() => {
     const syncedTemplateProducts = products.filter((product) => (
-      isRawPrintifyTemplateProduct(product)
+      isRawPrintifyTemplateProduct(product) &&
+      (
+        product.variants?.some((variant: any) => getSyncedVariantId(variant) > 0 && variant.stock !== 0) ||
+        templateHasCheckoutMetadata(enabledTemplates.find((template) => String(template.blueprintId) === product.printifyCatalogId))
+      )
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
     const catalogTemplateProducts = enabledTemplates
+      .filter(templateHasCheckoutMetadata)
       .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
       .map(templateToEditorProduct);
 
@@ -734,7 +755,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 fCanvas.renderAll();
               }
 
-              resolve(canvas.toDataURL('image/webp', 0.85));
+              resolve(canvas.toDataURL('image/png'));
             } catch (error) {
               console.warn('Preview compilation failed; continuing without compiled preview.', error);
               resolve('');
@@ -759,7 +780,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const fCanvas = fabricCanvasRef.current;
     if (!fCanvas) {
       if (!getPrintifyVariantId(activePrintifyVariant)) {
-        alert('This template needs variant metadata before checkout. Please run Template Sync again in Dashboard → Printify, then refresh the storefront.');
+        alert('This template is not available for checkout right now. Please choose another template.');
         return;
       }
 
@@ -781,7 +802,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const printifyVariantId = getPrintifyVariantId(activePrintifyVariant);
 
     if (!printifyVariantId) {
-      alert('This template needs variant metadata before checkout. Please run Template Sync again in Dashboard → Printify, then refresh the storefront.');
+      alert('This template is not available for checkout right now. Please choose another template.');
       return;
     }
 
@@ -871,7 +892,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           </div>
           
           <p className="text-[10px] text-gray-400 mt-4 uppercase font-black tracking-widest flex items-center gap-1.5 opacity-70">
-            <HelpCircle className="h-3.5 w-3.5" /> Customize design layers interactively directly on the t-shirt.
+            <HelpCircle className="h-3.5 w-3.5" /> Customize design layers interactively on the selected product.
           </p>
         </div>
 
@@ -908,7 +929,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                     className="rounded-xl h-11 text-xs border-gray-200"
                   />
                   <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-2 max-h-52 overflow-y-auto space-y-1">
-                    {filteredProducts.slice(0, 10).map((product) => (
+                    {filteredProducts.map((product) => (
                       <button
                         key={product.id}
                         type="button"
@@ -930,56 +951,35 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                             </span>
                           </span>
                           <span className={`block text-[9px] truncate ${activeProduct.id === product.id ? 'text-white/60' : 'text-gray-400'}`}>
-                            Template ID: {product.printifyCatalogId || product.id}
+                            Customizable blank product
                           </span>
                         </span>
                       </button>
                     ))}
-                    {filteredProducts.length > 10 && (
-                      <p className="px-2 pt-1 text-[9px] font-bold uppercase tracking-wider text-gray-400">
-                        Showing first 10 matches. Keep typing to narrow results.
-                      </p>
-                    )}
                     {filteredProducts.length === 0 && (
                       <p className="px-2 py-3 text-[10px] text-amber-600 font-bold uppercase tracking-wider">
-                        No matching templates found. Try a broader search.
+                        No matching templates are available right now. Please try a different search.
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-2">
-                  <div className="rounded-2xl border bg-emerald-50/60 border-emerald-100 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Product Price</p>
-                        <p className="text-[10px] text-emerald-700/70 mt-1">
-                          Customer-facing price before shipping and taxes.
-                        </p>
-                      </div>
-                      <p className="text-lg font-black text-emerald-800">
-                        {settings.currencySymbol}{activeCustomerPrice.toFixed(2)}
-                      </p>
+                {activeColorOptions.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {activeColorOptions.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setSelectedColor(color)}
+                          className={`px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${selectedColor === color ? 'bg-black text-white border-black shadow-md' : 'bg-white text-black hover:border-gray-300'}`}
+                        >
+                          {color}
+                        </button>
+                      ))}
                     </div>
                   </div>
-
-                  {activeColorOptions.length > 0 && (
-                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {activeColorOptions.map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => setSelectedColor(color)}
-                            className={`px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${selectedColor === color ? 'bg-black text-white border-black shadow-md' : 'bg-white text-black hover:border-gray-300'}`}
-                          >
-                            {color}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {activeSizeOptions.length > 0 && (
                   <div className="space-y-3">
@@ -995,15 +995,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                         </button>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {activeColorOptions.length === 0 && activeSizeOptions.length === 0 && (
-                  <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Printify Options Pending</p>
-                    <p className="text-[10px] text-amber-700/70 mt-1">
-                      This synced template does not include customer-facing variant options yet. Re-sync it from Dashboard → Printify to refresh provider variant metadata.
-                    </p>
                   </div>
                 )}
               </div>
