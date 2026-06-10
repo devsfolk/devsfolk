@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 export const ProductPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -547,7 +548,7 @@ export const ProductPage: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
            {products
-             .filter(p => p.categoryId === product.categoryId && p.id !== product.id)
+             .filter(p => p.categoryId === product.categoryId && p.id !== product.id && !isRawPrintifyTemplateProduct(p))
              .slice(0, 4)
              .map(p => (
                <div key={p.id} className="group relative">

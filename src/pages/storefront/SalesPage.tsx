@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { ChevronRight } from 'lucide-react';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 export const SalesPage: React.FC = () => {
   const { products, settings } = useShop();
@@ -22,7 +23,7 @@ export const SalesPage: React.FC = () => {
   const [sortBy, setSortBy] = React.useState('newest');
 
   const filteredProducts = React.useMemo(() => {
-    const saleItems = products.filter(p => p.discountPrice && p.discountPrice < p.price);
+    const saleItems = products.filter(p => !isRawPrintifyTemplateProduct(p) && p.discountPrice && p.discountPrice < p.price);
     
     switch (sortBy) {
       case 'price-low':

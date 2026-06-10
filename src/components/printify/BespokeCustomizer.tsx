@@ -10,6 +10,7 @@ import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
 import { Product, PrintifyCatalogTemplate } from '@/types';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 interface BespokeCustomizerProps {
   productSlug?: string;
@@ -64,8 +65,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Filter raw Printify templates only. Admin-created Printify shop products remain storefront products.
   const customProducts = useMemo(() => {
     const syncedTemplateProducts = products.filter((product) => (
-      product.isPrintify &&
-      (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_'))
+      isRawPrintifyTemplateProduct(product)
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
     const catalogTemplateProducts = enabledTemplates
@@ -146,14 +146,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return customProducts.find((p) => p.slug === productSlug) || 
            customProducts[0];
   });
-
-  const displayedProducts = useMemo(() => {
-    if (!activeProduct || filteredProducts.some((product) => product.id === activeProduct.id)) {
-      return filteredProducts;
-    }
-
-    return [activeProduct, ...filteredProducts];
-  }, [activeProduct, filteredProducts]);
 
   const printifyEnabled = settings.printifySettings?.enabled;
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
@@ -887,27 +879,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       </p>
                     )}
                   </div>
-                </div>
-
-                {/* Product Selector Dropdown */}
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Select Template ({filteredProducts.length} matching / {customProducts.length} available)
-                  </Label>
-                  <select
-                    value={activeProduct.id}
-                    onChange={(e) => {
-                      const selected = customProducts.find((p) => p.id === e.target.value);
-                      if (selected) setActiveProduct(selected);
-                    }}
-                    className="w-full h-11 border rounded-xl px-3 text-xs bg-white focus:outline-none border-gray-200"
-                  >
-                    {displayedProducts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
 
                 <div className="space-y-3 pt-2">

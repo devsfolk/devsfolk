@@ -6,6 +6,7 @@ import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { settings, cart, products, wishlist } = useShop();
@@ -15,7 +16,10 @@ export const StoreLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const searchResults = React.useMemo(() => {
     if (!searchQuery.trim()) return [];
-    return products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5);
+    return products
+      .filter((p) => !isRawPrintifyTemplateProduct(p))
+      .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      .slice(0, 5);
   }, [searchQuery, products]);
 
   React.useEffect(() => {

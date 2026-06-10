@@ -43,6 +43,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 - Existing Printify shop products sync into storefront product listings.
 - Raw Printify templates/blueprints sync for editor use.
+- Raw Printify templates are excluded from normal storefront product grids/search/related products; they appear only inside the editor.
 - Template search and sync limit controls were added.
 - Editor search filters templates by name/description/template ID.
 - Admin-created Printify shop products were removed from the editor list; they remain normal storefront products.
@@ -53,6 +54,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 ### Storefront Editor
 
 - Editor appears on the storefront when Printify/customizer is active.
+- Editor template selection now uses one preview-based **Search Blank Templates** UI instead of showing a second dropdown selector.
 - Customers can select templates, add text/images, and add customized products to cart.
 - Fixed silent Add to Cart failures caused by external Printify image/canvas preview issues.
 - If preview generation fails, cart flow still continues safely.
@@ -87,6 +89,36 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 - Retry errors are now shown clearly in the dashboard alert and row tooltip.
 
 ## Recent Updates
+
+### 2026-06-10 - Hide Raw Templates From Storefront Listings
+
+- Commit: pending
+- Files:
+  - `src/lib/printifyProductGuards.ts`
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `src/components/layout/StoreLayout.tsx`
+  - `src/pages/storefront/Home.tsx`
+  - `src/pages/storefront/CategoryPage.tsx`
+  - `src/pages/storefront/ProductPage.tsx`
+  - `src/pages/storefront/SalesPage.tsx`
+  - `PROGRESS.md`
+- What changed:
+  - Added a shared raw Printify template product guard.
+  - Removed raw templates from normal storefront product grids, sales, search, and related products.
+  - Removed the duplicate `Select Template` dropdown from the editor and kept only the preview-based `Search Blank Templates` UI.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - Next phase is editor depth: derive customer-facing options from Printify variants/providers/print areas, fix upload reliability, then improve text/layer controls and fulfillment payload generation.
+
+### Planned Editor / Fulfillment Roadmap
+
+- Use only admin-synced raw templates in the editor; unsynced Printify templates should not appear to customers.
+- Derive colors, sizes, variants, print providers, and print areas from Printify metadata instead of fallback placeholders.
+- Fix customer design upload reliability and preserve uploaded artwork for Printify submission.
+- Improve text editing with professional controls: fonts, size, color, alignment, spacing, rotation, layer ordering, duplicate/delete, and print-area constraints.
+- Investigate whether Printify exposes ready-made design assets and preview generation through the current API; integrate only if official API support is available.
+- Complete `Push / Retry` fulfillment by converting cart customization metadata into a Printify-compatible order/artwork/print-area payload.
 
 ### 2026-06-10 - Stabilize Printify Push And Product Sync
 

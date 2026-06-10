@@ -7,13 +7,16 @@ import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ShoppingBag, Zap, ShieldCheck, Truck, Mail, ChevronLeft, ChevronRight, MessageCircle, RotateCcw, CreditCard, Gift, BadgeCheck } from 'lucide-react';
 import { BespokeCustomizer } from '@/components/printify/BespokeCustomizer';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 export const Home: React.FC = () => {
   const { settings, products, categories, addToCart, loading } = useShop();
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const homepageProducts = React.useMemo(() => {
-    const orderedProducts = [...products].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const orderedProducts = products
+      .filter((product) => !isRawPrintifyTemplateProduct(product))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
     const featuredProducts = orderedProducts.filter((product) => product.isFeatured);
     return featuredProducts.length > 0 ? featuredProducts : orderedProducts;
   }, [products]);
