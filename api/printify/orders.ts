@@ -177,7 +177,7 @@ const getArtworkDataUrl = (item: any) => {
   return candidates.find((candidate) => extractDataUrl(candidate)) || '';
 };
 
-const uploadArtworkDataUrl = async (apiKey: string, dataUrl: unknown, fileNamePrefix: string) => {
+const uploadArtworkDataUrl = async (apiKey: string, dataUrl: unknown, fileNamePrefix: string): Promise<{ id: string; previewUrl: string }> => {
   const parsed = extractDataUrl(dataUrl);
   if (!parsed) {
     throw new Error('Customer artwork must be a PNG/JPG data URL or a public HTTPS URL before it can be sent to Printify.');
@@ -202,12 +202,13 @@ const uploadArtworkDataUrl = async (apiKey: string, dataUrl: unknown, fileNamePr
     throw new Error(`${message}${reason}`);
   }
 
+  const id = String(uploadData?.id || '').trim();
   const previewUrl = String(uploadData?.preview_url || uploadData?.url || '').trim();
-  if (!previewUrl) {
-    throw new Error('Printify artwork upload succeeded but did not return a usable preview URL.');
+  if (!id || !previewUrl) {
+    throw new Error('Printify artwork upload succeeded but did not return a usable media ID or preview URL.');
   }
 
-  return previewUrl;
+  return { id, previewUrl };
 };
 
 const getPrintAreaPosition = (printAreas: any) => {
@@ -238,14 +239,27 @@ const getPrintAreaPosition = (printAreas: any) => {
   return 'front';
 };
 
+// Builds the print_areas payload for Printify order submission (on-the-fly product creation).
+// Printify's order API uses the simple format: { [position]: artworkUrl }
+// where artworkUrl is a public HTTPS URL (the preview_url returned by the media library upload,
+// or any existing public URL). This is different from the product creation API which uses
+// the array-of-placeholders format.
 const buildPrintAreasForItem = async (apiKey: string, item: any, index: number, orderId: string, missing: string[]) => {
   const existingPrintAreas = item?.printifyPrintAreas || item?.printAreas || item?.print_areas || item?.customization?.printifyPrintAreas || item?.customization?.printAreas || null;
+  const position = getPrintAreaPosition(existingPrintAreas);
+
   const publicArtworkUrl = getPublicArtworkUrl(item);
   const dataUrl = getArtworkDataUrl(item);
 
-  let artworkUrl = publicArtworkUrl;
-  if (!artworkUrl && dataUrl) {
-    artworkUrl = await uploadArtworkDataUrl(apiKey, dataUrl, `${orderId || 'order'}-${index}-artwork`);
+  let artworkUrl = '';
+
+  if (dataUrl) {
+    // Upload base64 data URL to Printify media library → get back a public preview_url
+    const uploadResult = await uploadArtworkDataUrl(apiKey, dataUrl, `${orderId || 'order'}-${index}-artwork`);
+    artworkUrl = uploadResult.previewUrl;
+  } else if (publicArtworkUrl) {
+    // Already a public HTTPS URL — use directly
+    artworkUrl = publicArtworkUrl;
   }
 
   if (!artworkUrl) {
@@ -253,9 +267,8 @@ const buildPrintAreasForItem = async (apiKey: string, item: any, index: number, 
     return null;
   }
 
-  return {
-    [getPrintAreaPosition(existingPrintAreas)]: artworkUrl,
-  };
+  // Printify order submission format: { [position]: "https://..." }
+  return { [position]: artworkUrl };
 };
 
 const buildLineItems = async (apiKey: string, order: any, missing: string[]) => {
@@ -335,6 +348,117 @@ const buildOrderPayload = async (apiKey: string, order: any) => {
   };
 };
 
+const mapDbOrderToModel = (row: any): any => {
+  const rawItems = row.items || [];
+  const legacyPrintifySync = rawItems.find((item: any) => item?.productId === '__printify_sync_meta')?.printifySync;
+  const legacyShippingAddress = rawItems.find((item: any) => item?.productId === '__shipping_address_meta')?.shippingAddress;
+  const items = rawItems.filter((item: any) => item?.productId !== '__printify_sync_meta' && item?.productId !== '__shipping_address_meta');
+
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email || '',
+    customerPhone: row.customer_phone,
+    customerAddress: row.customer_address,
+    shippingAddress: legacyShippingAddress || undefined,
+    items,
+    total: Number(row.total),
+    status: row.status,
+    createdAt: Number(row.created_at),
+    paymentMethod: row.payment_method || undefined,
+    printifyOrderId: row.printify_order_id ?? legacyPrintifySync?.printifyOrderId ?? null,
+    printifySyncStatus: row.printify_sync_status ?? legacyPrintifySync?.printifySyncStatus ?? 'PENDING',
+    printifyErrorLog: row.printify_error_log ?? legacyPrintifySync?.printifyErrorLog ?? null,
+  };
+};
+
+const getOrderFromDatabase = async (orderId: string) => {
+  const { supabaseUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error('Supabase database credentials are not configured on the backend.');
+  }
+
+  const orderResponse = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=*`, {
+    headers: {
+      apikey: supabaseServiceRoleKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+    },
+  });
+
+  if (!orderResponse.ok) {
+    const errText = await orderResponse.text();
+    throw new Error(`Database lookup failed: ${errText || orderResponse.statusText}`);
+  }
+
+  const rows = await orderResponse.json().catch(() => []);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  return mapDbOrderToModel(rows[0]);
+};
+
+const updateOrderFulfillmentStatusInDatabase = async (
+  orderId: string,
+  updates: { printifyOrderId?: string | null; printifySyncStatus: string; printifyErrorLog?: string | null }
+) => {
+  const { supabaseUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return;
+  }
+
+  const orderResponse = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=items`, {
+    headers: {
+      apikey: supabaseServiceRoleKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+    },
+  });
+
+  let updatedItems = [];
+  if (orderResponse.ok) {
+    const rows = await orderResponse.json().catch(() => []);
+    const rawItems = rows?.[0]?.items || [];
+    const items = Array.isArray(rawItems)
+      ? rawItems.filter((item: any) => item?.productId !== '__printify_sync_meta')
+      : [];
+
+    const syncMetaItem = {
+      productId: '__printify_sync_meta',
+      name: 'Printify Sync Metadata',
+      price: 0,
+      quantity: 0,
+      printifySync: {
+        printifyOrderId: updates.printifyOrderId || null,
+        printifySyncStatus: updates.printifySyncStatus,
+        printifyErrorLog: updates.printifyErrorLog || null,
+      },
+    };
+
+    updatedItems = [...items, syncMetaItem];
+  }
+
+  const updateBody: any = {
+    printify_sync_status: updates.printifySyncStatus,
+    printify_order_id: updates.printifyOrderId || null,
+    printify_error_log: updates.printifyErrorLog || null,
+  };
+
+  if (updatedItems.length > 0) {
+    updateBody.items = updatedItems;
+  }
+
+  await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: supabaseServiceRoleKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(updateBody),
+  });
+};
+
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -343,9 +467,40 @@ export default async function handler(request: any, response: any) {
   }
 
   const isAuthorized = await isAuthorizedAdminRequest(request);
+  const orderId = String(request.body?.orderId || request.body?.order?.id || '').trim();
+
+  let orderData = request.body?.order;
+
   if (!isAuthorized) {
-    sendJson(response, 401, { error: 'Admin authentication is required before submitting Printify orders.' });
-    return;
+    if (!orderId) {
+      sendJson(response, 401, { error: 'Admin authentication or a valid Order ID is required.' });
+      return;
+    }
+
+    try {
+      const fetchedOrder = await getOrderFromDatabase(orderId);
+      if (!fetchedOrder) {
+        sendJson(response, 404, { error: `Order ${orderId} not found.` });
+        return;
+      }
+
+      if (fetchedOrder.printifySyncStatus === 'SYNCED') {
+        sendJson(response, 200, {
+          id: fetchedOrder.printifyOrderId,
+          status: 'ALREADY_SYNCED',
+          message: 'Order has already been fulfilled on Printify.',
+        });
+        return;
+      }
+
+      orderData = fetchedOrder;
+    } catch (dbError: any) {
+      sendJson(response, 500, {
+        error: 'Failed to retrieve order for validation.',
+        details: dbError?.message || String(dbError),
+      });
+      return;
+    }
   }
 
   const apiKey = normalizeApiKey(request.body?.apiKey) || await getSavedPrintifyApiKey();
@@ -363,18 +518,32 @@ export default async function handler(request: any, response: any) {
   let missing: string[] = [];
   let payload: any = null;
   try {
-    const built = await buildOrderPayload(apiKey, request.body?.order);
+    const built = await buildOrderPayload(apiKey, orderData);
     missing = built.missing;
     payload = built.payload;
   } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    if (orderId) {
+      await updateOrderFulfillmentStatusInDatabase(orderId, {
+        printifySyncStatus: 'FAILED',
+        printifyErrorLog: errorMessage,
+      });
+    }
     sendJson(response, 422, {
       error: 'Printify fulfillment artwork preparation failed.',
-      details: error?.message || String(error),
+      details: errorMessage,
     });
     return;
   }
 
   if (missing.length > 0) {
+    const missingMessage = `Order is missing Printify fulfillment metadata: ${missing.join(', ')}`;
+    if (orderId) {
+      await updateOrderFulfillmentStatusInDatabase(orderId, {
+        printifySyncStatus: 'FAILED',
+        printifyErrorLog: missingMessage,
+      });
+    }
     sendJson(response, 422, {
       error: 'Order is missing Printify fulfillment metadata.',
       missing,
@@ -394,11 +563,40 @@ export default async function handler(request: any, response: any) {
     });
 
     const data = await parsePrintifyResponse(printifyResponse);
+    
+    if (printifyResponse.ok) {
+      const printifyOrderId = data?.id || data?.data?.id || null;
+      if (orderId) {
+        await updateOrderFulfillmentStatusInDatabase(orderId, {
+          printifySyncStatus: 'SYNCED',
+          printifyOrderId,
+          printifyErrorLog: null,
+        });
+      }
+    } else {
+      const errorMessage = data?.message || data?.error || 'Printify order submission failed.';
+      const reason = data?.errors?.reason ? ` ${data.errors.reason}` : '';
+      if (orderId) {
+        await updateOrderFulfillmentStatusInDatabase(orderId, {
+          printifySyncStatus: 'FAILED',
+          printifyOrderId: request.body?.order?.printifyOrderId || null,
+          printifyErrorLog: `${errorMessage}${reason}`,
+        });
+      }
+    }
+
     sendJson(response, printifyResponse.status, data || { status: printifyResponse.status });
   } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    if (orderId) {
+      await updateOrderFulfillmentStatusInDatabase(orderId, {
+        printifySyncStatus: 'FAILED',
+        printifyErrorLog: errorMessage,
+      });
+    }
     sendJson(response, 502, {
       error: 'Printify order submission failed.',
-      details: error?.message || String(error),
+      details: errorMessage,
     });
   }
 }

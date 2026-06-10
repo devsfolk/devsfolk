@@ -292,8 +292,17 @@ export const CheckoutPage: React.FC = () => {
     }
 
     if (mode === 'WEBSITE' && !paymentMethod) {
-      alert('Please select a payment method');
-      return;
+      // Only require a payment method selection if at least one payment method is enabled
+      const hasAnyPaymentMethod = (
+        settings.paymentSettings?.stripe?.enabled ||
+        settings.paymentSettings?.paypal?.enabled ||
+        settings.paymentSettings?.bankTransfer?.enabled ||
+        settings.paymentSettings?.cod?.enabled
+      );
+      if (hasAnyPaymentMethod) {
+        alert('Please select a payment method');
+        return;
+      }
     }
 
     if (mode === 'WEBSITE' && paymentMethod === 'bank') {

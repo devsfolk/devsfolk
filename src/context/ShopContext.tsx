@@ -671,7 +671,7 @@ const calculatePrintifyRetailPrice = (
 
 const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSettings['printifySettings']['charges']): Product => {
   const images = template.images.map(normalizeTemplateImage).filter(Boolean);
-  const basePrice = template.baseCost ?? template.retailPrice ?? 24.99;
+  const basePrice = template.baseCost ?? template.retailPrice ?? 0;
   const templateVariants = (template.variants || [])
     .slice(0, 25)
     .map((variant: any) => ({
@@ -1732,7 +1732,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
 
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextCart));
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextCart));
+      } catch (storageError) {
+        console.warn('[DevsFolk] Cart could not be persisted to localStorage (storage quota exceeded). Cart changes will be lost on page refresh.', storageError);
+      }
       return nextCart;
     });
   };
@@ -1747,7 +1751,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             JSON.stringify(item.customization || null) === JSON.stringify(customization || null)
           ),
       );
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      } catch (storageError) {
+        console.warn('[DevsFolk] Cart could not be persisted to localStorage (storage quota exceeded). Cart changes will be lost on page refresh.', storageError);
+      }
       return updated;
     });
   };
@@ -1761,7 +1769,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? { ...item, quantity: Math.max(1, quantity) }
           : item,
       );
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      } catch (storageError) {
+        console.warn('[DevsFolk] Cart could not be persisted to localStorage (storage quota exceeded). Cart changes will be lost on page refresh.', storageError);
+      }
       return updated;
     });
   };
@@ -1840,6 +1852,41 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdmin(false);
   };
 
+  const triggerAutoFulfillment = async (orderId: string, shopId: string, retries = 3, delay = 2000) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch('/api/printify/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, shopId }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (response.ok) {
+          console.info(`[AutoFulfillment] Order ${orderId} submitted to Printify successfully on attempt ${attempt}.`);
+          return;
+        }
+
+        if (data?.status === 'ALREADY_SYNCED') {
+          console.info(`[AutoFulfillment] Order ${orderId} was already synced.`);
+          return;
+        }
+
+        const errorMsg = data?.error || data?.message || `Status ${response.status}`;
+        console.warn(`[AutoFulfillment] Attempt ${attempt}/${retries} failed for order ${orderId}: ${errorMsg}`);
+      } catch (networkError: any) {
+        console.warn(`[AutoFulfillment] Attempt ${attempt}/${retries} network error for order ${orderId}:`, networkError?.message || networkError);
+      }
+
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delay * Math.pow(2, attempt - 1)));
+      }
+    }
+
+    console.error(`[AutoFulfillment] All ${retries} attempts failed for order ${orderId}. Admin can use Push / Retry in the dashboard.`);
+  };
+
   const placeOrder = (
     customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>,
     mode: 'WHATSAPP' | 'WEBSITE',
@@ -1906,7 +1953,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     if (supabase) {
-      void flushPendingOrdersToSupabase();
+      void flushPendingOrdersToSupabase().then(() => {
+        if (hasPrintifyItems) {
+          const shopId = settings.printifySettings?.providerSettings?.shopId || '';
+          if (shopId) {
+            void triggerAutoFulfillment(newOrder.id, shopId);
+          } else {
+            console.warn('[AutoFulfillment] Skipped: no Printify shopId configured.');
+          }
+        }
+      });
       void Promise.all(
         updatedProducts.map((product) => supabase.from('products').update({ stock: product.stock }).eq('id', product.id)),
       );

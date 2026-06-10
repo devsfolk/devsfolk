@@ -10,7 +10,57 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+
+// Pure helper: builds a Map from option value ID → { title, hex? } using blueprint detail data.
+// Requirements 2.4, 2.5
+const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string; hex?: string }> => {
+  const map = new Map<number, { title: string; hex?: string }>();
+  const options = Array.isArray(blueprintDetail?.options) ? blueprintDetail.options : [];
+  for (const option of options) {
+    const values = Array.isArray(option?.values) ? option.values : [];
+    const isColor = String(option?.type || option?.name || '').toLowerCase() === 'color';
+    for (const value of values) {
+      const id = Number(value?.id);
+      const title = String(value?.title || value?.name || '').trim();
+      if (!id || !title) continue;
+      const hex = isColor && Array.isArray(value?.colors) && value.colors.length > 0
+        ? String(value.colors[0]).trim()
+        : undefined;
+      map.set(id, { title, ...(hex ? { hex } : {}) });
+    }
+  }
+  return map;
+};
+
+// Pure helper: replaces integer option IDs in a variant with resolved { id, name, title, hex? } objects.
+// Requirements 2.4, 2.5
+const resolveVariantOptions = (
+  variant: any,
+  optionValueMap: Map<number, { title: string; hex?: string }>,
+  blueprintDetail?: any
+): any => {
+  if (!variant || !Array.isArray(variant.options)) return variant;
+  const options = Array.isArray(blueprintDetail?.options) ? blueprintDetail.options : [];
+  const resolvedOptions = variant.options.map((optionIdOrObj: any, idx: number) => {
+    // If already resolved (object with title), return as-is
+    if (optionIdOrObj && typeof optionIdOrObj === 'object' && optionIdOrObj.title) {
+      return optionIdOrObj;
+    }
+    const id = Number(optionIdOrObj);
+    const resolved = optionValueMap.get(id);
+    // Determine the option "name" (type) from the blueprint options array by index
+    const optionDef = options[idx];
+    const name = String(optionDef?.name || optionDef?.type || optionDef?.id || '').toLowerCase();
+    return {
+      id,
+      name,
+      title: resolved?.title ?? String(id),
+      ...(resolved?.hex ? { hex: resolved.hex } : {}),
+    };
+  });
+  return { ...variant, options: resolvedOptions };
+};
 
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts, updateOrderPrintifySync } = useShop();
@@ -411,7 +461,25 @@ export const PrintifySettings: React.FC = () => {
           const primaryProviderId = Number(primaryProvider?.id || primaryProvider?.print_provider_id);
           if (primaryProviderId) {
             const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
-            variantsByBlueprintId[template.blueprintId] = normalizePrintifyList(variantData, ['variants']);
+            const rawVariants = normalizePrintifyList(variantData, ['variants']);
+
+            // Enrich variants: resolve integer option IDs → { id, name, title, hex? } objects
+            let enrichedVariants = rawVariants;
+            try {
+              const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
+              const optionValueMap = buildOptionValueMap(blueprintDetail);
+              enrichedVariants = rawVariants.map((v: any) =>
+                resolveVariantOptions(v, optionValueMap, blueprintDetail)
+              );
+            } catch (enrichError: any) {
+              setSyncLogs(prev => [
+                ...prev,
+                `[WARNING] Option resolution skipped for ${template.title}: ${enrichError.message || enrichError}`,
+              ]);
+              // enrichedVariants remains rawVariants — sync continues with unresolved IDs
+            }
+
+            variantsByBlueprintId[template.blueprintId] = enrichedVariants;
           }
         } catch (providerError: any) {
           providersByBlueprintId[template.blueprintId] = [];
