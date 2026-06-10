@@ -92,7 +92,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### 2026-06-10 - Remove Editor Margin Wording And Fake Color Controls
 
-- Commit: pending
+- Commit: `0c92673`
 - Files:
   - `src/components/printify/BespokeCustomizer.tsx`
   - `src/context/ShopContext.tsx`
