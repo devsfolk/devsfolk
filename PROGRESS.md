@@ -92,7 +92,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### 2026-06-10 - Prepare Custom Orders For Printify Submission
 
-- Commit: pending
+- Commit: `bd777ef`
 - Files:
   - `api/printify/orders.ts`
   - `src/components/printify/BespokeCustomizer.tsx`
