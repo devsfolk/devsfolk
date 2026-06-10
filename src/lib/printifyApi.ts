@@ -66,7 +66,17 @@ export const submitPrintifyOrder = async (shopId: string, order: Order, apiKey =
   if (!response.ok) {
     const missing = Array.isArray(data?.missing) && data.missing.length > 0 ? ` Missing: ${data.missing.join(', ')}` : '';
     const detailText = data?.details ? ` ${data.details}` : '';
-    const message = data?.error || data?.message || `Printify order API returned status ${response.status}`;
+    let message = data?.error || data?.message || `Printify order API returned status ${response.status}`;
+    
+    if (data?.errors) {
+      const nestedErrors = typeof data.errors === 'object'
+        ? Object.entries(data.errors).map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}`).join('; ')
+        : String(data.errors);
+      if (nestedErrors) {
+        message += ` (Details: ${nestedErrors})`;
+      }
+    }
+    
     throw new Error(`${message}${missing}${detailText}`);
   }
 
@@ -88,6 +98,9 @@ export const fetchPrintifyBlueprintProviders = (apiKey: string, blueprintId: num
 export const fetchPrintifyBlueprintVariants = (apiKey: string, blueprintId: number, printProviderId: number) => {
   return callPrintifyGateway<any>({ apiKey, mode: 'variants', blueprintId, printProviderId });
 };
+
+export const fetchPrintifyBlueprintDetail = (apiKey: string, blueprintId: number) =>
+  callPrintifyGateway<any>({ apiKey, mode: 'blueprint', blueprintId });
 
 const normalizeBlueprintList = (data: any) => {
   const list = data?.data || data || [];

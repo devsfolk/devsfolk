@@ -49,7 +49,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       name: template.title,
       slug: `custom-template-${template.blueprintId}`,
       description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
-      price: calculateTemplateRetailPrice(template.baseCost ?? template.retailPrice ?? 24.99),
+      price: calculateTemplateRetailPrice(template.baseCost ?? template.retailPrice ?? 0),
       images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
       stock: 999,
       isFeatured: false,
@@ -232,8 +232,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const printifyEnabled = settings.printifySettings?.enabled;
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
-  const activeBasePrice = activeProduct?.price ?? 0;
-  const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
   const activeTemplate = getTemplateForProduct(activeProduct);
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
 
@@ -249,14 +247,48 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedSize, setSelectedSize] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
 
-  const activePrintifyVariants = useMemo(() => (
-    (Array.isArray(activeTemplate?.variants) ? activeTemplate?.variants : [])
-      .filter((variant: any) => variant?.is_enabled !== false && variant?.is_available !== false)
-  ), [activeTemplate]);
+  const activePrintifyVariants = useMemo(() => {
+    const rawVariants = Array.isArray(activeTemplate?.variants) && activeTemplate.variants.length > 0
+      ? activeTemplate.variants
+      : (Array.isArray(activeProduct?.variants) ? activeProduct.variants : []);
+
+    return rawVariants.filter((variant: any) => 
+      variant?.enabled !== false &&
+      variant?.is_enabled !== false &&
+      variant?.is_available !== false &&
+      variant?.stock !== 0
+    );
+  }, [activeTemplate, activeProduct]);
+
 
   const activeColorOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantColor))
   ), [activePrintifyVariants]);
+
+  // Collect { title, hex? } pairs for the color selector — used by the swatch renderer
+  const activeColorOptionDetails = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Array<{ title: string; hex?: string }> = [];
+
+    for (const variant of activePrintifyVariants) {
+      const options = Array.isArray(variant?.options) ? variant.options : [];
+      const colorOpt = options.find((opt: any) => {
+        const name = String(opt?.name || opt?.type || '').toLowerCase();
+        return name.includes('color') || name.includes('colour');
+      });
+      if (!colorOpt) continue;
+      const title = String(colorOpt?.title || colorOpt?.value || colorOpt?.name || '').trim();
+      if (!title || seen.has(title)) continue;
+      seen.add(title);
+      result.push({
+        title,
+        hex: colorOpt.hex
+          ? String(colorOpt.hex).trim()
+          : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined,
+      });
+    }
+    return result;
+  }, [activePrintifyVariants]);
 
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
@@ -271,6 +303,24 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     return matchedVariant || getPrimaryPrintifyVariant(activeTemplate) || activeProduct?.variants?.[0];
   }, [activePrintifyVariants, activeTemplate, activeProduct, selectedColor, selectedSize]);
+
+  // Reactive pricing chain: selectedColor/selectedSize → activePrintifyVariant → activeBasePrice → activeCustomerPrice
+  // Printify variant costs arrive in cents (e.g. 1499 = $14.99); divide by 100 before applying margin.
+  const activeBasePrice = useMemo(() => {
+    const variantCostCents = Number(
+      activePrintifyVariant?.cost ??
+      activePrintifyVariant?.price ??
+      0
+    );
+    if (variantCostCents > 0) {
+      const variantCostDollars = variantCostCents / 100;
+      return calculateTemplateRetailPrice(variantCostDollars);
+    }
+    // Fall back to the template-level price already encoded in the product
+    return activeProduct?.price ?? 0;
+  }, [activePrintifyVariant, activeProduct]);
+
+  const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
 
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
@@ -699,75 +749,79 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   };
 
-  // Compile final product preview including background t-shirt tint
   const generatePreviewDataUrl = (): Promise<string> => {
     return new Promise((resolve) => {
-      const canvas = compiledCanvasRef.current;
-      const fCanvas = fabricCanvasRef.current;
-      if (!canvas || !fCanvas) {
-        resolve('');
-        return;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve('');
-        return;
-      }
-
-      canvas.width = 600;
-      canvas.height = 600;
-
-      // 1. Draw neutral canvas; product colors should come from Printify mockups/variants, not simulated tinting.
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 600, 600);
-
-      // Load base mockup
-      const baseImg = new Image();
-      baseImg.crossOrigin = 'anonymous';
-      baseImg.src = activeProduct.images[0] || '/custom-tee-mockup.png';
-      baseImg.onload = () => {
-        try {
-          ctx.drawImage(baseImg, 0, 0, 600, 600);
-
-          // Coordinates matching the relative boundary size (35% x 45%)
-          const pw = 600 * 0.35;
-          const ph = 600 * 0.45;
-          const px = (600 - pw) / 2;
-          const py = 600 * 0.28;
-
-          // Discard active selection line before compilation
-          const activeObj = fCanvas.getActiveObject();
-          if (activeObj) {
-            fCanvas.discardActiveObject();
-            fCanvas.renderAll();
-          }
-
-          const fabricDataUrl = fCanvas.toDataURL({ format: 'png' });
-          const fabricImg = new Image();
-          fabricImg.src = fabricDataUrl;
-          fabricImg.onload = () => {
-            try {
-              ctx.drawImage(fabricImg, px, py, pw, ph);
-
-              // Restore selection state
-              if (activeObj) {
-                fCanvas.setActiveObject(activeObj);
-                fCanvas.renderAll();
-              }
-
-              resolve(canvas.toDataURL('image/png'));
-            } catch (error) {
-              console.warn('Preview compilation failed; continuing without compiled preview.', error);
-              resolve('');
-            }
-          };
-          fabricImg.onerror = () => resolve('');
-        } catch (error) {
-          console.warn('Preview generation failed; continuing without compiled preview.', error);
+      try {
+        const canvas = compiledCanvasRef.current;
+        const fCanvas = fabricCanvasRef.current;
+        if (!canvas || !fCanvas) {
           resolve('');
+          return;
         }
-      };
-      baseImg.onerror = () => resolve('');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve('');
+          return;
+        }
+
+        canvas.width = 600;
+        canvas.height = 600;
+
+        // 1. Draw neutral canvas; product colors should come from Printify mockups/variants, not simulated tinting.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 600, 600);
+
+        // Load base mockup
+        const baseImg = new Image();
+        baseImg.crossOrigin = 'anonymous';
+        baseImg.src = activeProduct.images[0] || '/custom-tee-mockup.png';
+        baseImg.onload = () => {
+          try {
+            ctx.drawImage(baseImg, 0, 0, 600, 600);
+
+            // Coordinates matching the relative boundary size (35% x 45%)
+            const pw = 600 * 0.35;
+            const ph = 600 * 0.45;
+            const px = (600 - pw) / 2;
+            const py = 600 * 0.28;
+
+            // Discard active selection line before compilation
+            const activeObj = fCanvas.getActiveObject();
+            if (activeObj) {
+              fCanvas.discardActiveObject();
+              fCanvas.renderAll();
+            }
+
+            const fabricDataUrl = fCanvas.toDataURL({ format: 'png' });
+            const fabricImg = new Image();
+            fabricImg.src = fabricDataUrl;
+            fabricImg.onload = () => {
+              try {
+                ctx.drawImage(fabricImg, px, py, pw, ph);
+
+                // Restore selection state
+                if (activeObj) {
+                  fCanvas.setActiveObject(activeObj);
+                  fCanvas.renderAll();
+                }
+
+                resolve(canvas.toDataURL('image/jpeg', 0.60));
+              } catch (error) {
+                console.warn('Preview compilation failed; continuing without compiled preview.', error);
+                resolve('');
+              }
+            };
+            fabricImg.onerror = () => resolve('');
+          } catch (error) {
+            console.warn('Preview generation failed; continuing without compiled preview.', error);
+            resolve('');
+          }
+        };
+        baseImg.onerror = () => resolve('');
+      } catch (err) {
+        console.error('Failed to compile preview image:', err);
+        resolve('');
+      }
     });
   };
 
@@ -777,56 +831,64 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return;
     }
 
-    const fCanvas = fabricCanvasRef.current;
-    if (!fCanvas) {
-      if (!getPrintifyVariantId(activePrintifyVariant)) {
+    try {
+      const fCanvas = fabricCanvasRef.current;
+      if (!fCanvas) {
+        if (!getPrintifyVariantId(activePrintifyVariant)) {
+          alert('This template is not available for checkout right now. Please choose another template.');
+          return;
+        }
+
+        addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
+          color: selectedColor,
+          size: selectedSize,
+        });
+        navigate('/cart');
+        return;
+      }
+
+      const previewUrl = await generatePreviewDataUrl().catch((error) => {
+        console.warn('Preview generation failed; adding item with fallback image.', error);
+        return '';
+      });
+
+      const imgObj = fCanvas.getObjects('image')[0];
+      const textObj = fCanvas.getObjects('i-text')[0] as fabric.IText;
+      const printifyVariantId = getPrintifyVariantId(activePrintifyVariant);
+
+      if (!printifyVariantId) {
         alert('This template is not available for checkout right now. Please choose another template.');
         return;
       }
 
+      const customization = {
+        customImageUrl: customImage || undefined,
+        customText: customText || undefined,
+        textColor: customText ? textColor : undefined,
+        fontFamily: customText ? textFont : undefined,
+        imagePosition: imgObj ? { x: imgObj.left || 0, y: imgObj.top || 0, scale: imgObj.scaleX || 1, rotate: imgObj.angle || 0 } : undefined,
+        textPosition: textObj ? { x: textObj.left || 0, y: textObj.top || 0, scale: textObj.scaleX || 1, rotate: textObj.angle || 0 } : undefined,
+        previewUrl: previewUrl || undefined,
+        printifyBlueprintId: activeTemplate?.blueprintId,
+        printifyPrintProviderId: (() => {
+          const idVal = Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id);
+          return (idVal && !isNaN(idVal)) ? idVal : undefined;
+        })(),
+        printifyVariantId,
+        printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
+      };
+
       addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
         color: selectedColor,
         size: selectedSize,
+        customization,
       });
+
       navigate('/cart');
-      return;
+    } catch (err: any) {
+      console.error('Error adding customized product to cart:', err);
+      alert(`Could not add product to cart: ${err?.message || err}`);
     }
-
-    const previewUrl = await generatePreviewDataUrl().catch((error) => {
-      console.warn('Preview generation failed; adding item with fallback image.', error);
-      return '';
-    });
-
-    const imgObj = fCanvas.getObjects('image')[0];
-    const textObj = fCanvas.getObjects('i-text')[0] as fabric.IText;
-    const printifyVariantId = getPrintifyVariantId(activePrintifyVariant);
-
-    if (!printifyVariantId) {
-      alert('This template is not available for checkout right now. Please choose another template.');
-      return;
-    }
-
-    const customization = {
-      customImageUrl: customImage || undefined,
-      customText: customText || undefined,
-      textColor: customText ? textColor : undefined,
-      fontFamily: customText ? textFont : undefined,
-      imagePosition: imgObj ? { x: imgObj.left || 0, y: imgObj.top || 0, scale: imgObj.scaleX || 1, rotate: imgObj.angle || 0 } : undefined,
-      textPosition: textObj ? { x: textObj.left || 0, y: textObj.top || 0, scale: textObj.scaleX || 1, rotate: textObj.angle || 0 } : undefined,
-      previewUrl: previewUrl || undefined,
-      printifyBlueprintId: activeTemplate?.blueprintId,
-      printifyPrintProviderId: Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id) || undefined,
-      printifyVariantId,
-      printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
-    };
-
-    addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
-      color: selectedColor,
-      size: selectedSize,
-      customization,
-    });
-
-    navigate('/cart');
   };
 
   // Generate AI preview mockups
@@ -964,19 +1026,48 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   </div>
                 </div>
 
-                {activeColorOptions.length > 0 && (
+                {activeColorOptionDetails.length > 0 && (
                   <div className="space-y-3 pt-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      Select Color
+                      {selectedColor && (
+                        <span className="ml-2 font-normal normal-case tracking-normal text-gray-500">
+                          — {selectedColor}
+                        </span>
+                      )}
+                    </Label>
                     <div className="flex flex-wrap gap-2">
-                      {activeColorOptions.map((color) => (
-                        <button
-                          key={color}
-                          onClick={() => setSelectedColor(color)}
-                          className={`px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${selectedColor === color ? 'bg-black text-white border-black shadow-md' : 'bg-white text-black hover:border-gray-300'}`}
-                        >
-                          {color}
-                        </button>
-                      ))}
+                      {activeColorOptionDetails.map(({ title, hex }) => {
+                        const isActive = selectedColor === title;
+                        return hex ? (
+                          <button
+                            key={title}
+                            title={title}
+                            aria-label={title}
+                            aria-pressed={isActive}
+                            onClick={() => setSelectedColor(title)}
+                            className={`w-8 h-8 rounded-full border-2 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+                              isActive
+                                ? 'border-black ring-2 ring-black ring-offset-1 shadow-md scale-110'
+                                : 'border-gray-200 hover:border-gray-400 hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: hex }}
+                          />
+                        ) : (
+                          <button
+                            key={title}
+                            onClick={() => setSelectedColor(title)}
+                            aria-pressed={isActive}
+                            className={`px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${
+                              isActive
+                                ? 'bg-black text-white border-black shadow-md'
+                                : 'bg-white text-black hover:border-gray-300'
+                            }`}
+                          >
+                            {title}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1348,9 +1439,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               Add Customized to Cart
             </Button>
             
-            <p className="text-[8px] text-gray-400 text-center uppercase font-bold tracking-widest opacity-60">
-              Orders automatically sync to Printify POD warehouses upon payment validation
-            </p>
           </div>
         </div>
       </div>

@@ -90,6 +90,24 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-10 - Automatic Printify Fulfillment & Customizer Safety
+
+- Files:
+  - `src/context/ShopContext.tsx`
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `src/lib/printifyApi.ts`
+  - `api/printify/orders.ts`
+- What changed:
+  - **Customizer Crash Fix**: Wrapped `generatePreviewDataUrl` and `handleAddToCart` in `try/catch` blocks to prevent unhandled React runtime crashes (blank screen on "Add Customized to Cart").
+  - **Color/Size Restoration**: `activePrintifyVariants` now falls back to `activeProduct.variants` when synced catalog template variants are empty. Option filtering supports both `enabled` (Catalog blueprint) and `is_enabled`/`is_available` (Shop product) schemas.
+  - **Enhanced Error Formatting**: `submitPrintifyOrder` in `printifyApi.ts` now extracts and appends nested `data.errors` validation details to thrown exceptions for clearer dashboard error messages.
+  - **Secure Anonymous Fulfillment Backend**: `api/printify/orders.ts` now allows non-admin requests with a valid `orderId`. The backend fetches order data server-side using the Supabase Service Role key, checks for `ALREADY_SYNCED` status to prevent duplicates, and writes sync outcomes (`SYNCED`/`FAILED`, order ID, error logs) directly to the database.
+  - **Automatic Post-Checkout Fulfillment**: Added `triggerAutoFulfillment` in `ShopContext.tsx` with exponential backoff (3 retries, 2s/4s/8s delays). Invoked automatically after `flushPendingOrdersToSupabase` for orders containing Printify items. Runs fire-and-forget so checkout UX is never blocked. Falls back to manual `Push / Retry` in the dashboard if all retries fail.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - After deploy, place a test customized order and verify the auto-fulfillment logs in browser console (`[AutoFulfillment]` prefix). Check dashboard Printify Orders for `SYNCED` or `FAILED` status update. Manual `Push / Retry` remains available as a fallback.
+
 ### 2026-06-10 - Prepare Custom Orders For Printify Submission
 
 - Commit: `bd777ef`
@@ -440,3 +458,21 @@ Use this format when adding a new completed task:
 - Current issue / next step:
   - What the next agent or user should test next.
 ```
+
+### 2026-06-11 - Printify Order Fulfillment Fix (POF-001)
+
+- Branch: `fix/printify-fulfillment-POF-001`
+- Files:
+  - `src/pages/dashboard/PrintifySettings.tsx`
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `src/context/ShopContext.tsx`
+- What changed:
+  - **Template Sync — Variant Option Enrichment (Fix 3)**: `runTemplateCatalogSync` now fetches the blueprint detail endpoint (`GET /v1/catalog/blueprints/:id.json`) inside the per-template loop. `buildOptionValueMap` + `resolveVariantOptions` are called to replace raw integer option IDs with `{ id, name, title, hex? }` objects before variants are stored in the catalog. Enrichment errors are logged as warnings and sync continues with unresolved IDs.
+  - **Dynamic Pricing (Fix 2)**: `templateToEditorProduct` fallback changed from hardcoded `24.99` to `0`. `activeBasePrice` is now a `useMemo` derived from `activePrintifyVariant?.cost` (converted from cents) so the displayed price updates reactively on variant selection. Reactive chain: `selectedColor / selectedSize → activePrintifyVariant → activeBasePrice → activeCustomerPrice → displayed price`.
+  - **Color Swatches (Fix 4)**: Added `activeColorOptionDetails` memo that extracts `{ title, hex? }` pairs from enriched variants. Color selector now renders filled circular hex swatches (`w-8 h-8 rounded-full`) with an active ring/scale indicator; text-pill fallback rendered when no hex is available. Accessible via `aria-label` and `aria-pressed`.
+  - **localStorage Crash Prevention (Fix 6)**: All three `localStorage.setItem(CART_STORAGE_KEY, ...)` calls in `ShopContext.tsx` (`addToCart`, `removeFromCart`, `updateCartQuantity`) wrapped in `try/catch` with `console.warn` on failure. In-memory cart state always updates; only persistence is protected. Canvas preview exports in `BespokeCustomizer.tsx` switched from `image/png` to `image/jpeg` at quality `0.60`, reducing data URL size ~5–10×.
+  - **System Note Removed (Fix 5)**: Deleted the `<p>` element containing "Orders automatically sync to Printify POD warehouses upon payment validation" from the editor Action Footer.
+- Validation:
+  - `npm run build` passed (2451 modules, no TypeScript errors; pre-existing chunk-size warning unrelated to these changes).
+- Current issue / next step:
+  - Deploy branch `fix/printify-fulfillment-POF-001` and run Template Sync to confirm enriched variant options appear with human-readable titles and hex codes. Then verify color swatches render in the editor and that price updates when switching variant size/color. Check browser console for `[DevsFolk] Cart could not be persisted` warnings if localStorage is near quota.
