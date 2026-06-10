@@ -692,8 +692,6 @@ const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSet
     images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
     stock: 999,
     isFeatured: false,
-    colors: ['#FFFFFF', '#111827'],
-    sizes: ['S', 'M', 'L', 'XL'],
     variants: templateVariants,
     createdAt: Date.now(),
     isPrintify: true,

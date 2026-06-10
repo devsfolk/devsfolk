@@ -47,7 +47,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 - Template search and sync limit controls were added.
 - Editor search filters templates by name/description/template ID.
 - Admin-created Printify shop products were removed from the editor list; they remain normal storefront products.
-- Template pricing displays an estimated customer price using dashboard markup settings.
+- Editor pricing displays only customer-facing product price language; internal margin/markup details must never be shown to customers.
 - Template Sync now attempts to fetch provider and variant metadata for selected templates.
 - Printify catalog local cache was compacted to avoid browser `localStorage` quota crashes.
 
@@ -89,6 +89,43 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 - Retry errors are now shown clearly in the dashboard alert and row tooltip.
 
 ## Recent Updates
+
+### 2026-06-10 - Remove Editor Margin Wording And Fake Color Controls
+
+- Commit: pending
+- Files:
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `src/context/ShopContext.tsx`
+  - `PROGRESS.md`
+- What changed:
+  - Removed customer-facing profit/margin wording from the storefront editor price card.
+  - Changed editor pricing label from `Estimated Template Price` to `Product Price`.
+  - Removed fake black/white template color defaults from editor and catalog product mappings.
+  - Removed simulated color tinting from the editor preview; product color visuals should come from real Printify mockups/variant data.
+  - Editor color/size controls now appear only when synced Printify variant metadata provides customer-facing option values.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - Highest priority remains Printify fulfillment: `Push / Retry` must submit valid customized orders to Printify.
+
+### Critical Priority Order For Continuation
+
+1. Fix Printify order submission / `Push / Retry` fulfillment failure.
+2. Keep `PROGRESS.md` updated after every completed task.
+3. Replace remaining editor placeholder logic with real Printify data: variants, colors, sizes, print areas, print positions, provider capabilities, restrictions, mockups, and previews where API support exists.
+4. Keep only the preview-based `Search Blank Templates` experience and show only admin-synced/approved templates.
+5. Fix and validate customer design upload for all supported template types.
+6. Improve text editing with professional typography, positioning, layer, and print-area controls.
+7. Add Printify design assets only if the official API exposes usable ready-made graphics/design resources.
+8. Keep raw templates out of normal storefront listings/search/related products.
+
+### Current Critical Open Issues
+
+- `Push / Retry` still fails for customized Printify orders; next developer should inspect the latest dashboard error text after this branch deploys.
+- Fulfillment payload likely still needs real artwork upload/asset handling and Printify-compatible `print_areas`.
+- Editor option controls are partially metadata-driven now, but full variant/position/restriction mapping still needs deeper Printify API normalization.
+- Customer-uploaded artwork needs end-to-end validation from editor upload → cart metadata → Printify submission.
+- Printify-generated previews/mockups and ready-made design assets need confirmation against official Printify API capabilities before implementation.
 
 ### 2026-06-10 - Hide Raw Templates From Storefront Listings
 

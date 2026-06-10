@@ -53,8 +53,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
       stock: 999,
       isFeatured: false,
-      colors: ['#FFFFFF', '#111827'],
-      sizes: ['S', 'M', 'L', 'XL'],
       variants: [],
       createdAt: Date.now(),
       isPrintify: true,
@@ -141,6 +139,70 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return undefined;
   };
 
+  const normalizeOptionText = (value: any) => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') {
+      return String(value.title || value.name || value.value || value.label || '').trim();
+    }
+    return String(value).trim();
+  };
+
+  const getVariantOptionText = (variant: any, keys: string[]) => {
+    if (!variant || typeof variant !== 'object') return '';
+
+    for (const key of keys) {
+      const direct = normalizeOptionText(variant[key]);
+      if (direct) return direct;
+    }
+
+    const options = variant.options;
+    if (Array.isArray(options)) {
+      for (const option of options) {
+        const optionName = normalizeOptionText(option?.name || option?.type || option?.key || option?.label).toLowerCase();
+        if (keys.some((key) => optionName.includes(key))) {
+          const value = normalizeOptionText(option?.title || option?.value || option?.name);
+          if (value && value.toLowerCase() !== optionName) return value;
+        }
+      }
+    }
+
+    if (options && typeof options === 'object' && !Array.isArray(options)) {
+      for (const key of keys) {
+        const value = normalizeOptionText(options[key]);
+        if (value) return value;
+      }
+    }
+
+    return '';
+  };
+
+  const getVariantTitleParts = (variant: any) => (
+    normalizeOptionText(variant?.title || variant?.name)
+      .split(/\s*\/\s*|\s*,\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+  );
+
+  const isSizeToken = (value: string) => (
+    /^(one size|xs|s|m|l|xl|xxl|xxxl|[2-6]xl|\d+(\.\d+)?|[a-z]*\s?\d+x\d+|[a-z]*\s?\d+oz)$/i.test(value.trim())
+  );
+
+  const getVariantSize = (variant: any) => {
+    const explicit = getVariantOptionText(variant, ['size']);
+    if (explicit) return explicit;
+    return getVariantTitleParts(variant).find(isSizeToken) || '';
+  };
+
+  const getVariantColor = (variant: any) => {
+    const explicit = getVariantOptionText(variant, ['color', 'colour']);
+    if (explicit) return explicit;
+    return getVariantTitleParts(variant).find((part) => !isSizeToken(part)) || '';
+  };
+
+  const uniqueOptionValues = (values: string[]) => (
+    Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+  );
+
   // Active product state
   const [activeProduct, setActiveProduct] = useState(() => {
     return customProducts.find((p) => p.slug === productSlug) || 
@@ -151,11 +213,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const aiPreviewEnabled = settings.printifySettings?.preview?.aiEnabled;
   const activeBasePrice = activeProduct?.price ?? 0;
   const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
-  const activeDesignFee = Math.max(0, Number(settings.printifySettings?.charges?.designFee ?? 0));
-  const activeMarginPercent = Math.max(0, Number(settings.printifySettings?.charges?.profitMarginPercent ?? 0));
   const activeTemplate = getTemplateForProduct(activeProduct);
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
-  const activePrintifyVariant = getPrimaryPrintifyVariant(activeTemplate) || activeProduct?.variants?.[0];
 
   useEffect(() => {
     const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];
@@ -165,9 +224,32 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   }, [activeProduct, customProducts, productSlug]);
 
   // Option configurations
-  const [selectedColor, setSelectedColor] = useState('#FFFFFF');
-  const [selectedSize, setSelectedSize] = useState('M');
+  const [selectedColor, setSelectedColor] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
+
+  const activePrintifyVariants = useMemo(() => (
+    (Array.isArray(activeTemplate?.variants) ? activeTemplate?.variants : [])
+      .filter((variant: any) => variant?.is_enabled !== false && variant?.is_available !== false)
+  ), [activeTemplate]);
+
+  const activeColorOptions = useMemo(() => (
+    uniqueOptionValues(activePrintifyVariants.map(getVariantColor))
+  ), [activePrintifyVariants]);
+
+  const activeSizeOptions = useMemo(() => (
+    uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
+  ), [activePrintifyVariants]);
+
+  const activePrintifyVariant = useMemo(() => {
+    const matchedVariant = activePrintifyVariants.find((variant: any) => {
+      const colorMatches = !selectedColor || getVariantColor(variant) === selectedColor;
+      const sizeMatches = !selectedSize || getVariantSize(variant) === selectedSize;
+      return colorMatches && sizeMatches;
+    });
+
+    return matchedVariant || getPrimaryPrintifyVariant(activeTemplate) || activeProduct?.variants?.[0];
+  }, [activePrintifyVariants, activeTemplate, activeProduct, selectedColor, selectedSize]);
 
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
@@ -205,26 +287,20 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     { name: 'Impact Condensed (Oswald)', value: 'Oswald' },
   ];
 
-  // Colors display helper
-  const colorMap: Record<string, string> = {
-    '#FFFFFF': 'White',
-    '#111827': 'Charcoal / Black',
-    '#EF4444': 'Ruby Red',
-    '#3B82F6': 'Royal Blue',
-    '#10B981': 'Emerald Green',
-  };
-
-  // Sync colors & sizes when active product shifts
+  // Sync colors & sizes when active Printify metadata shifts
   useEffect(() => {
-    if (activeProduct) {
-      if (activeProduct.colors && activeProduct.colors.length > 0) {
-        setSelectedColor(activeProduct.colors[0]);
-      }
-      if (activeProduct.sizes && activeProduct.sizes.length > 0) {
-        setSelectedSize(activeProduct.sizes[0]);
-      }
+    if (activeColorOptions.length > 0) {
+      setSelectedColor((current) => activeColorOptions.includes(current) ? current : activeColorOptions[0]);
+    } else {
+      setSelectedColor('');
     }
-  }, [activeProduct]);
+
+    if (activeSizeOptions.length > 0) {
+      setSelectedSize((current) => activeSizeOptions.includes(current) ? current : activeSizeOptions[0]);
+    } else {
+      setSelectedSize('');
+    }
+  }, [activeColorOptions, activeSizeOptions]);
 
   // Initialize Fabric.js Canvas
   useEffect(() => {
@@ -620,8 +696,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       canvas.width = 600;
       canvas.height = 600;
 
-      // 1. Draw base T-shirt mockup background tint
-      ctx.fillStyle = selectedColor;
+      // 1. Draw neutral canvas; product colors should come from Printify mockups/variants, not simulated tinting.
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, 600, 600);
 
       // Load base mockup
@@ -630,10 +706,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       baseImg.src = activeProduct.images[0] || '/custom-tee-mockup.png';
       baseImg.onload = () => {
         try {
-          // Draw shirt mockup multiplying background color
-          ctx.globalCompositeOperation = 'multiply';
           ctx.drawImage(baseImg, 0, 0, 600, 600);
-          ctx.globalCompositeOperation = 'source-over';
 
           // Coordinates matching the relative boundary size (35% x 45%)
           const pw = 600 * 0.35;
@@ -781,17 +854,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         <div className="lg:col-span-7 flex flex-col items-center">
           <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
-            {/* Color Tinting layer */}
-            <div 
-              className="absolute inset-0 transition-colors duration-300"
-              style={{ backgroundColor: selectedColor }}
-            />
-
-            {/* Mockup Overlay Multiplier */}
+            {/* Printify mockup image */}
             <img 
               src={activeProduct.images[0] || '/custom-tee-mockup.png'} 
               alt="Shirt template" 
-              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none mix-blend-multiply transition-opacity duration-300"
+              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
             />
 
             {/* Print Area Bounds holding Fabric Canvas */}
@@ -885,9 +952,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   <div className="rounded-2xl border bg-emerald-50/60 border-emerald-100 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Estimated Template Price</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Product Price</p>
                         <p className="text-[10px] text-emerald-700/70 mt-1">
-                          Includes {activeMarginPercent}% template estimate margin{activeDesignFee > 0 ? ` + ${settings.currencySymbol}${activeDesignFee.toFixed(2)} design fee` : ''}.
+                          Customer-facing price before shipping and taxes.
                         </p>
                       </div>
                       <p className="text-lg font-black text-emerald-800">
@@ -896,34 +963,49 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                     </div>
                   </div>
 
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color ({colorMap[selectedColor] || 'Custom Color'})</Label>
-                  <div className="flex flex-wrap gap-3">
-                    {activeProduct.colors?.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => setSelectedColor(color)}
-                        className={`w-9 h-9 rounded-full border-2 transition-all flex items-center justify-center ${selectedColor === color ? 'border-black scale-110 shadow-sm' : 'border-transparent'}`}
-                      >
-                        <div className="w-6.5 h-6.5 rounded-full border border-gray-100" style={{ backgroundColor: color }} />
-                      </button>
-                    ))}
-                  </div>
+                  {activeColorOptions.length > 0 && (
+                    <div className="space-y-3">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Color</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {activeColorOptions.map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => setSelectedColor(color)}
+                            className={`px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${selectedColor === color ? 'bg-black text-white border-black shadow-md' : 'bg-white text-black hover:border-gray-300'}`}
+                          >
+                            {color}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Size</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {activeProduct.sizes?.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`px-5 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${selectedSize === size ? 'bg-black text-white border-black shadow-md' : 'bg-white text-black hover:border-gray-300'}`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                {activeSizeOptions.length > 0 && (
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Size</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {activeSizeOptions.map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => setSelectedSize(size)}
+                          className={`px-5 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${selectedSize === size ? 'bg-black text-white border-black shadow-md' : 'bg-white text-black hover:border-gray-300'}`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {activeColorOptions.length === 0 && activeSizeOptions.length === 0 && (
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Printify Options Pending</p>
+                    <p className="text-[10px] text-amber-700/70 mt-1">
+                      This synced template does not include customer-facing variant options yet. Re-sync it from Dashboard → Printify to refresh provider variant metadata.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
