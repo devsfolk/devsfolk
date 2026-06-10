@@ -69,11 +69,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     Array.isArray(template.providers) &&
     template.providers.length > 0 &&
     Array.isArray(template.variants) &&
-    template.variants.some((variant: any) => (
-      getSyncedVariantId(variant) > 0 &&
-      variant?.is_enabled !== false &&
-      variant?.is_available !== false
-    ))
+    template.variants.some((variant: any) => getSyncedVariantId(variant) > 0)
   );
 
   // Filter raw Printify templates only. Admin-created Printify shop products remain storefront products.
@@ -833,6 +829,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     try {
       const fCanvas = fabricCanvasRef.current;
+
+      // Resolve provider ID once — used in both the no-canvas and full-canvas paths
+      const providerIdVal = Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id);
+      const printifyPrintProviderId = (providerIdVal && !isNaN(providerIdVal)) ? providerIdVal : undefined;
+      const printifyBlueprintId = activeTemplate?.blueprintId;
+
       if (!fCanvas) {
         if (!getPrintifyVariantId(activePrintifyVariant)) {
           alert('This template is not available for checkout right now. Please choose another template.');
@@ -842,6 +844,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
           color: selectedColor,
           size: selectedSize,
+          customization: {
+            printifyBlueprintId,
+            printifyPrintProviderId,
+            printifyVariantId: getPrintifyVariantId(activePrintifyVariant),
+          },
         });
         navigate('/cart');
         return;
@@ -869,11 +876,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         imagePosition: imgObj ? { x: imgObj.left || 0, y: imgObj.top || 0, scale: imgObj.scaleX || 1, rotate: imgObj.angle || 0 } : undefined,
         textPosition: textObj ? { x: textObj.left || 0, y: textObj.top || 0, scale: textObj.scaleX || 1, rotate: textObj.angle || 0 } : undefined,
         previewUrl: previewUrl || undefined,
-        printifyBlueprintId: activeTemplate?.blueprintId,
-        printifyPrintProviderId: (() => {
-          const idVal = Number(activePrintifyProvider?.id || activePrintifyProvider?.print_provider_id);
-          return (idVal && !isNaN(idVal)) ? idVal : undefined;
-        })(),
+        printifyBlueprintId,
+        printifyPrintProviderId,
         printifyVariantId,
         printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
       };

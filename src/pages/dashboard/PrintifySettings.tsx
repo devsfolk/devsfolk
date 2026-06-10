@@ -488,10 +488,20 @@ export const PrintifySettings: React.FC = () => {
         }
       }
 
-      const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId).map((template) => ({
-        ...template,
-        variants: variantsByBlueprintId[template.blueprintId] || template.variants,
-      }));
+      const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId).map((template) => {
+        const variants = variantsByBlueprintId[template.blueprintId] || template.variants;
+        // Derive baseCost from the cheapest enabled variant's cost (Printify returns costs in cents)
+        const enabledVariantCosts = variants
+          .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
+          .map((v: any) => Number(v?.cost ?? v?.price ?? 0))
+          .filter((c: number) => c > 0);
+        const cheapestCostCents = enabledVariantCosts.length > 0 ? Math.min(...enabledVariantCosts) : 0;
+        return {
+          ...template,
+          variants,
+          baseCost: cheapestCostCents > 0 ? Number((cheapestCostCents / 100).toFixed(2)) : template.baseCost ?? undefined,
+        };
+      });
       const variantReadyCount = templatesWithProviders.filter((template) => template.variants.length > 0).length;
       await upsertPrintifyCatalogTemplates(templatesWithProviders, { replaceVisible: true });
 
