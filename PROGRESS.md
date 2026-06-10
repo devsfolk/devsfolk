@@ -92,7 +92,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### 2026-06-10 - Hide Raw Templates From Storefront Listings
 
-- Commit: pending
+- Commit: `25ef096`
 - Files:
   - `src/lib/printifyProductGuards.ts`
   - `src/components/printify/BespokeCustomizer.tsx`
