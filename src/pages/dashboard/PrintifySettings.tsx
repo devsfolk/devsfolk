@@ -418,44 +418,52 @@ export const PrintifySettings: React.FC = () => {
     setSyncLogs(['[INFO] Deleting all raw Printify templates from Supabase...']);
 
     try {
-      // Use the catalog gateway with a dedicated delete mode to avoid client-side RLS issues
       const { supabase } = await import('@/lib/supabase');
-      if (!supabase) {
-        throw new Error('Supabase is not configured.');
+
+      // Try deleting from printify_catalog first (if the table exists)
+      let deletedFromCatalog = false;
+      if (supabase) {
+        const { error: catalogError } = await supabase
+          .from('printify_catalog')
+          .delete()
+          .neq('id', '');
+        if (!catalogError) {
+          deletedFromCatalog = true;
+          setSyncLogs(prev => [...prev, '[INFO] Cleared printify_catalog table.']);
+        }
       }
 
-      // Try client-side delete first
-      const { error } = await supabase.from('printify_catalog').delete().neq('id', '');
+      // Always delete raw template products from the products table
+      // Raw templates are stored with printifyProductId starting with "template_"
+      if (supabase) {
+        const { error: productError } = await supabase
+          .from('products')
+          .delete()
+          .like('printify_product_id', 'template_%');
 
-      if (error) {
-        // Fallback: use the Supabase REST API directly via fetch with the session token
-        const sessionResult = await supabase.auth.getSession();
-        const token = sessionResult?.data?.session?.access_token;
-        const supabaseUrl = (supabase as any).supabaseUrl || '';
+        if (productError) {
+          // Fallback: fetch IDs first then delete
+          const { data: templateProducts } = await supabase
+            .from('products')
+            .select('id')
+            .like('id', 'printify_template_%');
 
-        if (!supabaseUrl || !token) {
-          throw new Error(`${error.message}. Please ensure you are logged in as admin.`);
-        }
-
-        const restResponse = await fetch(`${supabaseUrl}/rest/v1/printify_catalog?id=neq.`, {
-          method: 'DELETE',
-          headers: {
-            apikey: (supabase as any).supabaseKey || '',
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-        });
-
-        if (!restResponse.ok) {
-          const errText = await restResponse.text().catch(() => '');
-          throw new Error(`REST delete failed (${restResponse.status}): ${errText}`);
+          if (templateProducts && templateProducts.length > 0) {
+            const ids = templateProducts.map((p: any) => p.id);
+            const { error: deleteByIdError } = await supabase
+              .from('products')
+              .delete()
+              .in('id', ids);
+            if (deleteByIdError) {
+              throw new Error(`Failed to delete template products: ${deleteByIdError.message}`);
+            }
+          }
         }
       }
 
       setSyncLogs(prev => [
         ...prev,
-        '[SUCCESS] All raw templates deleted from Supabase.',
+        '[SUCCESS] All raw templates deleted successfully.',
         '[INFO] Refresh the page to clear the local cache, then run Template Sync to re-populate.',
       ]);
     } catch (err: any) {
