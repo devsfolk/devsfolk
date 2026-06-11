@@ -268,8 +268,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const seen = new Set<string>();
     const result: Array<{ title: string; hex?: string }> = [];
 
+    console.log('[COLOR EXTRACTION] Processing variants:', activePrintifyVariants.length);
+    console.log('[COLOR EXTRACTION] Sample variant:', activePrintifyVariants[0]);
+
     for (const variant of activePrintifyVariants) {
       const options = Array.isArray(variant?.options) ? variant.options : [];
+      console.log('[COLOR EXTRACTION] Variant options:', options);
       
       // Find color option - check both the enriched 'name' field and the original 'type' field
       const colorOpt = options.find((opt: any) => {
@@ -279,6 +283,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         return name.includes('color') || name.includes('colour') || 
                type.includes('color') || type.includes('colour');
       });
+      
+      console.log('[COLOR EXTRACTION] Found color option:', colorOpt);
       
       if (!colorOpt) continue;
       
@@ -301,12 +307,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         ? String(colorOpt.colors[0]).trim()
         : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
       
+      console.log('[COLOR EXTRACTION] Extracted color:', { title, hex });
+      
       result.push({
         title,
         hex,
       });
     }
     
+    console.log('[COLOR EXTRACTION] Final result:', result);
     return result;
   }, [activePrintifyVariants]);
 

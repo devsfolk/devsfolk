@@ -513,11 +513,14 @@ export const PrintifySettings: React.FC = () => {
               enrichedVariants = rawVariants.map((v: any) =>
                 resolveVariantOptions(v, optionValueMap, blueprintDetail)
               );
+              console.log(`[ENRICHMENT] ${template.title} - Enriched ${enrichedVariants.length} variants`);
+              console.log('[ENRICHMENT] Sample enriched variant:', enrichedVariants[0]);
             } catch (enrichError: any) {
               setSyncLogs(prev => [
                 ...prev,
                 `[WARNING] Option resolution skipped for ${template.title}: ${enrichError.message || enrichError}`,
               ]);
+              console.error('[ENRICHMENT ERROR]', enrichError);
               // enrichedVariants remains rawVariants — sync continues with unresolved IDs
             }
 
