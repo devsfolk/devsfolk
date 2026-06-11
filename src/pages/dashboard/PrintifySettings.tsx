@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText } from 'lucide-react';
+import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2 } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
 import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 
@@ -19,7 +19,8 @@ const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string;
   const options = Array.isArray(blueprintDetail?.options) ? blueprintDetail.options : [];
   for (const option of options) {
     const values = Array.isArray(option?.values) ? option.values : [];
-    const isColor = String(option?.type || option?.name || '').toLowerCase() === 'color';
+    const isColor = String(option?.type || '').toLowerCase() === 'color' ||
+      String(option?.name || '').toLowerCase().includes('color');
     for (const value of values) {
       const id = Number(value?.id);
       const title = String(value?.title || value?.name || '').trim();
@@ -80,6 +81,7 @@ export const PrintifySettings: React.FC = () => {
   const [connectionError, setConnectionError] = useState('');
   const [syncingProducts, setSyncingProducts] = useState(false);
   const [syncingTemplates, setSyncingTemplates] = useState(false);
+  const [deletingTemplates, setDeletingTemplates] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('apis');
   const [privateApiKey, setPrivateApiKey] = useState('');
@@ -404,6 +406,40 @@ export const PrintifySettings: React.FC = () => {
       ]);
     } finally {
       setSyncingProducts(false);
+    }
+  };
+
+  const deleteAllRawTemplates = async () => {
+    if (!confirm('This will permanently delete all raw Printify templates from the database. The table itself will remain. Continue?')) {
+      return;
+    }
+
+    setDeletingTemplates(true);
+    setSyncLogs(['[INFO] Deleting all raw Printify templates from Supabase...']);
+
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      if (!supabase) {
+        throw new Error('Supabase is not configured. Cannot delete templates.');
+      }
+
+      // Delete all rows — use a condition that matches all rows
+      const { error } = await supabase.from('printify_catalog').delete().neq('id', '');
+      if (error) throw new Error(error.message);
+
+      setSyncLogs(prev => [
+        ...prev,
+        '[SUCCESS] All raw templates deleted from Supabase.',
+        '[INFO] Refresh the page to clear the local cache, then run Template Sync to re-populate.',
+      ]);
+    } catch (err: any) {
+      console.error('Delete all templates failed:', err);
+      setSyncLogs(prev => [
+        ...prev,
+        `[ERROR] Delete failed: ${err.message || err}`,
+      ]);
+    } finally {
+      setDeletingTemplates(false);
     }
   };
 
@@ -883,6 +919,24 @@ export const PrintifySettings: React.FC = () => {
               <CardContent className="space-y-5 p-5 md:p-6 pt-0">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Base Price ($)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={printifySettings.charges.templateBasePrice ?? 14.99}
+                      onChange={(event) => handleUpdate({
+                        charges: {
+                          ...printifySettings.charges,
+                          templateBasePrice: Math.max(0, Number(event.target.value) || 0)
+                        }
+                      })}
+                      className="rounded-xl h-11 text-xs border-gray-200"
+                    />
+                    <p className="text-[9px] text-gray-400 pl-1">Fallback base cost used when Printify does not provide variant pricing for a template.</p>
+                  </div>
+
+                  <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Estimate Margin %</Label>
                     <Input
                       type="number"
@@ -1191,11 +1245,19 @@ export const PrintifySettings: React.FC = () => {
                   </div>
                   <Button
                     onClick={runTemplateCatalogSync}
-                    disabled={syncingTemplates}
+                    disabled={syncingTemplates || deletingTemplates}
                     className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800 self-stretch md:self-auto shrink-0"
                   >
                     {syncingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <RefreshCw className="h-3 w-3 mr-2" />}
                     Sync Templates
+                  </Button>
+                  <Button
+                    onClick={deleteAllRawTemplates}
+                    disabled={syncingTemplates || deletingTemplates}
+                    className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-red-600 text-white hover:bg-red-700 self-stretch md:self-auto shrink-0"
+                  >
+                    {deletingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Trash2 className="h-3 w-3 mr-2" />}
+                    Delete All Templates
                   </Button>
                 </div>
 

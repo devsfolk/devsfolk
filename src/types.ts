@@ -111,6 +111,7 @@ export interface PrintifyPreviewSettings {
 
 export interface PrintifyCharges {
   profitMarginPercent?: number;
+  templateBasePrice?: number;
   designFee: number;
   editFee: number;
   sizeFees: Record<string, number>;
