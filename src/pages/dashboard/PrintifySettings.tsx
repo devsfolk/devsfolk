@@ -946,20 +946,38 @@ export const PrintifySettings: React.FC = () => {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Estimate Margin %</Label>
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Display Markup % (Editor Prices)</Label>
                     <Input
                       type="number"
                       min="0"
-                      value={printifySettings.charges.profitMarginPercent ?? 0}
+                      value={printifySettings.charges.displayMarkupPercent ?? printifySettings.charges.profitMarginPercent ?? 40}
                       onChange={(event) => handleUpdate({
                         charges: {
                           ...printifySettings.charges,
-                          profitMarginPercent: Math.max(0, Number(event.target.value) || 0)
+                          displayMarkupPercent: Math.max(0, Number(event.target.value) || 0),
+                          profitMarginPercent: Math.max(0, Number(event.target.value) || 0) // Keep legacy field synced
                         }
                       })}
                       className="rounded-xl h-11 text-xs border-gray-200"
                     />
-                    <p className="text-[9px] text-gray-400 pl-1">Applies only to blank editor templates, not existing Printify shop products.</p>
+                    <p className="text-[9px] text-gray-400 pl-1">Applied to Printify base prices when showing templates in the editor. Example: If base price is $10 and markup is 40%, customer sees $14.</p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Order Markup % (Final Checkout)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={printifySettings.charges.orderMarkupPercent ?? printifySettings.charges.profitMarginPercent ?? 40}
+                      onChange={(event) => handleUpdate({
+                        charges: {
+                          ...printifySettings.charges,
+                          orderMarkupPercent: Math.max(0, Number(event.target.value) || 0)
+                        }
+                      })}
+                      className="rounded-xl h-11 text-xs border-gray-200"
+                    />
+                    <p className="text-[9px] text-gray-400 pl-1">Applied to actual Printify fulfillment cost after order is placed. Example: If Printify charges $12 for production and markup is 50%, final price is $18.</p>
                   </div>
 
                   <div className="grid gap-2">

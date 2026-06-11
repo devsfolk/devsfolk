@@ -110,7 +110,9 @@ export interface PrintifyPreviewSettings {
 }
 
 export interface PrintifyCharges {
-  profitMarginPercent?: number;
+  displayMarkupPercent?: number; // Markup for prices shown in editor/storefront
+  orderMarkupPercent?: number; // Markup applied to final Printify order cost
+  profitMarginPercent?: number; // Legacy field (maps to displayMarkupPercent)
   templateBasePrice?: number;
   designFee: number;
   editFee: number;

@@ -31,10 +31,14 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const calculateTemplateRetailPrice = (basePrice: number) => {
     const charges = settings.printifySettings?.charges;
-    const profitMarginPercent = Math.max(0, Number(charges?.profitMarginPercent ?? 0));
+    const displayMarkupPercent = Math.max(0, Number(
+      charges?.displayMarkupPercent ?? 
+      charges?.profitMarginPercent ?? 
+      40
+    ));
     // If no baseCost from Printify, use the admin-configured template base price
     const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
-    return Number((effectiveBase * (1 + profitMarginPercent / 100)).toFixed(2));
+    return Number((effectiveBase * (1 + displayMarkupPercent / 100)).toFixed(2));
   };
 
   const calculateCustomizedPrice = (retailPrice: number) => {

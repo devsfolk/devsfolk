@@ -124,7 +124,16 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: 'Generate a photorealistic product mockup with soft studio lighting, neutral background, and a slight shadow beneath the product. Show the design clearly on the product surface.' } },
-    charges: { profitMarginPercent: 40, designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    charges: { 
+      displayMarkupPercent: 40, 
+      orderMarkupPercent: 40, 
+      profitMarginPercent: 40, // Legacy field
+      templateBasePrice: 14.99,
+      designFee: 0, 
+      editFee: 0, 
+      sizeFees: {}, 
+      placementFees: {} 
+    },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true },
   },
 };
@@ -664,9 +673,13 @@ const calculatePrintifyRetailPrice = (
   charges?: ThemeSettings['printifySettings']['charges'],
   includeDesignFee = false,
 ) => {
-  const profitMarginPercent = Math.max(0, Number(charges?.profitMarginPercent ?? 0));
+  const displayMarkupPercent = Math.max(0, Number(
+    charges?.displayMarkupPercent ?? 
+    charges?.profitMarginPercent ?? 
+    40
+  ));
   const designFee = includeDesignFee ? Math.max(0, Number(charges?.designFee ?? 0)) : 0;
-  return Number((basePrice * (1 + profitMarginPercent / 100) + designFee).toFixed(2));
+  return Number((basePrice * (1 + displayMarkupPercent / 100) + designFee).toFixed(2));
 };
 
 const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSettings['printifySettings']['charges']): Product => {
