@@ -36,9 +36,19 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       charges?.profitMarginPercent ?? 
       40
     ));
+    
+    console.log('[PRICE CALC] calculateTemplateRetailPrice input:', basePrice);
+    console.log('[PRICE CALC] displayMarkupPercent:', displayMarkupPercent);
+    console.log('[PRICE CALC] charges:', charges);
+    
     // If no baseCost from Printify, use the admin-configured template base price
     const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
-    return Number((effectiveBase * (1 + displayMarkupPercent / 100)).toFixed(2));
+    const calculatedPrice = Number((effectiveBase * (1 + displayMarkupPercent / 100)).toFixed(2));
+    
+    console.log('[PRICE CALC] effectiveBase:', effectiveBase);
+    console.log('[PRICE CALC] calculatedPrice:', calculatedPrice);
+    
+    return calculatedPrice;
   };
 
   const calculateCustomizedPrice = (retailPrice: number) => {
@@ -273,24 +283,31 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const result: Array<{ title: string; hex?: string }> = [];
 
     console.log('[COLOR EXTRACTION] Processing variants:', activePrintifyVariants.length);
-    console.log('[COLOR EXTRACTION] Sample variant:', activePrintifyVariants[0]);
+    console.log('[COLOR EXTRACTION] Sample variant:', JSON.stringify(activePrintifyVariants[0], null, 2));
 
     for (const variant of activePrintifyVariants) {
       const options = Array.isArray(variant?.options) ? variant.options : [];
-      console.log('[COLOR EXTRACTION] Variant options:', options);
+      console.log('[COLOR EXTRACTION] Variant options:', JSON.stringify(options, null, 2));
       
-      // Find color option - check both the enriched 'name' field and the original 'type' field
-      const colorOpt = options.find((opt: any) => {
+      // Find color option - check enriched 'name' field, original 'type' field, or infer from position
+      const colorOpt = options.find((opt: any, idx: number) => {
+        // If opt is just a number (unenriched), skip it - we'll handle this differently
+        if (typeof opt === 'number') return false;
+        
         const name = String(opt?.name || '').toLowerCase();
         const type = String(opt?.type || '').toLowerCase();
+        
         // Check if this is a color option
         return name.includes('color') || name.includes('colour') || 
                type.includes('color') || type.includes('colour');
       });
       
-      console.log('[COLOR EXTRACTION] Found color option:', colorOpt);
+      console.log('[COLOR EXTRACTION] Found color option:', JSON.stringify(colorOpt, null, 2));
       
-      if (!colorOpt) continue;
+      if (!colorOpt) {
+        console.log('[COLOR EXTRACTION] No color option found for variant, skipping');
+        continue;
+      }
       
       // Extract title from multiple possible fields
       const title = String(
@@ -301,13 +318,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         ''
       ).trim();
       
-      if (!title || seen.has(title)) continue;
+      if (!title || seen.has(title)) {
+        console.log('[COLOR EXTRACTION] No title or duplicate, skipping:', title);
+        continue;
+      }
       seen.add(title);
       
       // Extract hex color - check multiple fields
-      const hex = colorOpt.hex
+      const hex = colorOpt?.hex
         ? String(colorOpt.hex).trim()
-        : colorOpt.colors && Array.isArray(colorOpt.colors) && colorOpt.colors.length > 0
+        : colorOpt?.colors && Array.isArray(colorOpt.colors) && colorOpt.colors.length > 0
         ? String(colorOpt.colors[0]).trim()
         : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
       
@@ -319,7 +339,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       });
     }
     
-    console.log('[COLOR EXTRACTION] Final result:', result);
+    console.log('[COLOR EXTRACTION] Final result:', JSON.stringify(result, null, 2));
     return result;
   }, [activePrintifyVariants]);
 
@@ -340,18 +360,38 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Reactive pricing chain: selectedColor/selectedSize → activePrintifyVariant → activeBasePrice → activeCustomerPrice
   // Printify variant costs arrive in cents (e.g. 1499 = $14.99); divide by 100 before applying margin.
   const activeBasePrice = useMemo(() => {
+    console.log('[PRICE CALC] Active variant:', JSON.stringify(activePrintifyVariant, null, 2));
+    console.log('[PRICE CALC] Active product price:', activeProduct?.price);
+    console.log('[PRICE CALC] Active template baseCost:', activeTemplate?.baseCost);
+    console.log('[PRICE CALC] Active template retailPrice:', activeTemplate?.retailPrice);
+    
     const variantCostCents = Number(
       activePrintifyVariant?.cost ??
       activePrintifyVariant?.price ??
       0
     );
+    
+    console.log('[PRICE CALC] Variant cost (cents):', variantCostCents);
+    
     if (variantCostCents > 0) {
       const variantCostDollars = variantCostCents / 100;
-      return calculateTemplateRetailPrice(variantCostDollars);
+      const calculatedPrice = calculateTemplateRetailPrice(variantCostDollars);
+      console.log('[PRICE CALC] Calculated price from variant:', calculatedPrice);
+      return calculatedPrice;
     }
+    
+    // Fall back to template baseCost if available
+    if (activeTemplate?.baseCost && activeTemplate.baseCost > 0) {
+      const calculatedPrice = calculateTemplateRetailPrice(activeTemplate.baseCost);
+      console.log('[PRICE CALC] Using template baseCost:', calculatedPrice);
+      return calculatedPrice;
+    }
+    
     // Fall back to the template-level price already encoded in the product
-    return activeProduct?.price ?? 0;
-  }, [activePrintifyVariant, activeProduct]);
+    const fallbackPrice = activeProduct?.price ?? 0;
+    console.log('[PRICE CALC] Using product fallback price:', fallbackPrice);
+    return fallbackPrice;
+  }, [activePrintifyVariant, activeProduct, activeTemplate]);
 
   const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
 

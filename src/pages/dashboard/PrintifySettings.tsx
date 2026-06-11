@@ -89,6 +89,7 @@ export const PrintifySettings: React.FC = () => {
   const [credentialsLoaded, setCredentialsLoaded] = useState(false);
   const [templateSyncSearch, setTemplateSyncSearch] = useState('');
   const [templateSyncLimit, setTemplateSyncLimit] = useState('100');
+  const [customSyncQuantity, setCustomSyncQuantity] = useState('');
   const [submittingOrderId, setSubmittingOrderId] = useState('');
 
   const initialApiKeyRef = useRef('');
@@ -476,6 +477,8 @@ export const PrintifySettings: React.FC = () => {
         : allTemplates;
       const maxTemplates = templateSyncLimit === 'all'
         ? filteredTemplates.length
+        : templateSyncLimit === 'custom'
+        ? Math.max(1, Number(customSyncQuantity) || 1)
         : Math.max(1, Number(templateSyncLimit) || 100);
       const templates = filteredTemplates.slice(0, maxTemplates);
 
@@ -1313,9 +1316,22 @@ export const PrintifySettings: React.FC = () => {
                         <SelectItem value="50">50 templates</SelectItem>
                         <SelectItem value="100">100 templates</SelectItem>
                         <SelectItem value="250">250 templates</SelectItem>
+                        <SelectItem value="custom">Custom quantity</SelectItem>
                         <SelectItem value="all">All matching templates</SelectItem>
                       </SelectContent>
                     </Select>
+                    {templateSyncLimit === 'custom' && (
+                      <div className="mt-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Enter quantity (e.g., 1, 2, 3...)"
+                          value={customSyncQuantity}
+                          onChange={(e) => setCustomSyncQuantity(e.target.value)}
+                          className="rounded-xl h-11 text-xs"
+                        />
+                      </div>
+                    )}
                     <p className="text-[9px] text-gray-400 pl-1">
                       Recommended: start with 50–100 to keep the editor clean.
                     </p>
