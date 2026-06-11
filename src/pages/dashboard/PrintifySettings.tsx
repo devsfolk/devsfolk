@@ -410,7 +410,7 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const deleteAllRawTemplates = async () => {
-    if (!confirm('This will permanently delete all raw Printify templates from the database. The table itself will remain. Continue?')) {
+    if (!confirm('This will permanently delete all raw Printify templates. Continue?')) {
       return;
     }
 
@@ -419,59 +419,53 @@ export const PrintifySettings: React.FC = () => {
 
     try {
       const { supabase } = await import('@/lib/supabase');
-
-      // Try deleting from printify_catalog first (if the table exists)
-      let deletedFromCatalog = false;
-      if (supabase) {
-        const { error: catalogError } = await supabase
-          .from('printify_catalog')
-          .delete()
-          .neq('id', '');
-        if (!catalogError) {
-          deletedFromCatalog = true;
-          setSyncLogs(prev => [...prev, '[INFO] Cleared printify_catalog table.']);
-        }
+      if (!supabase) {
+        throw new Error('Supabase is not configured.');
       }
 
-      // Always delete raw template products from the products table
-      // Raw templates are stored with printifyProductId starting with "template_"
-      if (supabase) {
-        const { error: productError } = await supabase
+      // Try printify_catalog table first (exists on some installs)
+      const { error: catalogError } = await supabase
+        .from('printify_catalog')
+        .delete()
+        .neq('id', '');
+      if (!catalogError) {
+        setSyncLogs(prev => [...prev, '[INFO] Cleared printify_catalog table.']);
+      }
+
+      // Delete raw template products by their ID prefix (works on all schema versions)
+      // Raw templates always have id starting with 'printify_template_'
+      const { data: templateRows, error: fetchError } = await supabase
+        .from('products')
+        .select('id')
+        .like('id', 'printify_template_%');
+
+      if (fetchError) {
+        throw new Error(`Could not fetch template products: ${fetchError.message}`);
+      }
+
+      const ids = (templateRows ?? []).map((r: any) => r.id);
+
+      if (ids.length > 0) {
+        const { error: deleteError } = await supabase
           .from('products')
           .delete()
-          .like('printify_product_id', 'template_%');
-
-        if (productError) {
-          // Fallback: fetch IDs first then delete
-          const { data: templateProducts } = await supabase
-            .from('products')
-            .select('id')
-            .like('id', 'printify_template_%');
-
-          if (templateProducts && templateProducts.length > 0) {
-            const ids = templateProducts.map((p: any) => p.id);
-            const { error: deleteByIdError } = await supabase
-              .from('products')
-              .delete()
-              .in('id', ids);
-            if (deleteByIdError) {
-              throw new Error(`Failed to delete template products: ${deleteByIdError.message}`);
-            }
-          }
+          .in('id', ids);
+        if (deleteError) {
+          throw new Error(`Delete failed: ${deleteError.message}`);
         }
+        setSyncLogs(prev => [...prev, `[INFO] Removed ${ids.length} raw template product(s) from products table.`]);
+      } else {
+        setSyncLogs(prev => [...prev, '[INFO] No raw template products found in products table.']);
       }
 
       setSyncLogs(prev => [
         ...prev,
         '[SUCCESS] All raw templates deleted successfully.',
-        '[INFO] Refresh the page to clear the local cache, then run Template Sync to re-populate.',
+        '[INFO] Refresh the page to clear local cache, then run Template Sync to re-populate.',
       ]);
     } catch (err: any) {
       console.error('Delete all templates failed:', err);
-      setSyncLogs(prev => [
-        ...prev,
-        `[ERROR] Delete failed: ${err.message || err}`,
-      ]);
+      setSyncLogs(prev => [...prev, `[ERROR] Delete failed: ${err.message || err}`]);
     } finally {
       setDeletingTemplates(false);
     }
