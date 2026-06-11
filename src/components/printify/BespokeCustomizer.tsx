@@ -270,21 +270,43 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     for (const variant of activePrintifyVariants) {
       const options = Array.isArray(variant?.options) ? variant.options : [];
+      
+      // Find color option - check both the enriched 'name' field and the original 'type' field
       const colorOpt = options.find((opt: any) => {
-        const name = String(opt?.name || opt?.type || '').toLowerCase();
-        return name.includes('color') || name.includes('colour');
+        const name = String(opt?.name || '').toLowerCase();
+        const type = String(opt?.type || '').toLowerCase();
+        // Check if this is a color option
+        return name.includes('color') || name.includes('colour') || 
+               type.includes('color') || type.includes('colour');
       });
+      
       if (!colorOpt) continue;
-      const title = String(colorOpt?.title || colorOpt?.value || colorOpt?.name || '').trim();
+      
+      // Extract title from multiple possible fields
+      const title = String(
+        colorOpt?.title || 
+        colorOpt?.value || 
+        colorOpt?.name || 
+        colorOpt?.label || 
+        ''
+      ).trim();
+      
       if (!title || seen.has(title)) continue;
       seen.add(title);
+      
+      // Extract hex color - check multiple fields
+      const hex = colorOpt.hex
+        ? String(colorOpt.hex).trim()
+        : colorOpt.colors && Array.isArray(colorOpt.colors) && colorOpt.colors.length > 0
+        ? String(colorOpt.colors[0]).trim()
+        : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
+      
       result.push({
         title,
-        hex: colorOpt.hex
-          ? String(colorOpt.hex).trim()
-          : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined,
+        hex,
       });
     }
+    
     return result;
   }, [activePrintifyVariants]);
 

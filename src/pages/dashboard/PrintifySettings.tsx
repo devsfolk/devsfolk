@@ -71,7 +71,7 @@ export const PrintifySettings: React.FC = () => {
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: '' } },
-    charges: { profitMarginPercent: 40, designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    charges: { profitMarginPercent: 40, designFee: 0, editFee: 0, templateBasePrice: 14.99, sizeFees: {}, placementFees: {} },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true }
   };
 
