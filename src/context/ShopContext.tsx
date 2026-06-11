@@ -1344,23 +1344,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     const updated = products.filter((product) => product.id !== id);
     setProducts(updated);
     if (!supabase) {
       localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updated));
+      return;
     }
 
-    if (supabase) {
-      void (async () => {
-        const { error } = await supabase.from('products').delete().eq('id', id);
-        if (error) {
-          reportSyncError('Failed to delete product from Supabase.', error.message);
-          return;
-        }
-        reportSyncSuccess('Product removed from Supabase.');
-      })();
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) {
+      reportSyncError('Failed to delete product from Supabase.', error.message);
+      throw new Error(`Failed to delete template products: ${error.message}`);
     }
+    reportSyncSuccess('Product removed from Supabase.');
   };
 
   const upsertPrintifyShopProducts = async (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => {
