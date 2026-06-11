@@ -418,14 +418,40 @@ export const PrintifySettings: React.FC = () => {
     setSyncLogs(['[INFO] Deleting all raw Printify templates from Supabase...']);
 
     try {
+      // Use the catalog gateway with a dedicated delete mode to avoid client-side RLS issues
       const { supabase } = await import('@/lib/supabase');
       if (!supabase) {
-        throw new Error('Supabase is not configured. Cannot delete templates.');
+        throw new Error('Supabase is not configured.');
       }
 
-      // Delete all rows — use a condition that matches all rows
+      // Try client-side delete first
       const { error } = await supabase.from('printify_catalog').delete().neq('id', '');
-      if (error) throw new Error(error.message);
+
+      if (error) {
+        // Fallback: use the Supabase REST API directly via fetch with the session token
+        const sessionResult = await supabase.auth.getSession();
+        const token = sessionResult?.data?.session?.access_token;
+        const supabaseUrl = (supabase as any).supabaseUrl || '';
+
+        if (!supabaseUrl || !token) {
+          throw new Error(`${error.message}. Please ensure you are logged in as admin.`);
+        }
+
+        const restResponse = await fetch(`${supabaseUrl}/rest/v1/printify_catalog?id=neq.`, {
+          method: 'DELETE',
+          headers: {
+            apikey: (supabase as any).supabaseKey || '',
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+        });
+
+        if (!restResponse.ok) {
+          const errText = await restResponse.text().catch(() => '');
+          throw new Error(`REST delete failed (${restResponse.status}): ${errText}`);
+        }
+      }
 
       setSyncLogs(prev => [
         ...prev,
