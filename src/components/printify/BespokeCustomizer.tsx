@@ -441,26 +441,27 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       0
     );
     
+    let base = 0;
     if (variantCostCents > 0) {
       if (activePrintifyVariant?.cost !== undefined && activePrintifyVariant?.cost !== null) {
         const costVal = Number(activePrintifyVariant.cost);
-        return costVal < 100 && !Number.isInteger(costVal) ? costVal : costVal / 100;
-      }
-      
-      const priceVal = Number(activePrintifyVariant?.price);
-      if (priceVal < 1000) {
-        return priceVal / (1 + displayMarkupPercent / 100);
+        base = costVal < 100 && !Number.isInteger(costVal) ? costVal : costVal / 100;
       } else {
-        return priceVal / 100;
+        const priceVal = Number(activePrintifyVariant?.price);
+        if (priceVal < 1000) {
+          base = priceVal / (1 + displayMarkupPercent / 100);
+        } else {
+          base = priceVal / 100;
+        }
       }
+    } else if (activeTemplate?.baseCost && activeTemplate.baseCost > 0) {
+      base = activeTemplate.baseCost;
+    } else {
+      const fallbackPrice = activeProduct?.price ?? 0;
+      base = fallbackPrice / (1 + displayMarkupPercent / 100);
     }
-    
-    if (activeTemplate?.baseCost && activeTemplate.baseCost > 0) {
-      return activeTemplate.baseCost;
-    }
-    
-    const fallbackPrice = activeProduct?.price ?? 0;
-    return fallbackPrice / (1 + displayMarkupPercent / 100);
+
+    return base > 0 ? base : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
   }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
 
   const activeDisplayBasePrice = useMemo(() => {
@@ -473,6 +474,50 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const activeDisplayCustomerPrice = activeProduct ? calculateCustomizedPrice(activeDisplayBasePrice) : 0;
   const activeOrderCustomerPrice = activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0;
+
+  const getSelectedColorImage = useMemo(() => {
+    if (!activeProduct?.images || activeProduct.images.length === 0) {
+      return '/custom-tee-mockup.png';
+    }
+    if (!selectedColor) {
+      return activeProduct.images[0];
+    }
+    
+    const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
+    
+    // First, look for an image that contains the exact color name (ignoring non-alphanumeric chars)
+    const exactMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return imgLower.includes(colorLower) || 
+             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '-')) ||
+             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '_'));
+    });
+    if (exactMatch) return exactMatch;
+    
+    // If not found, look for an image containing ALL the words in the color name
+    const allWordsMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return colorWords.every(word => imgLower.includes(word));
+    });
+    if (allWordsMatch) return allWordsMatch;
+
+    // If not found, look for an image containing the FIRST word of the color name (if it's not generic)
+    const primaryWord = colorWords[0];
+    if (primaryWord && primaryWord.length > 2 && primaryWord !== 'light' && primaryWord !== 'dark' && primaryWord !== 'unisex') {
+      const firstWordMatch = activeProduct.images.find(img => img.toLowerCase().includes(primaryWord));
+      if (firstWordMatch) return firstWordMatch;
+    }
+    
+    // If not found, check if there is an image that matches any word
+    const anyWordMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return colorWords.some(word => word.length > 2 && imgLower.includes(word));
+    });
+    if (anyWordMatch) return anyWordMatch;
+    
+    return activeProduct.images[0];
+  }, [activeProduct, selectedColor]);
 
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
@@ -926,7 +971,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         // Load base mockup
         const baseImg = new Image();
         baseImg.crossOrigin = 'anonymous';
-        baseImg.src = activeProduct.images[0] || '/custom-tee-mockup.png';
+        baseImg.src = getSelectedColorImage || '/custom-tee-mockup.png';
         baseImg.onload = () => {
           try {
             ctx.drawImage(baseImg, 0, 0, 600, 600);
@@ -1107,7 +1152,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             
             {/* Printify mockup image */}
             <img 
-              src={activeProduct.images[0] || '/custom-tee-mockup.png'} 
+              src={getSelectedColorImage || '/custom-tee-mockup.png'} 
               alt="Shirt template" 
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
             />
@@ -1594,26 +1639,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           {/* Action Footer */}
           <div className="p-6 border-t bg-gray-50 flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5 px-1 py-2 border-b border-gray-200/60 mb-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-500 uppercase font-black tracking-wider text-[10px]">Estimated Retail Price</span>
-                <span className="font-mono font-bold text-gray-700">
-                  {settings.currencySymbol}{activeDisplayCustomerPrice.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-black uppercase font-black tracking-wider text-[11px]">Final Checkout Price</span>
-                <span className="font-mono font-black text-sm text-black">
-                  {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
-                </span>
-              </div>
-              {settings.printifySettings?.charges?.designFee > 0 && (
-                <div className="text-[9px] text-gray-400 uppercase font-bold text-right">
-                  Includes {settings.currencySymbol}{settings.printifySettings.charges.designFee.toFixed(2)} Design Fee
-                </div>
-              )}
-            </div>
-
             <Button
               size="lg"
               onClick={handleAddToCart}

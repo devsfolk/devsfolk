@@ -681,7 +681,8 @@ const calculatePrintifyRetailPrice = (
     40
   ));
   const designFee = includeDesignFee ? Math.max(0, Number(charges?.designFee ?? 0)) : 0;
-  return Number((basePrice * (1 + displayMarkupPercent / 100) + designFee).toFixed(2));
+  const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
+  return Number((effectiveBase * (1 + displayMarkupPercent / 100) + designFee).toFixed(2));
 };
 
 const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSettings['printifySettings']['charges']): Product => {
@@ -1504,75 +1505,86 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     savePrintifyCatalogLocally(updated);
 
     if (supabase) {
+      let hasCatalogTable = true;
       const { error } = await supabase.from('printify_catalog').upsert(updated.map(toPrintifyCatalogRow));
       if (error) {
         if (isMissingSupabaseRelationError(error.message, 'printify_catalog')) {
-          const categoryExists = categories.some((category) => category.id === PRINTIFY_CATEGORY.id);
-          if (!categoryExists) {
-            const { error: categoryError } = await supabase.from('categories').upsert(toCategoryRow(PRINTIFY_CATEGORY));
-            if (categoryError) {
-              reportSyncError('Failed to create Printify category for template fallback.', categoryError.message);
-              return;
-            }
-            setCategories((currentCategories) => (
-              currentCategories.some((category) => category.id === PRINTIFY_CATEGORY.id)
-                ? currentCategories
-                : [...currentCategories, PRINTIFY_CATEGORY].sort((a, b) => (a.order || 0) - (b.order || 0))
-            ));
-          }
-
-          const fallbackProducts = templates.map((template) => templateToProduct(template, settings.printifySettings?.charges));
-          const { error: productError } = await supabase.from('products').upsert(fallbackProducts.map(toProductRow));
-          if (productError) {
-            if (productError.message.includes('is_printify') || productError.message.includes('printify_product_id') || productError.message.includes('printify_catalog_id')) {
-              const legacyResult = await supabase.from('products').upsert(fallbackProducts.map(toLegacyProductRow));
-              if (legacyResult.error) {
-                reportSyncError('Failed to publish Printify templates through product fallback.', legacyResult.error.message);
-                return;
-              }
-            } else {
-              reportSyncError('Failed to publish Printify templates through product fallback.', productError.message);
-              return;
-            }
-          }
-
-          setProducts((currentProducts) => {
-            const byProductId = new Map<string, Product>(currentProducts.map((product) => [product.id, product]));
-            if (options?.replaceVisible) {
-              byProductId.forEach((product, id) => {
-                if (
-                  (id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
-                  !selectedTemplateProductIds.has(id)
-                ) {
-                  byProductId.delete(id);
-                }
-              });
-            }
-            fallbackProducts.forEach((product) => {
-              const existing = byProductId.get(product.id);
-              byProductId.set(product.id, existing ? { ...existing, ...product, createdAt: existing.createdAt } : product);
-            });
-            return Array.from(byProductId.values());
-          });
-          if (options?.replaceVisible) {
-            const obsoleteProductIds = products
-              .filter((product) => (
-                (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
-                !selectedTemplateProductIds.has(product.id)
-              ))
-              .map((product) => product.id);
-            if (obsoleteProductIds.length > 0) {
-              await supabase.from('products').delete().in('id', obsoleteProductIds);
-            }
-          }
-          reportSyncSuccess('Printify templates published through product fallback.');
+          hasCatalogTable = false;
+        } else {
+          reportSyncError('Failed to save Printify catalog templates to Supabase.', error.message);
           return;
         }
-
-        reportSyncError('Failed to save Printify catalog templates to Supabase.', error.message);
-        return;
       }
-      reportSyncSuccess('Printify catalog templates saved to Supabase.');
+
+      try {
+        const categoryExists = categories.some((category) => category.id === PRINTIFY_CATEGORY.id);
+        if (!categoryExists) {
+          const { error: categoryError } = await supabase.from('categories').upsert(toCategoryRow(PRINTIFY_CATEGORY));
+          if (categoryError) {
+            reportSyncError('Failed to create Printify category for templates.', categoryError.message);
+            return;
+          }
+          setCategories((currentCategories) => (
+            currentCategories.some((category) => category.id === PRINTIFY_CATEGORY.id)
+              ? currentCategories
+              : [...currentCategories, PRINTIFY_CATEGORY].sort((a, b) => (a.order || 0) - (b.order || 0))
+          ));
+        }
+
+        const mappedProducts = templates.map((template) => templateToProduct(template, settings.printifySettings?.charges));
+        const { error: productError } = await supabase.from('products').upsert(mappedProducts.map(toProductRow));
+        if (productError) {
+          if (productError.message.includes('is_printify') || productError.message.includes('printify_product_id') || productError.message.includes('printify_catalog_id')) {
+            const legacyResult = await supabase.from('products').upsert(mappedProducts.map(toLegacyProductRow));
+            if (legacyResult.error) {
+              reportSyncError('Failed to publish Printify templates to products table (legacy layout).', legacyResult.error.message);
+              return;
+            }
+          } else {
+            reportSyncError('Failed to publish Printify templates to products table.', productError.message);
+            return;
+          }
+        }
+
+        setProducts((currentProducts) => {
+          const byProductId = new Map<string, Product>(currentProducts.map((product) => [product.id, product]));
+          if (options?.replaceVisible) {
+            byProductId.forEach((product, id) => {
+              if (
+                (id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+                !selectedTemplateProductIds.has(id)
+              ) {
+                byProductId.delete(id);
+              }
+            });
+          }
+          mappedProducts.forEach((product) => {
+            const existing = byProductId.get(product.id);
+            byProductId.set(product.id, existing ? { ...existing, ...product, createdAt: existing.createdAt } : product);
+          });
+          return Array.from(byProductId.values());
+        });
+
+        if (options?.replaceVisible) {
+          const obsoleteProductIds = products
+            .filter((product) => (
+              (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+              !selectedTemplateProductIds.has(product.id)
+            ))
+            .map((product) => product.id);
+          if (obsoleteProductIds.length > 0) {
+            await supabase.from('products').delete().in('id', obsoleteProductIds);
+          }
+        }
+
+        if (hasCatalogTable) {
+          reportSyncSuccess('Printify catalog templates saved and synced to products table.');
+        } else {
+          reportSyncSuccess('Printify templates published through product fallback.');
+        }
+      } catch (prodSyncErr: any) {
+        reportSyncError('Failed to synchronize templates to products table.', prodSyncErr?.message || prodSyncErr);
+      }
     }
   };
 
