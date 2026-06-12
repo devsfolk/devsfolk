@@ -92,7 +92,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### 2026-06-12 - Fix Printify Color Option Enrichment Root Cause
 
-- Commit: pending
+- Commit: `f1ba5df`
 - Files:
   - `src/pages/dashboard/PrintifySettings.tsx`
   - `src/components/printify/BespokeCustomizer.tsx`
