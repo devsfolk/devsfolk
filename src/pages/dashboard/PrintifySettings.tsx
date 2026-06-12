@@ -478,6 +478,7 @@ export const PrintifySettings: React.FC = () => {
       const providerLimit = templates.length;
       const providersByBlueprintId: Record<number, any[]> = {};
       const variantsByBlueprintId: Record<number, any[]> = {};
+      const printAreasByBlueprintId: Record<number, any[]> = {};
 
       for (const template of templates.slice(0, providerLimit)) {
         try {
@@ -494,6 +495,7 @@ export const PrintifySettings: React.FC = () => {
             let enrichedVariants = rawVariants;
             try {
               const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
+              printAreasByBlueprintId[template.blueprintId] = blueprintDetail?.print_areas || [];
               const optionValueMap = buildOptionValueMap(blueprintDetail);
               enrichedVariants = rawVariants.map((v: any) =>
                 resolveVariantOptions(v, optionValueMap, blueprintDetail)
@@ -520,6 +522,7 @@ export const PrintifySettings: React.FC = () => {
 
       const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId).map((template) => {
         const variants = variantsByBlueprintId[template.blueprintId] || template.variants;
+        const printAreas = printAreasByBlueprintId[template.blueprintId] || template.printAreas || [];
         // Derive baseCost from the cheapest enabled variant's cost (Printify returns costs in cents)
         const enabledVariantCosts = variants
           .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
@@ -529,6 +532,7 @@ export const PrintifySettings: React.FC = () => {
         return {
           ...template,
           variants,
+          printAreas,
           baseCost: cheapestCostCents > 0 ? Number((cheapestCostCents / 100).toFixed(2)) : template.baseCost ?? undefined,
         };
       });

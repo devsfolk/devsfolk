@@ -267,50 +267,85 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     
     // Default style (suitable for T-shirts/clothing)
     let style = {
-      width: '35%',
-      height: '45%',
-      top: '28%',
-      left: '32.5%', // (100% - 35%) / 2
+      width: 35,
+      height: 45,
+      top: 28,
+      left: 32.5,
     };
 
     if (title.includes('mug') || title.includes('cup') || title.includes('bottle')) {
       style = {
-        width: '55%',
-        height: '35%',
-        top: '35%',
-        left: '22.5%',
+        width: 55,
+        height: 35,
+        top: 35,
+        left: 22.5,
       };
     } else if (title.includes('poster') || title.includes('canvas') || title.includes('print')) {
       style = {
-        width: '80%',
-        height: '80%',
-        top: '10%',
-        left: '10%',
+        width: 80,
+        height: 80,
+        top: 10,
+        left: 10,
       };
     } else if (title.includes('phone') || title.includes('case')) {
       style = {
-        width: '45%',
-        height: '75%',
-        top: '12.5%',
-        left: '27.5%',
+        width: 45,
+        height: 75,
+        top: 12.5,
+        left: 27.5,
       };
     } else if (title.includes('shoe') || title.includes('sneaker') || title.includes('boot')) {
       style = {
-        width: '60%',
-        height: '40%',
-        top: '30%',
-        left: '20%',
+        width: 60,
+        height: 40,
+        top: 30,
+        left: 20,
       };
     } else if (title.includes('hoodie') || title.includes('sweatshirt')) {
       style = {
-        width: '32%',
-        height: '38%',
-        top: '34%',
-        left: '34%',
+        width: 32,
+        height: 38,
+        top: 34,
+        left: 34,
       };
     }
     
-    return style;
+    let { width, height, top, left } = style;
+
+    // Check if template print_areas contains actual width and height dimensions from Printify API
+    const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas;
+    if (Array.isArray(printAreas) && printAreas.length > 0) {
+      const firstArea = printAreas[0];
+      const placeholders = Array.isArray(firstArea?.placeholders) ? firstArea.placeholders : [];
+      const placeholder = placeholders[0];
+      
+      const pWidth = Number(placeholder?.width || placeholder?.pixel_width);
+      const pHeight = Number(placeholder?.height || placeholder?.pixel_height);
+
+      if (pWidth > 0 && pHeight > 0) {
+        const targetRatio = pWidth / pHeight;
+        const maxRatio = width / height;
+
+        if (targetRatio > maxRatio) {
+          // Blueprint print area is wider than max layout bounds - adjust height
+          const originalHeight = height;
+          height = width / targetRatio;
+          top = top + (originalHeight - height) / 2;
+        } else {
+          // Blueprint print area is taller than max layout bounds - adjust width
+          const originalWidth = width;
+          width = height * targetRatio;
+          left = left + (originalWidth - width) / 2;
+        }
+      }
+    }
+    
+    return {
+      width: `${width}%`,
+      height: `${height}%`,
+      top: `${top}%`,
+      left: `${left}%`,
+    };
   };
 
   // Option configurations
