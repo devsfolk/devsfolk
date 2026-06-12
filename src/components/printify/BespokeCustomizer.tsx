@@ -37,16 +37,24 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       40
     ));
     
-    console.log('[PRICE CALC] calculateTemplateRetailPrice input:', basePrice);
-    console.log('[PRICE CALC] displayMarkupPercent:', displayMarkupPercent);
-    console.log('[PRICE CALC] charges:', charges);
-    
     // If no baseCost from Printify, use the admin-configured template base price
     const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
     const calculatedPrice = Number((effectiveBase * (1 + displayMarkupPercent / 100)).toFixed(2));
     
-    console.log('[PRICE CALC] effectiveBase:', effectiveBase);
-    console.log('[PRICE CALC] calculatedPrice:', calculatedPrice);
+    return calculatedPrice;
+  };
+
+  const calculateTemplateOrderPrice = (basePrice: number) => {
+    const charges = settings.printifySettings?.charges;
+    const orderMarkupPercent = Math.max(0, Number(
+      charges?.orderMarkupPercent ?? 
+      charges?.profitMarginPercent ?? 
+      40
+    ));
+    
+    // If no baseCost from Printify, use the admin-configured template base price
+    const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
+    const calculatedPrice = Number((effectiveBase * (1 + orderMarkupPercent / 100)).toFixed(2));
     
     return calculatedPrice;
   };
@@ -254,6 +262,57 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   }, [activeProduct, customProducts, productSlug]);
 
+  const getPrintAreaStyle = () => {
+    const title = (activeProduct?.name || activeTemplate?.title || '').toLowerCase();
+    
+    // Default style (suitable for T-shirts/clothing)
+    let style = {
+      width: '35%',
+      height: '45%',
+      top: '28%',
+      left: '32.5%', // (100% - 35%) / 2
+    };
+
+    if (title.includes('mug') || title.includes('cup') || title.includes('bottle')) {
+      style = {
+        width: '55%',
+        height: '35%',
+        top: '35%',
+        left: '22.5%',
+      };
+    } else if (title.includes('poster') || title.includes('canvas') || title.includes('print')) {
+      style = {
+        width: '80%',
+        height: '80%',
+        top: '10%',
+        left: '10%',
+      };
+    } else if (title.includes('phone') || title.includes('case')) {
+      style = {
+        width: '45%',
+        height: '75%',
+        top: '12.5%',
+        left: '27.5%',
+      };
+    } else if (title.includes('shoe') || title.includes('sneaker') || title.includes('boot')) {
+      style = {
+        width: '60%',
+        height: '40%',
+        top: '30%',
+        left: '20%',
+      };
+    } else if (title.includes('hoodie') || title.includes('sweatshirt')) {
+      style = {
+        width: '32%',
+        height: '38%',
+        top: '34%',
+        left: '34%',
+      };
+    }
+    
+    return style;
+  };
+
   // Option configurations
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
@@ -340,8 +399,18 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
     
     console.log('[COLOR EXTRACTION] Final result:', JSON.stringify(result, null, 2));
+
+    // Fallback if no enriched color details are found
+    if (result.length === 0 && activeColorOptions.length > 0) {
+      console.log('[COLOR EXTRACTION] Result empty, using fallback activeColorOptions:', activeColorOptions);
+      return activeColorOptions.map((color) => ({
+        title: color,
+        hex: undefined, // Will be rendered as a text pill instead of a colored circle
+      }));
+    }
+
     return result;
-  }, [activePrintifyVariants]);
+  }, [activePrintifyVariants, activeColorOptions]);
 
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
@@ -357,43 +426,53 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return matchedVariant || getPrimaryPrintifyVariant(activeTemplate) || activeProduct?.variants?.[0];
   }, [activePrintifyVariants, activeTemplate, activeProduct, selectedColor, selectedSize]);
 
-  // Reactive pricing chain: selectedColor/selectedSize → activePrintifyVariant → activeBasePrice → activeCustomerPrice
-  // Printify variant costs arrive in cents (e.g. 1499 = $14.99); divide by 100 before applying margin.
-  const activeBasePrice = useMemo(() => {
-    console.log('[PRICE CALC] Active variant:', JSON.stringify(activePrintifyVariant, null, 2));
-    console.log('[PRICE CALC] Active product price:', activeProduct?.price);
-    console.log('[PRICE CALC] Active template baseCost:', activeTemplate?.baseCost);
-    console.log('[PRICE CALC] Active template retailPrice:', activeTemplate?.retailPrice);
-    
+  // Base cost calculation logic to handle cents from Printify variants and dollars from fallback products.
+  const activeBaseCostDollars = useMemo(() => {
+    const charges = settings.printifySettings?.charges;
+    const displayMarkupPercent = Math.max(0, Number(
+      charges?.displayMarkupPercent ?? 
+      charges?.profitMarginPercent ?? 
+      40
+    ));
+
     const variantCostCents = Number(
       activePrintifyVariant?.cost ??
       activePrintifyVariant?.price ??
       0
     );
     
-    console.log('[PRICE CALC] Variant cost (cents):', variantCostCents);
-    
     if (variantCostCents > 0) {
-      const variantCostDollars = variantCostCents / 100;
-      const calculatedPrice = calculateTemplateRetailPrice(variantCostDollars);
-      console.log('[PRICE CALC] Calculated price from variant:', calculatedPrice);
-      return calculatedPrice;
+      if (activePrintifyVariant?.cost !== undefined && activePrintifyVariant?.cost !== null) {
+        const costVal = Number(activePrintifyVariant.cost);
+        return costVal < 100 && !Number.isInteger(costVal) ? costVal : costVal / 100;
+      }
+      
+      const priceVal = Number(activePrintifyVariant?.price);
+      if (priceVal < 1000) {
+        return priceVal / (1 + displayMarkupPercent / 100);
+      } else {
+        return priceVal / 100;
+      }
     }
     
-    // Fall back to template baseCost if available
     if (activeTemplate?.baseCost && activeTemplate.baseCost > 0) {
-      const calculatedPrice = calculateTemplateRetailPrice(activeTemplate.baseCost);
-      console.log('[PRICE CALC] Using template baseCost:', calculatedPrice);
-      return calculatedPrice;
+      return activeTemplate.baseCost;
     }
     
-    // Fall back to the template-level price already encoded in the product
     const fallbackPrice = activeProduct?.price ?? 0;
-    console.log('[PRICE CALC] Using product fallback price:', fallbackPrice);
-    return fallbackPrice;
-  }, [activePrintifyVariant, activeProduct, activeTemplate]);
+    return fallbackPrice / (1 + displayMarkupPercent / 100);
+  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
 
-  const activeCustomerPrice = activeProduct ? calculateCustomizedPrice(activeBasePrice) : 0;
+  const activeDisplayBasePrice = useMemo(() => {
+    return calculateTemplateRetailPrice(activeBaseCostDollars);
+  }, [activeBaseCostDollars, settings.printifySettings?.charges]);
+
+  const activeOrderBasePrice = useMemo(() => {
+    return calculateTemplateOrderPrice(activeBaseCostDollars);
+  }, [activeBaseCostDollars, settings.printifySettings?.charges]);
+
+  const activeDisplayCustomerPrice = activeProduct ? calculateCustomizedPrice(activeDisplayBasePrice) : 0;
+  const activeOrderCustomerPrice = activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0;
 
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
@@ -852,11 +931,19 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           try {
             ctx.drawImage(baseImg, 0, 0, 600, 600);
 
-            // Coordinates matching the relative boundary size (35% x 45%)
-            const pw = 600 * 0.35;
-            const ph = 600 * 0.45;
-            const px = (600 - pw) / 2;
-            const py = 600 * 0.28;
+            // Get the dynamic style coordinates
+            const printStyle = getPrintAreaStyle();
+            const parsePct = (val: string) => parseFloat(val) / 100;
+            const widthPct = parsePct(printStyle.width);
+            const heightPct = parsePct(printStyle.height);
+            const topPct = parsePct(printStyle.top);
+            const leftPct = parsePct(printStyle.left);
+
+            // Coordinates matching the relative boundary size
+            const pw = 600 * widthPct;
+            const ph = 600 * heightPct;
+            const px = 600 * leftPct;
+            const py = 600 * topPct;
 
             // Discard active selection line before compilation
             const activeObj = fCanvas.getActiveObject();
@@ -918,7 +1005,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           return;
         }
 
-        addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
+        addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
           color: selectedColor,
           size: selectedSize,
           customization: {
@@ -959,7 +1046,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
       };
 
-      addToCart({ ...activeProduct, price: activeCustomerPrice }, undefined, 1, {
+      addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
         color: selectedColor,
         size: selectedSize,
         customization,
@@ -1028,7 +1115,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             {/* Print Area Bounds holding Fabric Canvas */}
             <div 
               ref={printAreaRef}
-              className="absolute w-[35%] h-[45%] top-[28%] border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
+              className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
+              style={getPrintAreaStyle()}
             >
               <canvas ref={canvasElRef} id="fabric-canvas" className="absolute inset-0 w-full h-full" />
             </div>
@@ -1506,6 +1594,26 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           {/* Action Footer */}
           <div className="p-6 border-t bg-gray-50 flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5 px-1 py-2 border-b border-gray-200/60 mb-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-gray-500 uppercase font-black tracking-wider text-[10px]">Estimated Retail Price</span>
+                <span className="font-mono font-bold text-gray-700">
+                  {settings.currencySymbol}{activeDisplayCustomerPrice.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-black uppercase font-black tracking-wider text-[11px]">Final Checkout Price</span>
+                <span className="font-mono font-black text-sm text-black">
+                  {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
+                </span>
+              </div>
+              {settings.printifySettings?.charges?.designFee > 0 && (
+                <div className="text-[9px] text-gray-400 uppercase font-bold text-right">
+                  Includes {settings.currencySymbol}{settings.printifySettings.charges.designFee.toFixed(2)} Design Fee
+                </div>
+              )}
+            </div>
+
             <Button
               size="lg"
               onClick={handleAddToCart}
@@ -1517,9 +1625,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               }}
             >
               <ShoppingBag className="h-5 w-5" />
-              Add Customized to Cart
+              Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
             </Button>
-            
           </div>
         </div>
       </div>

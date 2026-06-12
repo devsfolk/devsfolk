@@ -25,6 +25,8 @@ interface ShopContextType {
   upsertPrintifyShopProducts: (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => Promise<{ importedCount: number; updatedCount: number }>;
   printifyCatalog: PrintifyCatalogTemplate[];
   upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[], options?: { replaceVisible?: boolean }) => Promise<void>;
+  deletePrintifyCatalogTemplate: (id: string) => Promise<void>;
+  clearPrintifyCatalog: () => Promise<void>;
   categories: Category[];
   addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
@@ -690,8 +692,15 @@ const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSet
     .map((variant: any) => ({
       id: String(variant.id || variant.variant_id || variant.printify_variant_id || ''),
       name: variant.title || variant.name || variant.options?.title || `Variant ${variant.id || variant.variant_id || ''}`,
-      price: calculatePrintifyRetailPrice(basePrice, charges),
+      price: (() => {
+        const variantCostRaw = Number(variant.cost ?? variant.price ?? 0);
+        const variantCostDollars = variantCostRaw > 0 
+          ? (variantCostRaw < 100 && !Number.isInteger(variantCostRaw) ? variantCostRaw : variantCostRaw / 100)
+          : basePrice;
+        return calculatePrintifyRetailPrice(variantCostDollars, charges);
+      })(),
       stock: variant.is_available === false || variant.is_enabled === false ? 0 : 999,
+      options: variant.options || [],
     }))
     .filter((variant) => variant.id);
 
@@ -1567,6 +1576,75 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deletePrintifyCatalogTemplate = async (templateId: string) => {
+    const updatedCatalog = printifyCatalog.filter((t) => t.id !== templateId);
+    setPrintifyCatalog(updatedCatalog);
+    savePrintifyCatalogLocally(updatedCatalog);
+
+    const template = printifyCatalog.find((t) => t.id === templateId);
+    const blueprintId = template?.blueprintId;
+    
+    const updatedProducts = products.filter((p) => 
+      p.id !== `printify_template_${templateId}` && 
+      !(blueprintId && (p.printifyCatalogId === String(blueprintId) || p.printifyProductId === `template_${blueprintId}`))
+    );
+    setProducts(updatedProducts);
+    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+
+    if (supabase) {
+      const { error: catalogErr } = await supabase.from('printify_catalog').delete().eq('id', templateId);
+      if (catalogErr) {
+        reportSyncError(`Failed to delete template ${templateId} from printify_catalog.`, catalogErr.message);
+      }
+      
+      const obsoleteIds = [
+        `printify_template_${templateId}`,
+        blueprintId ? `printify_template_bp_${blueprintId}` : null
+      ].filter(Boolean) as string[];
+      
+      const { error: prodErr } = await supabase.from('products').delete().in('id', obsoleteIds);
+      if (prodErr) {
+        reportSyncError(`Failed to delete fallback products for template ${templateId}.`, prodErr.message);
+      }
+      
+      if (blueprintId) {
+        const { error: prodErr2 } = await supabase.from('products').delete().eq('printify_catalog_id', String(blueprintId));
+        if (prodErr2) {
+          reportSyncError(`Failed to delete catalog matched products for blueprint ${blueprintId}.`, prodErr2.message);
+        }
+      }
+    }
+  };
+
+  const clearPrintifyCatalog = async () => {
+    setPrintifyCatalog([]);
+    localStorage.removeItem(PRINTIFY_CATALOG_STORAGE_KEY);
+
+    const updatedProducts = products.filter(
+      (p) => !p.id.startsWith('printify_template_') && !p.printifyProductId?.startsWith('template_')
+    );
+    setProducts(updatedProducts);
+    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+
+    if (supabase) {
+      const { error: catalogErr } = await supabase.from('printify_catalog').delete().neq('id', '_none_');
+      if (catalogErr) {
+        reportSyncError('Failed to clear printify_catalog table.', catalogErr.message);
+      }
+
+      const obsoleteProductIds = products
+        .filter((p) => p.id.startsWith('printify_template_') || p.printifyProductId?.startsWith('template_'))
+        .map((p) => p.id);
+      
+      if (obsoleteProductIds.length > 0) {
+        const { error: prodErr } = await supabase.from('products').delete().in('id', obsoleteProductIds);
+        if (prodErr) {
+          reportSyncError('Failed to clear fallback templates from products table.', prodErr.message);
+        }
+      }
+    }
+  };
+
   const addCategory = (category: Omit<Category, 'id' | 'createdAt'>) => {
     const newCategory: Category = { ...category, id: createId('c'), createdAt: Date.now() };
     const updated = [newCategory, ...categories];
@@ -2004,6 +2082,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       upsertPrintifyShopProducts,
       printifyCatalog,
       upsertPrintifyCatalogTemplates,
+      deletePrintifyCatalogTemplate,
+      clearPrintifyCatalog,
       categories,
       addCategory,
       updateCategory,

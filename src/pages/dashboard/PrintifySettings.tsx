@@ -64,7 +64,7 @@ const resolveVariantOptions = (
 };
 
 export const PrintifySettings: React.FC = () => {
-  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products } = useShop();
+  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
   
   const printifySettings = settings.printifySettings || {
     enabled: false,
@@ -416,32 +416,14 @@ export const PrintifySettings: React.FC = () => {
     }
 
     setDeletingTemplates(true);
-    setSyncLogs(['[INFO] Deleting all raw Printify templates from Supabase...']);
+    setSyncLogs(['[INFO] Deleting all raw Printify templates and products from database and cache...']);
 
     try {
-      // Find all raw template products using the same guard as the editor
-      const templateProductIds = products
-        .filter((p) => p.id.startsWith('printify_template_') || p.printifyProductId?.startsWith('template_'))
-        .map((p) => p.id);
-
-      if (templateProductIds.length === 0) {
-        setSyncLogs(prev => [
-          ...prev,
-          '[INFO] No raw template products found in local state.',
-          '[INFO] Templates may already be deleted or only exist in Supabase.',
-        ]);
-        // Still attempt a direct Supabase delete as fallback
-      } else {
-        // Delete each template using the context's deleteProduct (handles auth + RLS correctly)
-        for (const id of templateProductIds) {
-          await deleteProduct(id);
-        }
-        setSyncLogs(prev => [
-          ...prev,
-          `[SUCCESS] Deleted ${templateProductIds.length} raw template(s) from the database.`,
-          '[INFO] Refresh the page to clear local cache, then run Template Sync to re-populate.',
-        ]);
-      }
+      await clearPrintifyCatalog();
+      setSyncLogs(prev => [
+        ...prev,
+        '[SUCCESS] All templates successfully deleted from catalog and fallback products.',
+      ]);
     } catch (err: any) {
       console.error('Delete all templates failed:', err);
       setSyncLogs(prev => [...prev, `[ERROR] Delete failed: ${err.message || err}`]);
@@ -551,7 +533,7 @@ export const PrintifySettings: React.FC = () => {
         };
       });
       const variantReadyCount = templatesWithProviders.filter((template) => template.variants.length > 0).length;
-      await upsertPrintifyCatalogTemplates(templatesWithProviders, { replaceVisible: true });
+      await upsertPrintifyCatalogTemplates(templatesWithProviders, { replaceVisible: false });
 
       handleUpdate({
         sync: {
@@ -681,11 +663,7 @@ export const PrintifySettings: React.FC = () => {
               <span className="hidden md:inline">Orders</span>
               <span className="md:hidden">Orders</span>
             </TabsTrigger>
-            <TabsTrigger value="webhooks" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
-              <Link className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
-              <span className="hidden md:inline">Webhooks</span>
-              <span className="md:hidden">Hooks</span>
-            </TabsTrigger>
+
           </TabsList>
 
           {/* APIs Tab */}
@@ -929,25 +907,7 @@ export const PrintifySettings: React.FC = () => {
                 <CardDescription className="text-xs">Control estimated customer-facing prices for raw editor templates.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 p-5 md:p-6 pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Base Price ($)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={printifySettings.charges.templateBasePrice ?? 14.99}
-                      onChange={(event) => handleUpdate({
-                        charges: {
-                          ...printifySettings.charges,
-                          templateBasePrice: Math.max(0, Number(event.target.value) || 0)
-                        }
-                      })}
-                      className="rounded-xl h-11 text-xs border-gray-200"
-                    />
-                    <p className="text-[9px] text-gray-400 pl-1">Fallback base cost used when Printify does not provide variant pricing for a template.</p>
-                  </div>
-
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Display Markup % (Editor Prices)</Label>
                     <Input
@@ -1312,6 +1272,12 @@ export const PrintifySettings: React.FC = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="1">1 template</SelectItem>
+                        <SelectItem value="2">2 templates</SelectItem>
+                        <SelectItem value="3">3 templates</SelectItem>
+                        <SelectItem value="4">4 templates</SelectItem>
+                        <SelectItem value="5">5 templates</SelectItem>
+                        <SelectItem value="10">10 templates</SelectItem>
                         <SelectItem value="25">25 templates</SelectItem>
                         <SelectItem value="50">50 templates</SelectItem>
                         <SelectItem value="100">100 templates</SelectItem>
@@ -1361,24 +1327,59 @@ export const PrintifySettings: React.FC = () => {
                   </div>
                 </div>
 
-                {printifyCatalog.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {printifyCatalog.slice(0, 6).map((template) => (
-                      <div key={template.id} className="p-3 rounded-2xl border bg-white flex items-center gap-3">
-                        <div className="h-14 w-14 rounded-xl bg-gray-100 overflow-hidden shrink-0">
-                          {template.images[0] ? (
-                            <img src={template.images[0]} alt={template.title} className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center">
+              </CardContent>
+            </Card>
+
+            {/* Synced Editor Templates */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="p-5 md:p-6 pb-0 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Synced Editor Templates</CardTitle>
+                  <CardDescription className="text-xs">Manage individual cached templates available in the customizer editor.</CardDescription>
+                </div>
+                <span className="px-3 py-1 bg-neutral-100 text-neutral-800 text-[10px] font-black uppercase rounded-full shrink-0">
+                  {printifyCatalog.length} Total
+                </span>
+              </CardHeader>
+              <CardContent className="p-5 md:p-6">
+                {printifyCatalog.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-gray-400 border border-dashed rounded-2xl">
+                    No templates synced yet. Click "Sync Templates" above to populate.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-1">
+                    {printifyCatalog.map((template) => (
+                      <div key={template.id} className="p-4 rounded-2xl border bg-white flex items-center justify-between gap-3 hover:shadow-sm transition-shadow">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-14 w-14 rounded-xl bg-gray-50 overflow-hidden shrink-0 border flex items-center justify-center">
+                            {template.images && template.images[0] ? (
+                              <img src={template.images[0]} alt={template.title} className="h-full w-full object-cover" />
+                            ) : (
                               <FileText className="h-5 w-5 text-gray-300" />
-                            </div>
-                          )}
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-black uppercase tracking-tight truncate" title={template.title}>{template.title}</p>
+                            <p className="text-[10px] text-gray-400 truncate">Blueprint: {template.blueprintId}</p>
+                            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{template.brand || 'Printify'} • {template.model || 'Generic'}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-tight truncate">{template.title}</p>
-                          <p className="text-[10px] text-gray-400 truncate">{template.brand || 'Printify'} {template.model || ''}</p>
-                          <p className="text-[9px] text-gray-400 mt-1">{template.providers.length} providers cached</p>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete the template "${template.title}"?`)) {
+                              try {
+                                await deletePrintifyCatalogTemplate(template.id);
+                              } catch (err: any) {
+                                alert(`Failed to delete template: ${err.message || err}`);
+                              }
+                            }
+                          }}
+                          className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1520,53 +1521,7 @@ export const PrintifySettings: React.FC = () => {
             </Card>
           </TabsContent>
 
-          {/* Webhooks Tab */}
-          <TabsContent value="webhooks" className="space-y-6 animate-in fade-in duration-200 outline-none">
-            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-              <CardHeader className="p-5 md:p-6">
-                <div className="flex items-center gap-3">
-                  <Link className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Webhook Notifications</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Configure status listeners to capture print and product updates automatically.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5 p-5 md:p-6 pt-0">
-                <div className="grid gap-2">
-                  <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Target Webhook Endpoint URL</Label>
-                  <Input 
-                    readOnly
-                    value={`${window.location.origin}/api/printify/webhook`}
-                    className="rounded-xl h-11 text-sm font-mono border-gray-200 bg-gray-50"
-                  />
-                  <p className="text-[10px] text-gray-500 italic pl-1">
-                    Provide this URL inside your Printify Developer Console webhooks settings to subscribe to events.
-                  </p>
-                </div>
 
-                <div className="pt-4 border-t">
-                  <h4 className="font-black text-xs uppercase tracking-wider text-gray-500 pl-1 mb-3">Event Subscriptions</h4>
-                  <div className="space-y-3">
-                    {[
-                      { event: 'order.created', desc: 'Triggered when a new order is submitted to Printify.' },
-                      { event: 'order.updated', desc: 'Triggered when an order status changes (e.g. printing → shipped).' },
-                      { event: 'order.shipped', desc: 'Triggered when a completed order is dispatched with tracking info.' },
-                      { event: 'order.cancelled', desc: 'Triggered when an order is cancelled or returned.' },
-                      { event: 'product.updated', desc: 'Triggered when a product\'s pricing, variants, or availability changes.' },
-                      { event: 'product.deleted', desc: 'Triggered when a product is removed from Printify catalog.' },
-                    ].map((wh) => (
-                      <div key={wh.event} className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
-                        <div>
-                          <p className="text-xs font-bold font-mono">{wh.event}</p>
-                          <p className="text-[10px] text-gray-500 mt-0.5">{wh.desc}</p>
-                        </div>
-                        <Switch defaultChecked />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       )}
     </div>

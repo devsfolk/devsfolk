@@ -216,6 +216,7 @@ export interface ProductVariant {
   name: string;
   price: number;
   stock: number;
+  options?: any[];
 }
 
 export interface Product {
