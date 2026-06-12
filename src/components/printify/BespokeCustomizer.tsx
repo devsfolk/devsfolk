@@ -200,7 +200,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     if (Array.isArray(options)) {
       for (const option of options) {
         const optionName = normalizeOptionText(option?.name || option?.type || option?.key || option?.label).toLowerCase();
-        if (keys.some((key) => optionName.includes(key))) {
+        const hasColorMetadata = !!option?.hex || (Array.isArray(option?.colors) && option.colors.length > 0);
+        const isColorLookup = keys.some((key) => key === 'color' || key === 'colour');
+        if (keys.some((key) => optionName.includes(key)) || (isColorLookup && hasColorMetadata)) {
           const value = normalizeOptionText(option?.title || option?.value || option?.name);
           if (value && value.toLowerCase() !== optionName) return value;
         }
@@ -398,30 +400,25 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const seen = new Set<string>();
     const result: Array<{ title: string; hex?: string }> = [];
 
-    console.log('[COLOR EXTRACTION] Processing variants:', activePrintifyVariants.length);
-    console.log('[COLOR EXTRACTION] Sample variant:', JSON.stringify(activePrintifyVariants[0], null, 2));
-
     for (const variant of activePrintifyVariants) {
       const options = Array.isArray(variant?.options) ? variant.options : [];
-      console.log('[COLOR EXTRACTION] Variant options:', JSON.stringify(options, null, 2));
       
       // Find color option - check enriched 'name' field, original 'type' field, or infer from position
-      const colorOpt = options.find((opt: any, idx: number) => {
+      const colorOpt = options.find((opt: any) => {
         // If opt is just a number (unenriched), skip it - we'll handle this differently
         if (typeof opt === 'number') return false;
         
-        const name = String(opt?.name || '').toLowerCase();
+        const name = String(opt?.name || opt?.key || opt?.label || '').toLowerCase();
         const type = String(opt?.type || '').toLowerCase();
         
         // Check if this is a color option
         return name.includes('color') || name.includes('colour') || 
-               type.includes('color') || type.includes('colour');
+               type.includes('color') || type.includes('colour') ||
+               !!opt?.hex ||
+               (Array.isArray(opt?.colors) && opt.colors.length > 0);
       });
       
-      console.log('[COLOR EXTRACTION] Found color option:', JSON.stringify(colorOpt, null, 2));
-      
       if (!colorOpt) {
-        console.log('[COLOR EXTRACTION] No color option found for variant, skipping');
         continue;
       }
       
@@ -435,7 +432,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       ).trim();
       
       if (!title || seen.has(title)) {
-        console.log('[COLOR EXTRACTION] No title or duplicate, skipping:', title);
         continue;
       }
       seen.add(title);
@@ -447,19 +443,14 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         ? String(colorOpt.colors[0]).trim()
         : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
       
-      console.log('[COLOR EXTRACTION] Extracted color:', { title, hex });
-      
       result.push({
         title,
         hex,
       });
     }
-    
-    console.log('[COLOR EXTRACTION] Final result:', JSON.stringify(result, null, 2));
 
     // Fallback if no enriched color details are found
     if (result.length === 0 && activeColorOptions.length > 0) {
-      console.log('[COLOR EXTRACTION] Result empty, using fallback activeColorOptions:', activeColorOptions);
       return activeColorOptions.map((color) => ({
         title: color,
         hex: undefined, // Will be rendered as a text pill instead of a colored circle

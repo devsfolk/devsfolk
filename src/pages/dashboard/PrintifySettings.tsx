@@ -12,15 +12,15 @@ import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, Check
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
 import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 
-// Pure helper: builds a Map from option value ID → { title, hex? } using blueprint detail data.
+// Pure helper: builds a Map from option value ID → { title, name, hex? } using blueprint detail data.
 // Requirements 2.4, 2.5
-const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string; hex?: string }> => {
-  const map = new Map<number, { title: string; hex?: string }>();
+const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string; name: string; hex?: string }> => {
+  const map = new Map<number, { title: string; name: string; hex?: string }>();
   const options = Array.isArray(blueprintDetail?.options) ? blueprintDetail.options : [];
   for (const option of options) {
     const values = Array.isArray(option?.values) ? option.values : [];
-    const isColor = String(option?.type || '').toLowerCase() === 'color' ||
-      String(option?.name || '').toLowerCase().includes('color');
+    const optionName = String(option?.name || option?.type || option?.title || option?.id || '').toLowerCase();
+    const isColor = optionName.includes('color') || optionName.includes('colour');
     for (const value of values) {
       const id = Number(value?.id);
       const title = String(value?.title || value?.name || '').trim();
@@ -28,7 +28,7 @@ const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string;
       const hex = isColor && Array.isArray(value?.colors) && value.colors.length > 0
         ? String(value.colors[0]).trim()
         : undefined;
-      map.set(id, { title, ...(hex ? { hex } : {}) });
+      map.set(id, { title, name: optionName, ...(hex ? { hex } : {}) });
     }
   }
   return map;
@@ -38,7 +38,7 @@ const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string;
 // Requirements 2.4, 2.5
 const resolveVariantOptions = (
   variant: any,
-  optionValueMap: Map<number, { title: string; hex?: string }>,
+  optionValueMap: Map<number, { title: string; name: string; hex?: string }>,
   blueprintDetail?: any
 ): any => {
   if (!variant || !Array.isArray(variant.options)) return variant;
@@ -50,12 +50,15 @@ const resolveVariantOptions = (
     }
     const id = Number(optionIdOrObj);
     const resolved = optionValueMap.get(id);
-    // Determine the option "name" (type) from the blueprint options array by index
-    const optionDef = options[idx];
+    // Prefer the parent option found by value ID; fallback to array index only for unusual API shapes.
+    const optionDef = options.find((option: any) => (
+      Array.isArray(option?.values) &&
+      option.values.some((value: any) => Number(value?.id) === id)
+    )) || options[idx];
     const name = String(optionDef?.name || optionDef?.type || optionDef?.id || '').toLowerCase();
     return {
       id,
-      name,
+      name: resolved?.name || name,
       title: resolved?.title ?? String(id),
       ...(resolved?.hex ? { hex: resolved.hex } : {}),
     };

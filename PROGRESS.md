@@ -1,7 +1,7 @@
 # Project Progress Handoff
 
-Last updated: 2026-06-10  
-Active working branch: `feat/printify-editor`  
+Last updated: 2026-06-12  
+Active working branch: `fix/printify-fulfillment-POF-001`  
 Preview branch also updated: `feat/printify-mini-platform`  
 Preview URL: `https://aurabloom-git-feat-printify-mini-platform-devsfolks-projects.vercel.app`
 
@@ -89,6 +89,23 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 - Retry errors are now shown clearly in the dashboard alert and row tooltip.
 
 ## Recent Updates
+
+### 2026-06-12 - Fix Printify Color Option Enrichment Root Cause
+
+- Commit: pending
+- Files:
+  - `src/pages/dashboard/PrintifySettings.tsx`
+  - `src/components/printify/BespokeCustomizer.tsx`
+  - `PROGRESS.md`
+- What changed:
+  - Fixed the real color-extraction root cause: sync enrichment now stores the parent option kind (`name`, e.g. `color`/`size`) on every resolved variant option by matching option value IDs back to the blueprint option definition.
+  - Removed reliance on variant option array index order, which is unsafe when Printify returns option IDs that do not align exactly with `blueprintDetail.options[idx]`.
+  - Existing enriched variants with `hex`/`colors` metadata now recover as color options even if their stored `name` field is wrong.
+  - Removed noisy `[COLOR EXTRACTION]` console logging from the customer editor.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - Re-run Template Sync for the affected template(s), then refresh the storefront editor. Color swatches should appear when Printify blueprint detail includes color option values. If old templates were synced before this fix and lack `hex/colors` metadata, they must be re-synced.
 
 ### 2026-06-10 - Automatic Printify Fulfillment & Customizer Safety
 
