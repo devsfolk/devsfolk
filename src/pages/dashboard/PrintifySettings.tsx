@@ -491,24 +491,79 @@ export const PrintifySettings: React.FC = () => {
             const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
             const rawVariants = normalizePrintifyList(variantData, ['variants']);
 
+            // Extract print areas from the variants endpoint (placeholders are returned here, NOT in blueprint detail)
+            const rawPlaceholders = Array.isArray(variantData?.placeholders) ? variantData.placeholders : [];
+            if (rawPlaceholders.length > 0) {
+              printAreasByBlueprintId[template.blueprintId] = [{ placeholders: rawPlaceholders }];
+            }
+
             // Enrich variants: resolve integer option IDs → { id, name, title, hex? } objects
             let enrichedVariants = rawVariants;
-            try {
-              const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
-              printAreasByBlueprintId[template.blueprintId] = blueprintDetail?.print_areas || [];
+            let enrichmentSucceeded = false;
+            let blueprintDetail: any = null;
+
+            // Retry enrichment once on transient failure
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
+                enrichmentSucceeded = true;
+                break;
+              } catch (detailError: any) {
+                if (attempt === 1) {
+                  setSyncLogs(prev => [
+                    ...prev,
+                    `[INFO] Blueprint detail fetch failed for ${template.title}, retrying in 1s... (${detailError.message || detailError})`,
+                  ]);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                } else {
+                  setSyncLogs(prev => [
+                    ...prev,
+                    `[WARNING] Option resolution skipped for ${template.title} after 2 attempts: ${detailError.message || detailError}`,
+                  ]);
+                  console.error('[ENRICHMENT ERROR]', detailError);
+                }
+              }
+            }
+
+            if (enrichmentSucceeded && blueprintDetail) {
+              // Also check if blueprint detail has print_areas as fallback
+              if (rawPlaceholders.length === 0) {
+                const detailPrintAreas = blueprintDetail?.print_areas || [];
+                if (Array.isArray(detailPrintAreas) && detailPrintAreas.length > 0) {
+                  printAreasByBlueprintId[template.blueprintId] = detailPrintAreas;
+                }
+              }
+
               const optionValueMap = buildOptionValueMap(blueprintDetail);
-              enrichedVariants = rawVariants.map((v: any) =>
-                resolveVariantOptions(v, optionValueMap, blueprintDetail)
-              );
-              console.log(`[ENRICHMENT] ${template.title} - Enriched ${enrichedVariants.length} variants`);
+
+              // Build variant → image URL map from blueprintDetail.images
+              const variantImageMap = new Map<number, string>();
+              const detailImages = Array.isArray(blueprintDetail?.images) ? blueprintDetail.images : [];
+              for (const img of detailImages) {
+                const imgSrc = typeof img === 'string' ? img : (img?.src || img?.url || img?.preview_url || '');
+                const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
+                if (imgSrc && imgVariantIds.length > 0) {
+                  for (const vid of imgVariantIds) {
+                    const numVid = Number(vid);
+                    if (numVid > 0 && !variantImageMap.has(numVid)) {
+                      variantImageMap.set(numVid, imgSrc);
+                    }
+                  }
+                }
+              }
+
+              enrichedVariants = rawVariants.map((v: any) => {
+                const resolved = resolveVariantOptions(v, optionValueMap, blueprintDetail);
+                const variantId = Number(v?.id || v?.variant_id || 0);
+                const imageUrl = variantImageMap.get(variantId);
+                return { ...resolved, ...(imageUrl ? { image_url: imageUrl } : {}), _enriched: true };
+              });
+
+              console.log(`[ENRICHMENT] ${template.title} - Enriched ${enrichedVariants.length} variants, ${variantImageMap.size} image mappings`);
               console.log('[ENRICHMENT] Sample enriched variant:', enrichedVariants[0]);
-            } catch (enrichError: any) {
-              setSyncLogs(prev => [
-                ...prev,
-                `[WARNING] Option resolution skipped for ${template.title}: ${enrichError.message || enrichError}`,
-              ]);
-              console.error('[ENRICHMENT ERROR]', enrichError);
-              // enrichedVariants remains rawVariants — sync continues with unresolved IDs
+            } else {
+              // Mark all variants as unenriched so the dashboard can show a warning badge
+              enrichedVariants = rawVariants.map((v: any) => ({ ...v, _enriched: false }));
             }
 
             variantsByBlueprintId[template.blueprintId] = enrichedVariants;
@@ -1366,6 +1421,14 @@ export const PrintifySettings: React.FC = () => {
                             <p className="text-xs font-black uppercase tracking-tight truncate" title={template.title}>{template.title}</p>
                             <p className="text-[10px] text-gray-400 truncate">Blueprint: {template.blueprintId}</p>
                             <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{template.brand || 'Printify'} • {template.model || 'Generic'}</p>
+                            {(!template.baseCost || template.baseCost === 0 || !Array.isArray(template.variants) || template.variants.length === 0 || template.variants.some((v: any) => v._enriched === false)) && (
+                              <p className="text-[9px] text-amber-600 font-bold mt-1 flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3 shrink-0" />
+                                {template.variants?.some((v: any) => v._enriched === false)
+                                  ? 'Resync Required (Variants not enriched)'
+                                  : 'Resync Required (Incomplete data)'}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <Button

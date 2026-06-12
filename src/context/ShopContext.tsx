@@ -702,6 +702,7 @@ const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSet
       })(),
       stock: variant.is_available === false || variant.is_enabled === false ? 0 : 999,
       options: variant.options || [],
+      ...(variant.image_url ? { image_url: variant.image_url } : {}),
     }))
     .filter((variant) => variant.id);
 

@@ -217,6 +217,7 @@ export interface ProductVariant {
   price: number;
   stock: number;
   options?: any[];
+  image_url?: string;
 }
 
 export interface Product {

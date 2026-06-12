@@ -312,31 +312,53 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     
     let { width, height, top, left } = style;
 
-    // Check if template print_areas contains actual width and height dimensions from Printify API
+    // Check if template print_areas contains actual dimensions from Printify API
     const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas;
     if (Array.isArray(printAreas) && printAreas.length > 0) {
+      // Support both formats:
+      // Format A (nested): [{ placeholders: [{ position, width, height }] }]
+      // Format B (direct): [{ position, width, height }]
       const firstArea = printAreas[0];
-      const placeholders = Array.isArray(firstArea?.placeholders) ? firstArea.placeholders : [];
-      const placeholder = placeholders[0];
+      let placeholder: any = null;
+
+      if (Array.isArray(firstArea?.placeholders) && firstArea.placeholders.length > 0) {
+        // Format A: nested placeholders array
+        placeholder = firstArea.placeholders.find((p: any) => 
+          String(p?.position || '').toLowerCase() === 'front'
+        ) || firstArea.placeholders[0];
+      } else if (firstArea?.width || firstArea?.height || firstArea?.position) {
+        // Format B: direct placeholder object in the array
+        placeholder = printAreas.find((p: any) => 
+          String(p?.position || '').toLowerCase() === 'front'
+        ) || firstArea;
+      }
       
-      const pWidth = Number(placeholder?.width || placeholder?.pixel_width);
-      const pHeight = Number(placeholder?.height || placeholder?.pixel_height);
+      if (placeholder) {
+        const pWidth = Number(placeholder?.width || placeholder?.pixel_width || 0);
+        const pHeight = Number(placeholder?.height || placeholder?.pixel_height || 0);
 
-      if (pWidth > 0 && pHeight > 0) {
-        const targetRatio = pWidth / pHeight;
-        const maxRatio = width / height;
+        if (pWidth > 0 && pHeight > 0) {
+          const targetRatio = pWidth / pHeight;
+          const maxRatio = width / height;
 
-        if (targetRatio > maxRatio) {
-          // Blueprint print area is wider than max layout bounds - adjust height
-          const originalHeight = height;
-          height = width / targetRatio;
-          top = top + (originalHeight - height) / 2;
-        } else {
-          // Blueprint print area is taller than max layout bounds - adjust width
-          const originalWidth = width;
-          width = height * targetRatio;
-          left = left + (originalWidth - width) / 2;
+          if (targetRatio > maxRatio) {
+            // Blueprint print area is wider than max layout bounds - adjust height
+            const originalHeight = height;
+            height = width / targetRatio;
+            top = top + (originalHeight - height) / 2;
+          } else {
+            // Blueprint print area is taller than max layout bounds - adjust width
+            const originalWidth = width;
+            width = height * targetRatio;
+            left = left + (originalWidth - width) / 2;
+          }
         }
+
+        // Use position offsets from the placeholder if available
+        const posTop = Number(placeholder?.top ?? placeholder?.y ?? placeholder?.offset_y ?? 0);
+        const posLeft = Number(placeholder?.left ?? placeholder?.x ?? placeholder?.offset_x ?? 0);
+        if (posTop > 0 && posTop <= 100) top = posTop;
+        if (posLeft > 0 && posLeft <= 100) left = posLeft;
       }
     }
     
@@ -514,10 +536,27 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     if (!activeProduct?.images || activeProduct.images.length === 0) {
       return '/custom-tee-mockup.png';
     }
+
+    // Priority 1: Use the variant-specific image_url mapped during sync (most reliable)
+    if (selectedColor && activePrintifyVariant?.image_url) {
+      return activePrintifyVariant.image_url;
+    }
+
+    // Priority 2: Check catalog template variants for image_url matching the selected color
+    if (selectedColor && activeTemplate?.variants) {
+      const matchingVariant = activeTemplate.variants.find((v: any) => {
+        if (!v?.image_url) return false;
+        const vColor = getVariantColor(v);
+        return vColor && vColor === selectedColor;
+      });
+      if (matchingVariant?.image_url) return matchingVariant.image_url;
+    }
+
     if (!selectedColor) {
       return activeProduct.images[0];
     }
     
+    // Fallback: fuzzy color-to-filename matching (kept as safety net)
     const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
     const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
     
@@ -552,7 +591,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     if (anyWordMatch) return anyWordMatch;
     
     return activeProduct.images[0];
-  }, [activeProduct, selectedColor]);
+  }, [activeProduct, selectedColor, activePrintifyVariant, activeTemplate]);
 
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
