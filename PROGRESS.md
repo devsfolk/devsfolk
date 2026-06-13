@@ -92,7 +92,7 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ### 2026-06-13 - Fix Printify API 500 Connection Failure
 
-- Commit: `39937de`
+- Commit: `5bcd129`
 - Files:
   - `api/printify/_shared.ts`
   - `api/printify/orders.ts`
