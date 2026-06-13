@@ -1,4 +1,4 @@
-import { callPrintify, requireAdmin, requireApiKey, requirePost, sendJson, sendPrintifyResult } from './_shared';
+import { callPrintify, requireAdmin, requireApiKey, requirePost, sendJson, sendPrintifyResult } from './_shared.js';
 
 const REQUIRED_SCOPES = ['shops.read'];
 
