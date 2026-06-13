@@ -10,9 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2 } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 
-// Pure helper: builds a Map from option value ID → { title, name, hex? } using blueprint detail data.
+// Pure helper: builds a Map from option value ID → { title, name, hex? } using Printify variant endpoint data.
 // Requirements 2.4, 2.5
 const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string; name: string; hex?: string }> => {
   const map = new Map<number, { title: string; name: string; hex?: string }>();
@@ -500,74 +500,36 @@ export const PrintifySettings: React.FC = () => {
               printAreasByBlueprintId[template.blueprintId] = [{ placeholders: rawPlaceholders }];
             }
 
-            // Enrich variants: resolve integer option IDs → { id, name, title, hex? } objects
-            let enrichedVariants = rawVariants;
-            let enrichmentSucceeded = false;
-            let blueprintDetail: any = null;
+            // Enrich variants directly from the variants endpoint response.
+            // This endpoint contains the root options[] mapping and variant-linked images.
+            const optionValueMap = buildOptionValueMap(variantData);
 
-            // Retry enrichment once on transient failure
-            for (let attempt = 1; attempt <= 2; attempt++) {
-              try {
-                blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
-                enrichmentSucceeded = true;
-                break;
-              } catch (detailError: any) {
-                if (attempt === 1) {
-                  setSyncLogs(prev => [
-                    ...prev,
-                    `[INFO] Blueprint detail fetch failed for ${template.title}, retrying in 1s... (${detailError.message || detailError})`,
-                  ]);
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                } else {
-                  setSyncLogs(prev => [
-                    ...prev,
-                    `[WARNING] Option resolution skipped for ${template.title} after 2 attempts: ${detailError.message || detailError}`,
-                  ]);
-                  console.error('[ENRICHMENT ERROR]', detailError);
-                }
-              }
-            }
-
-            if (enrichmentSucceeded && blueprintDetail) {
-              // Also check if blueprint detail has print_areas as fallback
-              if (rawPlaceholders.length === 0) {
-                const detailPrintAreas = blueprintDetail?.print_areas || [];
-                if (Array.isArray(detailPrintAreas) && detailPrintAreas.length > 0) {
-                  printAreasByBlueprintId[template.blueprintId] = detailPrintAreas;
-                }
-              }
-
-              const optionValueMap = buildOptionValueMap(blueprintDetail);
-
-              // Build variant → image URL map from blueprintDetail.images
-              const variantImageMap = new Map<number, string>();
-              const detailImages = Array.isArray(blueprintDetail?.images) ? blueprintDetail.images : [];
-              for (const img of detailImages) {
-                const imgSrc = typeof img === 'string' ? img : (img?.src || img?.url || img?.preview_url || '');
-                const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
-                if (imgSrc && imgVariantIds.length > 0) {
-                  for (const vid of imgVariantIds) {
-                    const numVid = Number(vid);
-                    if (numVid > 0 && !variantImageMap.has(numVid)) {
-                      variantImageMap.set(numVid, imgSrc);
-                    }
+            const variantImageMap = new Map<number, string>();
+            const variantImages = Array.isArray(variantData?.images) ? variantData.images : [];
+            for (const img of variantImages) {
+              const imgSrc = typeof img === 'string' ? img : (img?.src || img?.url || img?.preview_url || '');
+              const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
+              if (imgSrc && imgVariantIds.length > 0) {
+                for (const vid of imgVariantIds) {
+                  const numVid = Number(vid);
+                  if (numVid > 0 && !variantImageMap.has(numVid)) {
+                    variantImageMap.set(numVid, imgSrc);
                   }
                 }
               }
-
-              enrichedVariants = rawVariants.map((v: any) => {
-                const resolved = resolveVariantOptions(v, optionValueMap, blueprintDetail);
-                const variantId = Number(v?.id || v?.variant_id || 0);
-                const imageUrl = variantImageMap.get(variantId);
-                return { ...resolved, ...(imageUrl ? { image_url: imageUrl } : {}), _enriched: true };
-              });
-
-              console.log(`[ENRICHMENT] ${template.title} - Enriched ${enrichedVariants.length} variants, ${variantImageMap.size} image mappings`);
-              console.log('[ENRICHMENT] Sample enriched variant:', enrichedVariants[0]);
-            } else {
-              // Mark all variants as unenriched so the dashboard can show a warning badge
-              enrichedVariants = rawVariants.map((v: any) => ({ ...v, _enriched: false }));
             }
+
+            const enrichedVariants = rawVariants.map((v: any) => {
+              const resolved = resolveVariantOptions(v, optionValueMap, variantData);
+              const variantId = Number(v?.id || v?.variant_id || 0);
+              const imageUrl = variantImageMap.get(variantId);
+              return { ...resolved, ...(imageUrl ? { image_url: imageUrl } : {}), _enriched: optionValueMap.size > 0 };
+            });
+
+            setSyncLogs(prev => [
+              ...prev,
+              `[SUCCESS] Enriched ${enrichedVariants.length} variants for ${template.title} (${variantImageMap.size} image mappings).`,
+            ]);
 
             variantsByBlueprintId[template.blueprintId] = enrichedVariants;
           }

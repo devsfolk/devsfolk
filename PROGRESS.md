@@ -90,6 +90,21 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-13 - Use Variants Endpoint For Option Enrichment
+
+- Commit: pending
+- Files:
+  - `src/pages/dashboard/PrintifySettings.tsx`
+  - `PROGRESS.md`
+- What changed:
+  - Fixed the sync enrichment source: raw template sync now resolves option IDs using the already-fetched variants endpoint response (`variantData.options`) instead of calling blueprint detail (`/catalog/blueprints/{id}.json`), which does not provide the needed option value mappings.
+  - Variant image mapping now reads `variantData.images` from the variants endpoint, where `variant_ids` mappings are expected, instead of blueprint detail images.
+  - Removed the extra blueprint detail fetch/retry loop from template sync, reducing API calls and avoiding false `_enriched: false` rows caused by the wrong endpoint.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - Re-run Template Sync for affected templates after deploy. Previously synced templates may still contain unresolved numeric option IDs until they are re-synced.
+
 ### 2026-06-13 - Split Printify API Gateways By Responsibility
 
 - Commit: pending
