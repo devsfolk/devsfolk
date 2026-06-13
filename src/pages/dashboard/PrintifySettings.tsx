@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2 } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 
 // Pure helper: builds a Map from option value ID → { title, name, hex? } using Printify variant endpoint data.
 // Requirements 2.4, 2.5
@@ -494,29 +494,41 @@ export const PrintifySettings: React.FC = () => {
             const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
             const rawVariants = normalizePrintifyList(variantData, ['variants']);
 
-            // Extract print areas from the variants endpoint (placeholders are returned here, NOT in blueprint detail)
-            const rawPlaceholders = Array.isArray(variantData?.placeholders) ? variantData.placeholders : [];
-            if (rawPlaceholders.length > 0) {
-              printAreasByBlueprintId[template.blueprintId] = [{ placeholders: rawPlaceholders }];
-            }
-
-            // Enrich variants directly from the variants endpoint response.
-            // This endpoint contains the root options[] mapping and variant-linked images.
+            // Option enrichment from the variants endpoint — this is the correct source
             const optionValueMap = buildOptionValueMap(variantData);
 
+            // Image mapping + print areas come from the blueprint detail endpoint,
+            // NOT the variants endpoint. Wrapped in try/catch so enrichment succeeds
+            // even if this optional fetch fails.
             const variantImageMap = new Map<number, string>();
-            const variantImages = Array.isArray(variantData?.images) ? variantData.images : [];
-            for (const img of variantImages) {
-              const imgSrc = typeof img === 'string' ? img : (img?.src || img?.url || img?.preview_url || '');
-              const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
-              if (imgSrc && imgVariantIds.length > 0) {
-                for (const vid of imgVariantIds) {
-                  const numVid = Number(vid);
-                  if (numVid > 0 && !variantImageMap.has(numVid)) {
-                    variantImageMap.set(numVid, imgSrc);
+            try {
+              const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
+
+              // Issue 1 fix: build image map from blueprintDetail.images[].variant_ids
+              const detailImages = Array.isArray(blueprintDetail?.images) ? blueprintDetail.images : [];
+              for (const img of detailImages) {
+                const imgSrc = typeof img === 'string' ? img : (img?.src || img?.url || img?.preview_url || '');
+                const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
+                if (imgSrc && imgVariantIds.length > 0) {
+                  for (const vid of imgVariantIds) {
+                    const numVid = Number(vid);
+                    if (numVid > 0 && !variantImageMap.has(numVid)) {
+                      variantImageMap.set(numVid, imgSrc);
+                    }
                   }
                 }
               }
+
+              // Issue 2 fix: extract print areas from blueprint detail if available
+              const detailPrintAreas = Array.isArray(blueprintDetail?.print_areas)
+                ? blueprintDetail.print_areas
+                : [];
+              if (detailPrintAreas.length > 0) {
+                printAreasByBlueprintId[template.blueprintId] = detailPrintAreas;
+              }
+            } catch {
+              // Image mapping is optional — enrichment succeeds regardless
+              setSyncLogs(prev => [...prev, `[INFO] Mockup image mapping skipped for ${template.title} — will use blueprint images instead.`]);
             }
 
             const enrichedVariants = rawVariants.map((v: any) => {
