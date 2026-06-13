@@ -90,6 +90,21 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-13 - Fix Printify API 500 Connection Failure
+
+- Commit: `39937de`
+- Files:
+  - `api/printify/_shared.ts`
+  - `api/printify/orders.ts`
+  - `api/printify/catalog.ts`
+- What changed:
+  - Added the required `User-Agent: devsfolk-app/1.0` header to all outgoing server-side requests sent to the Printify API.
+  - This satisfies Printify's API requirements and resolves the `Connection Failed. Printify API returned status 500` error when adding or testing the API PAT token in the settings dashboard.
+- Validation:
+  - Verified syntactical validity of TypeScript files. Local npm build was skipped due to a transient npm registry timeout (`ECONNRESET`).
+- Current issue / next step:
+  - Deploy and test token verification in the Printify Settings page using a Full Access PAT key.
+
 ### 2026-06-13 - Use Variants Endpoint For Option Enrichment
 
 - Commit: pending

@@ -188,6 +188,7 @@ const uploadArtworkDataUrl = async (apiKey: string, dataUrl: unknown, fileNamePr
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json;charset=utf-8',
+      'User-Agent': 'devsfolk-app/1.0',
     },
     body: JSON.stringify({
       file_name: `${fileNamePrefix}.${parsed.extension}`,
@@ -558,6 +559,7 @@ export default async function handler(request: any, response: any) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json;charset=utf-8',
+        'User-Agent': 'devsfolk-app/1.0',
       },
       body: JSON.stringify(payload),
     });

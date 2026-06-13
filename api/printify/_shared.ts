@@ -82,6 +82,7 @@ export const callPrintify = async (apiKey: string, path: string) => {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json;charset=utf-8',
+      'User-Agent': 'devsfolk-app/1.0',
     },
   });
 
