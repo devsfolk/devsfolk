@@ -90,6 +90,30 @@ Build a Printify-powered mini POD platform inside the admin's own storefront:
 
 ## Recent Updates
 
+### 2026-06-13 - Split Printify API Gateways By Responsibility
+
+- Commit: pending
+- Files:
+  - `api/printify/_shared.ts`
+  - `api/printify/shops.ts`
+  - `api/printify/shop-products.ts`
+  - `api/printify/raw-templates.ts`
+  - `api/printify/template-details.ts`
+  - `src/lib/printifyApi.ts`
+  - `PROGRESS.md`
+- What changed:
+  - Split the previous generic catalog bridge into separate task-specific server routes:
+    - `/api/printify/shops` for PAT validation/shop lookup (`shops.read`)
+    - `/api/printify/shop-products` for admin Printify shop products (`shops.read`, `products.read`)
+    - `/api/printify/raw-templates` for raw blueprint/template listing (`catalog.read`)
+    - `/api/printify/template-details` for blueprint detail, providers, variants, and shipping (`catalog.read`, `print_providers.read`)
+  - Frontend Printify helpers now route each operation to the matching dedicated endpoint.
+  - API errors now include required scope hints for the specific operation.
+- Validation:
+  - `npm run build` passed.
+- Current issue / next step:
+  - After deploy, generate/connect a Full Access Printify PAT or one with the listed scopes, then re-run PAT validation, shop product sync, raw template sync, and template detail sync. If failures persist, inspect the exact endpoint-specific error and compare one template's Printify response to its Supabase row.
+
 ### 2026-06-12 - Fix Printify Color Option Enrichment Root Cause
 
 - Commit: `f1ba5df`

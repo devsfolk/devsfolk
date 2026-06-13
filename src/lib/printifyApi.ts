@@ -11,11 +11,18 @@ interface PrintifyGatewayRequest {
   printProviderId?: number;
 }
 
+const getPrintifyGatewayPath = (mode: PrintifyRequestMode) => {
+  if (mode === 'shops') return '/api/printify/shops';
+  if (mode === 'shop-products') return '/api/printify/shop-products';
+  if (mode === 'blueprints') return '/api/printify/raw-templates';
+  return '/api/printify/template-details';
+};
+
 const callPrintifyGateway = async <T,>(payload: PrintifyGatewayRequest): Promise<T> => {
   const sessionResult = supabase ? await supabase.auth.getSession() : null;
   const accessToken = sessionResult?.data.session?.access_token;
 
-  const response = await fetch('/api/printify/catalog', {
+  const response = await fetch(getPrintifyGatewayPath(payload.mode), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -28,12 +35,18 @@ const callPrintifyGateway = async <T,>(payload: PrintifyGatewayRequest): Promise
   const data = contentType.includes('application/json') ? await response.json().catch(() => null) : null;
 
   if (!response.ok) {
+    const requiredScopes = Array.isArray(data?.requiredScopes) && data.requiredScopes.length > 0
+      ? ` Required scopes: ${data.requiredScopes.join(', ')}.`
+      : '';
+    const details = data?.details && typeof data.details !== 'object'
+      ? ` ${data.details}`
+      : '';
     const message = data?.error || data?.message || `Printify API returned status ${response.status}`;
-    throw new Error(message);
+    throw new Error(`${message}${details}${requiredScopes}`);
   }
 
   if (!data) {
-    throw new Error('Printify gateway returned a non-JSON response. Please confirm the /api/printify/catalog route is deployed.');
+    throw new Error(`Printify gateway returned a non-JSON response. Please confirm ${getPrintifyGatewayPath(payload.mode)} is deployed.`);
   }
 
   return data as T;
