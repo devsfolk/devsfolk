@@ -112,6 +112,10 @@ export const fetchPrintifyBlueprintVariants = (apiKey: string, blueprintId: numb
   return callPrintifyGateway<any>({ apiKey, mode: 'variants', blueprintId, printProviderId });
 };
 
+export const fetchPrintifyBlueprintShipping = (apiKey: string, blueprintId: number, printProviderId: number) => {
+  return callPrintifyGateway<any>({ apiKey, mode: 'shipping', blueprintId, printProviderId });
+};
+
 export const fetchPrintifyBlueprintDetail = (apiKey: string, blueprintId: number) =>
   callPrintifyGateway<any>({ apiKey, mode: 'blueprint', blueprintId });
 
@@ -135,7 +139,8 @@ export const mapBlueprintsToTemplates = (data: any): PrintifyCatalogTemplate[] =
     variants: [],
     printAreas: [],
     shipping: [],
-    isEnabled: true,
+    syncStatus: 'raw',
+    isEnabled: false,
     lastSynced: syncedAt,
   }));
 };

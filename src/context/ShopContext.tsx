@@ -25,6 +25,7 @@ interface ShopContextType {
   upsertPrintifyShopProducts: (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => Promise<{ importedCount: number; updatedCount: number }>;
   printifyCatalog: PrintifyCatalogTemplate[];
   upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[], options?: { replaceVisible?: boolean }) => Promise<void>;
+  updatePrintifyCatalogTemplate: (id: string, updates: Partial<PrintifyCatalogTemplate>) => Promise<void>;
   deletePrintifyCatalogTemplate: (id: string) => Promise<void>;
   clearPrintifyCatalog: () => Promise<void>;
   categories: Category[];
@@ -127,9 +128,6 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: 'Generate a photorealistic product mockup with soft studio lighting, neutral background, and a slight shadow beneath the product. Show the design clearly on the product surface.' } },
     charges: { 
-      displayMarkupPercent: 40, 
-      orderMarkupPercent: 40, 
-      profitMarginPercent: 40, // Legacy field
       templateBasePrice: 14.99,
       designFee: 0, 
       editFee: 0, 
@@ -513,8 +511,13 @@ const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => ({
   shipping: row.shipping || [],
   baseCost: row.base_cost == null ? undefined : Number(row.base_cost),
   retailPrice: row.retail_price == null ? undefined : Number(row.retail_price),
-  profitMargin: row.profit_margin == null ? undefined : Number(row.profit_margin),
-  isEnabled: row.is_enabled ?? true,
+  sellingPrice: row.selling_price == null ? row.retail_price == null ? undefined : Number(row.retail_price) : Number(row.selling_price),
+  variantSellingPrices: row.variant_selling_prices || {},
+  colors: row.colors || [],
+  sizes: row.sizes || [],
+  syncStatus: row.sync_status || (row.is_enabled ? 'published' : 'raw'),
+  printProviderId: row.print_provider_id == null ? undefined : Number(row.print_provider_id),
+  isEnabled: row.is_enabled ?? row.sync_status === 'published',
   lastSynced: row.last_synced ?? new Date().toISOString(),
 });
 
@@ -658,8 +661,13 @@ const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => ({
   print_areas: template.printAreas,
   shipping: template.shipping,
   base_cost: template.baseCost ?? null,
-  retail_price: template.retailPrice ?? null,
-  profit_margin: template.profitMargin ?? null,
+  retail_price: template.retailPrice ?? template.sellingPrice ?? null,
+  selling_price: template.sellingPrice ?? template.retailPrice ?? null,
+  variant_selling_prices: template.variantSellingPrices || {},
+  colors: template.colors || [],
+  sizes: template.sizes || [],
+  sync_status: template.syncStatus || (template.isEnabled ? 'published' : 'raw'),
+  print_provider_id: template.printProviderId ?? null,
   is_enabled: template.isEnabled,
   last_synced: template.lastSynced,
 });
@@ -670,36 +678,14 @@ const normalizeTemplateImage = (image: any) => {
   return image.src || image.url || image.preview_url || '';
 };
 
-const calculatePrintifyRetailPrice = (
-  basePrice: number,
-  charges?: ThemeSettings['printifySettings']['charges'],
-  includeDesignFee = false,
-) => {
-  const displayMarkupPercent = Math.max(0, Number(
-    charges?.displayMarkupPercent ?? 
-    charges?.profitMarginPercent ?? 
-    40
-  ));
-  const designFee = includeDesignFee ? Math.max(0, Number(charges?.designFee ?? 0)) : 0;
-  const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
-  return Number((effectiveBase * (1 + displayMarkupPercent / 100) + designFee).toFixed(2));
-};
-
-const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSettings['printifySettings']['charges']): Product => {
+const templateToProduct = (template: PrintifyCatalogTemplate): Product => {
   const images = template.images.map(normalizeTemplateImage).filter(Boolean);
-  const basePrice = template.baseCost ?? template.retailPrice ?? 0;
+  const fallbackPrice = Number(template.sellingPrice ?? template.retailPrice ?? template.baseCost ?? 0);
   const templateVariants = (template.variants || [])
-    .slice(0, 25)
     .map((variant: any) => ({
       id: String(variant.id || variant.variant_id || variant.printify_variant_id || ''),
       name: variant.title || variant.name || variant.options?.title || `Variant ${variant.id || variant.variant_id || ''}`,
-      price: (() => {
-        const variantCostRaw = Number(variant.cost ?? variant.price ?? 0);
-        const variantCostDollars = variantCostRaw > 0 
-          ? (variantCostRaw < 100 && !Number.isInteger(variantCostRaw) ? variantCostRaw : variantCostRaw / 100)
-          : basePrice;
-        return calculatePrintifyRetailPrice(variantCostDollars, charges);
-      })(),
+      price: Number(template.variantSellingPrices?.[String(variant.id || variant.variant_id || variant.printify_variant_id || '')] ?? fallbackPrice),
       stock: variant.is_available === false || variant.is_enabled === false ? 0 : 999,
       options: variant.options || [],
       ...(variant.image_url ? { image_url: variant.image_url } : {}),
@@ -712,7 +698,7 @@ const templateToProduct = (template: PrintifyCatalogTemplate, charges?: ThemeSet
     name: template.title,
     slug: `printify-template-${template.blueprintId}`,
     description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
-    price: calculatePrintifyRetailPrice(basePrice, charges),
+    price: fallbackPrice,
     images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
     stock: 999,
     isFeatured: false,
@@ -1497,10 +1483,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
     templates.forEach((template) => {
-      byId.set(template.id, { ...template, isEnabled: true });
+      const previous = byId.get(template.id);
+      byId.set(template.id, {
+        ...previous,
+        ...template,
+        syncStatus: template.syncStatus || previous?.syncStatus || 'raw',
+        isEnabled: template.syncStatus === 'published' || template.isEnabled === true,
+      });
     });
     const updated = Array.from(byId.values()).sort((a, b) => a.title.localeCompare(b.title));
-    const selectedTemplateProductIds = new Set(templates.map((template) => `printify_template_${template.id}`));
+    const publishedTemplates = updated.filter((template) => (template.syncStatus || (template.isEnabled ? 'published' : 'raw')) === 'published' && template.isEnabled);
+    const selectedTemplateProductIds = new Set(publishedTemplates.map((template) => `printify_template_${template.id}`));
 
     setPrintifyCatalog(updated);
     savePrintifyCatalogLocally(updated);
@@ -1532,18 +1525,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ));
         }
 
-        const mappedProducts = templates.map((template) => templateToProduct(template, settings.printifySettings?.charges));
-        const { error: productError } = await supabase.from('products').upsert(mappedProducts.map(toProductRow));
-        if (productError) {
-          if (productError.message.includes('is_printify') || productError.message.includes('printify_product_id') || productError.message.includes('printify_catalog_id')) {
-            const legacyResult = await supabase.from('products').upsert(mappedProducts.map(toLegacyProductRow));
-            if (legacyResult.error) {
-              reportSyncError('Failed to publish Printify templates to products table (legacy layout).', legacyResult.error.message);
+        const mappedProducts = publishedTemplates.map((template) => templateToProduct(template));
+        if (mappedProducts.length > 0) {
+          const { error: productError } = await supabase.from('products').upsert(mappedProducts.map(toProductRow));
+          if (productError) {
+            if (productError.message.includes('is_printify') || productError.message.includes('printify_product_id') || productError.message.includes('printify_catalog_id')) {
+              const legacyResult = await supabase.from('products').upsert(mappedProducts.map(toLegacyProductRow));
+              if (legacyResult.error) {
+                reportSyncError('Failed to publish Printify templates to products table (legacy layout).', legacyResult.error.message);
+                return;
+              }
+            } else {
+              reportSyncError('Failed to publish Printify templates to products table.', productError.message);
               return;
             }
-          } else {
-            reportSyncError('Failed to publish Printify templates to products table.', productError.message);
-            return;
           }
         }
 
@@ -1579,7 +1574,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (hasCatalogTable) {
-          reportSyncSuccess('Printify catalog templates saved and synced to products table.');
+          reportSyncSuccess('Printify catalog templates saved. Published templates synced to products table.');
         } else {
           reportSyncSuccess('Printify templates published through product fallback.');
         }
@@ -1587,6 +1582,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         reportSyncError('Failed to synchronize templates to products table.', prodSyncErr?.message || prodSyncErr);
       }
     }
+  };
+
+  const updatePrintifyCatalogTemplate = async (templateId: string, updates: Partial<PrintifyCatalogTemplate>) => {
+    const currentTemplate = printifyCatalog.find((template) => template.id === templateId);
+    if (!currentTemplate) {
+      throw new Error(`Printify template ${templateId} was not found.`);
+    }
+
+    const nextTemplate: PrintifyCatalogTemplate = {
+      ...currentTemplate,
+      ...updates,
+      syncStatus: updates.syncStatus || currentTemplate.syncStatus || (updates.isEnabled ? 'published' : 'raw'),
+      isEnabled: updates.isEnabled ?? (updates.syncStatus === 'published' ? true : currentTemplate.isEnabled),
+      lastSynced: updates.lastSynced || currentTemplate.lastSynced || new Date().toISOString(),
+    };
+
+    await upsertPrintifyCatalogTemplates([nextTemplate], { replaceVisible: false });
   };
 
   const deletePrintifyCatalogTemplate = async (templateId: string) => {
@@ -2095,6 +2107,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       upsertPrintifyShopProducts,
       printifyCatalog,
       upsertPrintifyCatalogTemplates,
+      updatePrintifyCatalogTemplate,
       deletePrintifyCatalogTemplate,
       clearPrintifyCatalog,
       categories,

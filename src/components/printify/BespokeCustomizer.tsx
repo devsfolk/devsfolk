@@ -31,32 +31,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const calculateTemplateRetailPrice = (basePrice: number) => {
     const charges = settings.printifySettings?.charges;
-    const displayMarkupPercent = Math.max(0, Number(
-      charges?.displayMarkupPercent ?? 
-      charges?.profitMarginPercent ?? 
-      40
-    ));
-    
-    // If no baseCost from Printify, use the admin-configured template base price
-    const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
-    const calculatedPrice = Number((effectiveBase * (1 + displayMarkupPercent / 100)).toFixed(2));
-    
-    return calculatedPrice;
+    return Number((basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99))).toFixed(2));
   };
 
   const calculateTemplateOrderPrice = (basePrice: number) => {
-    const charges = settings.printifySettings?.charges;
-    const orderMarkupPercent = Math.max(0, Number(
-      charges?.orderMarkupPercent ?? 
-      charges?.profitMarginPercent ?? 
-      40
-    ));
-    
-    // If no baseCost from Printify, use the admin-configured template base price
-    const effectiveBase = basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
-    const calculatedPrice = Number((effectiveBase * (1 + orderMarkupPercent / 100)).toFixed(2));
-    
-    return calculatedPrice;
+    return calculateTemplateRetailPrice(basePrice);
   };
 
   const calculateCustomizedPrice = (retailPrice: number) => {
@@ -73,7 +52,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       name: template.title,
       slug: `custom-template-${template.blueprintId}`,
       description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
-      price: calculateTemplateRetailPrice(template.baseCost ?? template.retailPrice ?? 0),
+      price: calculateTemplateRetailPrice(template.sellingPrice ?? template.retailPrice ?? template.baseCost ?? 0),
       images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
       stock: 999,
       isFeatured: false,
@@ -477,12 +456,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Base cost calculation logic to handle cents from Printify variants and dollars from fallback products.
   const activeBaseCostDollars = useMemo(() => {
     const charges = settings.printifySettings?.charges;
-    const displayMarkupPercent = Math.max(0, Number(
-      charges?.displayMarkupPercent ?? 
-      charges?.profitMarginPercent ?? 
-      40
-    ));
-
     const variantCostCents = Number(
       activePrintifyVariant?.cost ??
       activePrintifyVariant?.price ??
@@ -496,29 +469,26 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         base = costVal < 100 && !Number.isInteger(costVal) ? costVal : costVal / 100;
       } else {
         const priceVal = Number(activePrintifyVariant?.price);
-        if (priceVal < 1000) {
-          base = priceVal / (1 + displayMarkupPercent / 100);
-        } else {
-          base = priceVal / 100;
-        }
+        base = priceVal < 100 && !Number.isInteger(priceVal) ? priceVal : priceVal / 100;
       }
     } else if (activeTemplate?.baseCost && activeTemplate.baseCost > 0) {
       base = activeTemplate.baseCost;
     } else {
-      const fallbackPrice = activeProduct?.price ?? 0;
-      base = fallbackPrice / (1 + displayMarkupPercent / 100);
+      base = activeProduct?.price ?? 0;
     }
 
     return base > 0 ? base : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
   }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
 
   const activeDisplayBasePrice = useMemo(() => {
-    return calculateTemplateRetailPrice(activeBaseCostDollars);
-  }, [activeBaseCostDollars, settings.printifySettings?.charges]);
+    const variantId = String(activePrintifyVariant?.id || activePrintifyVariant?.variant_id || activePrintifyVariant?.printify_variant_id || '');
+    const manualVariantPrice = variantId ? activeTemplate?.variantSellingPrices?.[variantId] : undefined;
+    return calculateTemplateRetailPrice(Number(manualVariantPrice ?? activeTemplate?.sellingPrice ?? activeTemplate?.retailPrice ?? activeProduct?.price ?? activeBaseCostDollars));
+  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
 
   const activeOrderBasePrice = useMemo(() => {
-    return calculateTemplateOrderPrice(activeBaseCostDollars);
-  }, [activeBaseCostDollars, settings.printifySettings?.charges]);
+    return calculateTemplateOrderPrice(activeDisplayBasePrice);
+  }, [activeDisplayBasePrice, settings.printifySettings?.charges]);
 
   const activeDisplayCustomerPrice = activeProduct ? calculateCustomizedPrice(activeDisplayBasePrice) : 0;
   const activeOrderCustomerPrice = activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0;

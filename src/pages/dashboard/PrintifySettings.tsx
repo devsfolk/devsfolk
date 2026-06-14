@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2 } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintShipping, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { PrintifyCatalogTemplate } from '@/types';
 
 // Pure helper: builds a Map from option value ID → { title, name, hex? } using Printify variant endpoint data.
 // Requirements 2.4, 2.5
@@ -67,14 +69,14 @@ const resolveVariantOptions = (
 };
 
 export const PrintifySettings: React.FC = () => {
-  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
+  const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, updatePrintifyCatalogTemplate, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
   
   const printifySettings = settings.printifySettings || {
     enabled: false,
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: '' } },
-    charges: { profitMarginPercent: 40, designFee: 0, editFee: 0, templateBasePrice: 14.99, sizeFees: {}, placementFees: {} },
+    charges: { designFee: 0, editFee: 0, templateBasePrice: 14.99, sizeFees: {}, placementFees: {} },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true }
   };
 
@@ -94,6 +96,9 @@ export const PrintifySettings: React.FC = () => {
   const [templateSyncLimit, setTemplateSyncLimit] = useState('100');
   const [customSyncQuantity, setCustomSyncQuantity] = useState('');
   const [submittingOrderId, setSubmittingOrderId] = useState('');
+  const [editingTemplateId, setEditingTemplateId] = useState('');
+  const [templateDraft, setTemplateDraft] = useState<PrintifyCatalogTemplate | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
@@ -108,6 +113,97 @@ export const PrintifySettings: React.FC = () => {
     }
     if (Array.isArray(payload?.data)) return payload.data;
     return [];
+  };
+
+  const normalizeTemplateImage = (image: any) => {
+    if (!image) return '';
+    if (typeof image === 'string') return image;
+    return image.src || image.url || image.preview_url || '';
+  };
+
+  const toDollars = (value: unknown) => {
+    const amount = Number(value ?? 0);
+    if (!amount) return 0;
+    return amount < 100 && !Number.isInteger(amount) ? amount : amount / 100;
+  };
+
+  const getVariantId = (variant: any) => String(variant?.id || variant?.variant_id || variant?.printify_variant_id || '');
+
+  const getVariantLabel = (variant: any) => {
+    if (variant?.title || variant?.name) return String(variant.title || variant.name);
+    const optionTitles = Array.isArray(variant?.options)
+      ? variant.options.map((option: any) => option?.title || option?.name || option).filter(Boolean).join(' / ')
+      : '';
+    return optionTitles || `Variant ${getVariantId(variant)}`;
+  };
+
+  const getVariantCostDollars = (variant: any) => toDollars(variant?.cost ?? variant?.price ?? 0);
+
+  const extractOptionTitles = (variants: any[], optionType: 'color' | 'size') => {
+    const values = new Set<string>();
+    variants.forEach((variant) => {
+      (Array.isArray(variant?.options) ? variant.options : []).forEach((option: any) => {
+        const name = String(option?.name || '').toLowerCase();
+        const title = String(option?.title || '').trim();
+        if (title && (name.includes(optionType) || (optionType === 'color' && name.includes('colour')))) {
+          values.add(title);
+        }
+      });
+    });
+    return Array.from(values);
+  };
+
+  const openTemplateEditor = (template: PrintifyCatalogTemplate) => {
+    const variants = Array.isArray(template.variants) ? template.variants : [];
+    const fallbackBase = template.baseCost || Math.min(...variants.map(getVariantCostDollars).filter(Boolean));
+    setTemplateDraft({
+      ...template,
+      syncStatus: template.syncStatus || (template.isEnabled ? 'published' : 'raw'),
+      sellingPrice: template.sellingPrice ?? template.retailPrice ?? (Number.isFinite(fallbackBase) ? fallbackBase : 0),
+      variantSellingPrices: template.variantSellingPrices || {},
+      colors: template.colors?.length ? template.colors : extractOptionTitles(variants, 'color'),
+      sizes: template.sizes?.length ? template.sizes : extractOptionTitles(variants, 'size'),
+    });
+    setEditingTemplateId(template.id);
+  };
+
+  const updateTemplateDraft = (updates: Partial<PrintifyCatalogTemplate>) => {
+    setTemplateDraft((current) => current ? { ...current, ...updates } : current);
+  };
+
+  const updateDraftVariantPrice = (variantId: string, value: string) => {
+    setTemplateDraft((current) => {
+      if (!current) return current;
+      const nextPrices = { ...(current.variantSellingPrices || {}) };
+      const numericValue = Number(value);
+      if (value === '' || Number.isNaN(numericValue)) {
+        delete nextPrices[variantId];
+      } else {
+        nextPrices[variantId] = Math.max(0, numericValue);
+      }
+      return { ...current, variantSellingPrices: nextPrices };
+    });
+  };
+
+  const saveTemplateDraft = async (publish = false) => {
+    if (!templateDraft) return;
+    setSavingTemplate(true);
+    try {
+      const status = publish ? 'published' : templateDraft.syncStatus || 'raw';
+      await updatePrintifyCatalogTemplate(templateDraft.id, {
+        ...templateDraft,
+        syncStatus: status,
+        isEnabled: status === 'published',
+        retailPrice: templateDraft.sellingPrice,
+      });
+      setSyncLogs(prev => [...prev, `[SUCCESS] ${publish ? 'Published' : 'Saved'} template: ${templateDraft.title}`]);
+      setEditingTemplateId('');
+      setTemplateDraft(null);
+    } catch (err: any) {
+      alert(`Template save failed:\n\n${err.message || err}`);
+    } finally {
+      setSavingTemplate(false);
+    }
   };
 
   useEffect(() => {
@@ -482,6 +578,8 @@ export const PrintifySettings: React.FC = () => {
       const providersByBlueprintId: Record<number, any[]> = {};
       const variantsByBlueprintId: Record<number, any[]> = {};
       const printAreasByBlueprintId: Record<number, any[]> = {};
+      const shippingByBlueprintId: Record<number, any[]> = {};
+      const providerIdByBlueprintId: Record<number, number> = {};
 
       for (const template of templates.slice(0, providerLimit)) {
         try {
@@ -491,6 +589,7 @@ export const PrintifySettings: React.FC = () => {
           const primaryProvider = providersByBlueprintId[template.blueprintId][0];
           const primaryProviderId = Number(primaryProvider?.id || primaryProvider?.print_provider_id);
           if (primaryProviderId) {
+            providerIdByBlueprintId[template.blueprintId] = primaryProviderId;
             const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
             const rawVariants = normalizePrintifyList(variantData, ['variants']);
 
@@ -522,6 +621,8 @@ export const PrintifySettings: React.FC = () => {
               // Issue 2 fix: extract print areas from blueprint detail if available
               const detailPrintAreas = Array.isArray(blueprintDetail?.print_areas)
                 ? blueprintDetail.print_areas
+                : Array.isArray(variantData?.print_areas)
+                ? variantData.print_areas
                 : [];
               if (detailPrintAreas.length > 0) {
                 printAreasByBlueprintId[template.blueprintId] = detailPrintAreas;
@@ -537,6 +638,14 @@ export const PrintifySettings: React.FC = () => {
               const imageUrl = variantImageMap.get(variantId);
               return { ...resolved, ...(imageUrl ? { image_url: imageUrl } : {}), _enriched: optionValueMap.size > 0 };
             });
+
+            try {
+              const shippingData = await fetchPrintifyBlueprintShipping(apiKey, template.blueprintId, primaryProviderId);
+              shippingByBlueprintId[template.blueprintId] = normalizePrintifyList(shippingData, ['profiles', 'shipping']);
+            } catch (shippingError: any) {
+              shippingByBlueprintId[template.blueprintId] = [];
+              setSyncLogs(prev => [...prev, `[INFO] Shipping lookup skipped for ${template.title}: ${shippingError.message || shippingError}`]);
+            }
 
             setSyncLogs(prev => [
               ...prev,
@@ -555,17 +664,26 @@ export const PrintifySettings: React.FC = () => {
       const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId).map((template) => {
         const variants = variantsByBlueprintId[template.blueprintId] || template.variants;
         const printAreas = printAreasByBlueprintId[template.blueprintId] || template.printAreas || [];
+        const baseCost = (() => {
+          const enabledVariantCosts = variants
+            .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
+            .map(getVariantCostDollars)
+            .filter((c: number) => c > 0);
+          return enabledVariantCosts.length > 0 ? Number(Math.min(...enabledVariantCosts).toFixed(2)) : template.baseCost ?? undefined;
+        })();
         // Derive baseCost from the cheapest enabled variant's cost (Printify returns costs in cents)
-        const enabledVariantCosts = variants
-          .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
-          .map((v: any) => Number(v?.cost ?? v?.price ?? 0))
-          .filter((c: number) => c > 0);
-        const cheapestCostCents = enabledVariantCosts.length > 0 ? Math.min(...enabledVariantCosts) : 0;
         return {
           ...template,
           variants,
           printAreas,
-          baseCost: cheapestCostCents > 0 ? Number((cheapestCostCents / 100).toFixed(2)) : template.baseCost ?? undefined,
+          shipping: shippingByBlueprintId[template.blueprintId] || template.shipping || [],
+          baseCost,
+          sellingPrice: template.sellingPrice ?? template.retailPrice ?? baseCost,
+          colors: template.colors?.length ? template.colors : extractOptionTitles(variants, 'color'),
+          sizes: template.sizes?.length ? template.sizes : extractOptionTitles(variants, 'size'),
+          printProviderId: providerIdByBlueprintId[template.blueprintId],
+          syncStatus: 'raw' as const,
+          isEnabled: false,
         };
       });
       const variantReadyCount = templatesWithProviders.filter((template) => template.variants.length > 0).length;
@@ -938,47 +1056,12 @@ export const PrintifySettings: React.FC = () => {
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
                   <ShoppingCart className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Template Estimate Pricing</CardTitle>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Manual Template Pricing</CardTitle>
                 </div>
-                <CardDescription className="text-xs">Control estimated customer-facing prices for raw editor templates.</CardDescription>
+                <CardDescription className="text-xs">Set fallback fees only. Template selling prices are configured per raw synced template before publishing.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 p-5 md:p-6 pt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Display Markup % (Editor Prices)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={printifySettings.charges.displayMarkupPercent ?? printifySettings.charges.profitMarginPercent ?? 40}
-                      onChange={(event) => handleUpdate({
-                        charges: {
-                          ...printifySettings.charges,
-                          displayMarkupPercent: Math.max(0, Number(event.target.value) || 0),
-                          profitMarginPercent: Math.max(0, Number(event.target.value) || 0) // Keep legacy field synced
-                        }
-                      })}
-                      className="rounded-xl h-11 text-xs border-gray-200"
-                    />
-                    <p className="text-[9px] text-gray-400 pl-1">Applied to Printify base prices when showing templates in the editor. Example: If base price is $10 and markup is 40%, customer sees $14.</p>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Order Markup % (Final Checkout)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={printifySettings.charges.orderMarkupPercent ?? printifySettings.charges.profitMarginPercent ?? 40}
-                      onChange={(event) => handleUpdate({
-                        charges: {
-                          ...printifySettings.charges,
-                          orderMarkupPercent: Math.max(0, Number(event.target.value) || 0)
-                        }
-                      })}
-                      className="rounded-xl h-11 text-xs border-gray-200"
-                    />
-                    <p className="text-[9px] text-gray-400 pl-1">Applied to actual Printify fulfillment cost after order is placed. Example: If Printify charges $12 for production and markup is 50%, final price is $18.</p>
-                  </div>
-
                   <div className="grid gap-2">
                     <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Estimated Design Fee</Label>
                     <Input
@@ -1266,7 +1349,7 @@ export const PrintifySettings: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync Blank Templates</h4>
                     <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Fetches selected Printify blueprints such as T-shirts, hoodies, mugs, posters, and other POD blanks. Only synced templates become available in the storefront editor.
+                      Fetches selected Printify blueprints such as T-shirts, hoodies, mugs, posters, and other POD blanks. Templates stay raw until an admin reviews and publishes them.
                     </p>
                   </div>
                   <Button
@@ -1302,7 +1385,7 @@ export const PrintifySettings: React.FC = () => {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Maximum Templates to Publish</Label>
+                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Maximum Templates to Sync</Label>
                     <Select value={templateSyncLimit} onValueChange={setTemplateSyncLimit}>
                       <SelectTrigger className="rounded-xl h-11 text-xs">
                         <SelectValue />
@@ -1347,7 +1430,7 @@ export const PrintifySettings: React.FC = () => {
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl border">
                     <p className="text-[9px] font-black uppercase text-gray-400">Enabled Templates</p>
-                    <p className="text-xs font-bold mt-1">{printifyCatalog.filter((template) => template.isEnabled).length}</p>
+                    <p className="text-xs font-bold mt-1">{printifyCatalog.filter((template) => (template.syncStatus || (template.isEnabled ? 'published' : 'raw')) === 'published').length}</p>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl border">
                     <p className="text-[9px] font-black uppercase text-gray-400">Editor-Ready</p>
@@ -1359,19 +1442,19 @@ export const PrintifySettings: React.FC = () => {
                   <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
                   <div className="text-[11px] text-blue-700 leading-relaxed">
                     <p className="font-bold mb-1">Template Readiness</p>
-                    <p>Cached templates are lightweight blueprints. Editor-ready templates also include provider metadata, which is needed before customers can choose fulfillment options, variants, and print areas.</p>
+                    <p>Synced templates are raw drafts. They become editor-ready only after the admin reviews Printify costs, fills missing pricing/images/print-area settings, and publishes them.</p>
                   </div>
                 </div>
 
               </CardContent>
             </Card>
 
-            {/* Synced Editor Templates */}
+            {/* Raw Synced Templates */}
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="p-5 md:p-6 pb-0 flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Synced Editor Templates</CardTitle>
-                  <CardDescription className="text-xs">Manage individual cached templates available in the customizer editor.</CardDescription>
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Raw Synced Templates</CardTitle>
+                  <CardDescription className="text-xs">Review raw Printify data, set manual selling prices, then publish templates to the customizer editor.</CardDescription>
                 </div>
                 <span className="px-3 py-1 bg-neutral-100 text-neutral-800 text-[10px] font-black uppercase rounded-full shrink-0">
                   {printifyCatalog.length} Total
@@ -1406,24 +1489,37 @@ export const PrintifySettings: React.FC = () => {
                                   : 'Resync Required (Incomplete data)'}
                               </p>
                             )}
+                            <p className={`text-[9px] font-black uppercase tracking-wide mt-1 ${template.syncStatus === 'published' || template.isEnabled ? 'text-green-600' : 'text-blue-600'}`}>
+                              {template.syncStatus === 'published' || template.isEnabled ? 'Published' : 'Raw Draft'}
+                            </p>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={async () => {
-                            if (confirm(`Are you sure you want to delete the template "${template.title}"?`)) {
-                              try {
-                                await deletePrintifyCatalogTemplate(template.id);
-                              } catch (err: any) {
-                                alert(`Failed to delete template: ${err.message || err}`);
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openTemplateEditor(template)}
+                            className="h-8 w-8 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to delete the template "${template.title}"?`)) {
+                                try {
+                                  await deletePrintifyCatalogTemplate(template.id);
+                                } catch (err: any) {
+                                  alert(`Failed to delete template: ${err.message || err}`);
+                                }
                               }
-                            }
-                          }}
-                          className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl shrink-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                            }}
+                            className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1568,6 +1664,156 @@ export const PrintifySettings: React.FC = () => {
 
         </Tabs>
       )}
+
+      <Dialog open={Boolean(editingTemplateId)} onOpenChange={(open) => {
+        if (!open && !savingTemplate) {
+          setEditingTemplateId('');
+          setTemplateDraft(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          {templateDraft && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-lg font-black uppercase tracking-tight">Edit Printify Template</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Review synced Printify data, complete missing storefront details, then publish when ready.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+                <div className="space-y-3">
+                  <div className="aspect-square rounded-xl border bg-gray-50 overflow-hidden flex items-center justify-center">
+                    {templateDraft.images?.[0] ? (
+                      <img src={normalizeTemplateImage(templateDraft.images[0])} alt={templateDraft.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <FileText className="h-8 w-8 text-gray-300" />
+                    )}
+                  </div>
+                  <div className="rounded-xl border bg-gray-50 p-3 text-[10px] space-y-1">
+                    <p><strong>Blueprint:</strong> {templateDraft.blueprintId}</p>
+                    <p><strong>Provider:</strong> {templateDraft.printProviderId || 'Not selected'}</p>
+                    <p><strong>Base cost:</strong> {settings.currencySymbol}{Number(templateDraft.baseCost || 0).toFixed(2)}</p>
+                    <p><strong>Variants:</strong> {templateDraft.variants?.length || 0}</p>
+                    <p><strong>Print areas:</strong> {templateDraft.printAreas?.length || 0}</p>
+                    <p><strong>Shipping profiles:</strong> {templateDraft.shipping?.length || 0}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase text-gray-400">Storefront Title</Label>
+                      <Input value={templateDraft.title} onChange={(event) => updateTemplateDraft({ title: event.target.value })} className="h-10 text-xs" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase text-gray-400">Default Selling Price</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={templateDraft.sellingPrice ?? ''}
+                        onChange={(event) => updateTemplateDraft({ sellingPrice: Math.max(0, Number(event.target.value) || 0) })}
+                        className="h-10 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">Description</Label>
+                    <Textarea value={templateDraft.description} onChange={(event) => updateTemplateDraft({ description: event.target.value })} className="min-h-24 text-xs" />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase text-gray-400">Colors</Label>
+                      <Input
+                        value={(templateDraft.colors || []).join(', ')}
+                        onChange={(event) => updateTemplateDraft({ colors: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
+                        placeholder="Black, White, Navy"
+                        className="h-10 text-xs"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-[10px] font-black uppercase text-gray-400">Sizes</Label>
+                      <Input
+                        value={(templateDraft.sizes || []).join(', ')}
+                        onChange={(event) => updateTemplateDraft({ sizes: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
+                        placeholder="S, M, L, XL"
+                        className="h-10 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">Images</Label>
+                    <Textarea
+                      value={(templateDraft.images || []).map(normalizeTemplateImage).filter(Boolean).join('\n')}
+                      onChange={(event) => updateTemplateDraft({ images: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })}
+                      placeholder="One image URL per line"
+                      className="min-h-20 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">Manual Print Areas JSON</Label>
+                    <Textarea
+                      value={JSON.stringify(templateDraft.printAreas || [], null, 2)}
+                      onChange={(event) => {
+                        try {
+                          updateTemplateDraft({ printAreas: JSON.parse(event.target.value || '[]') });
+                        } catch {
+                          updateTemplateDraft({ printAreas: templateDraft.printAreas });
+                        }
+                      }}
+                      className="min-h-24 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="rounded-xl border overflow-hidden">
+                    <div className="grid grid-cols-[1fr_90px_110px] gap-2 bg-gray-50 px-3 py-2 text-[9px] font-black uppercase text-gray-400">
+                      <span>Variant</span>
+                      <span>Base Cost</span>
+                      <span>Selling Price</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y">
+                      {(templateDraft.variants || []).slice(0, 80).map((variant: any) => {
+                        const variantId = getVariantId(variant);
+                        return (
+                          <div key={variantId} className="grid grid-cols-[1fr_90px_110px] gap-2 px-3 py-2 items-center text-[10px]">
+                            <span className="truncate" title={getVariantLabel(variant)}>{getVariantLabel(variant)}</span>
+                            <span className="font-mono">{settings.currencySymbol}{getVariantCostDollars(variant).toFixed(2)}</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={templateDraft.variantSellingPrices?.[variantId] ?? ''}
+                              onChange={(event) => updateDraftVariantPrice(variantId, event.target.value)}
+                              placeholder={String(templateDraft.sellingPrice ?? '')}
+                              className="h-8 text-[10px]"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" disabled={savingTemplate} onClick={() => saveTemplateDraft(false)} className="rounded-xl text-[10px] font-black uppercase">
+                  {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Save className="h-3 w-3 mr-2" />}
+                  Save Draft
+                </Button>
+                <Button disabled={savingTemplate} onClick={() => saveTemplateDraft(true)} className="rounded-xl text-[10px] font-black uppercase bg-black text-white">
+                  {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <CheckCircle2 className="h-3 w-3 mr-2" />}
+                  Publish
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -187,6 +187,12 @@ create table if not exists public.printify_catalog (
   base_cost numeric(12, 2),
   retail_price numeric(12, 2),
   profit_margin numeric(12, 2),
+  selling_price numeric(12, 2),
+  variant_selling_prices jsonb not null default '{}'::jsonb,
+  colors jsonb not null default '[]'::jsonb,
+  sizes jsonb not null default '[]'::jsonb,
+  sync_status text not null default 'raw',
+  print_provider_id integer,
   is_enabled boolean not null default true,
   last_synced timestamptz not null default now()
 );
@@ -200,6 +206,12 @@ alter table public.printify_catalog add column if not exists shipping jsonb not 
 alter table public.printify_catalog add column if not exists base_cost numeric(12, 2);
 alter table public.printify_catalog add column if not exists retail_price numeric(12, 2);
 alter table public.printify_catalog add column if not exists profit_margin numeric(12, 2);
+alter table public.printify_catalog add column if not exists selling_price numeric(12, 2);
+alter table public.printify_catalog add column if not exists variant_selling_prices jsonb not null default '{}'::jsonb;
+alter table public.printify_catalog add column if not exists colors jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists sizes jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists sync_status text not null default 'raw';
+alter table public.printify_catalog add column if not exists print_provider_id integer;
 alter table public.printify_catalog add column if not exists is_enabled boolean not null default true;
 
 create table if not exists public.printify_designs (

@@ -5,7 +5,9 @@ export const usePrintifyCatalog = () => {
   const { printifyCatalog, settings } = useShop();
 
   return useMemo(() => {
-    const enabledTemplates = printifyCatalog.filter((template) => template.isEnabled);
+    const enabledTemplates = printifyCatalog.filter((template) => (
+      template.isEnabled && (template.syncStatus || 'published') === 'published'
+    ));
     const providerReadyTemplates = enabledTemplates.filter((template) => template.providers.length > 0);
 
     return {

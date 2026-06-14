@@ -110,9 +110,6 @@ export interface PrintifyPreviewSettings {
 }
 
 export interface PrintifyCharges {
-  displayMarkupPercent?: number; // Markup for prices shown in editor/storefront
-  orderMarkupPercent?: number; // Markup applied to final Printify order cost
-  profitMarginPercent?: number; // Legacy field (maps to displayMarkupPercent)
   templateBasePrice?: number;
   designFee: number;
   editFee: number;
@@ -140,6 +137,7 @@ export interface PrintifySettings {
 export interface PrintifyCatalogTemplate {
   id: string;
   blueprintId: number;
+  printProviderId?: number;
   title: string;
   brand?: string;
   model?: string;
@@ -151,7 +149,11 @@ export interface PrintifyCatalogTemplate {
   shipping: any[];
   baseCost?: number;
   retailPrice?: number;
-  profitMargin?: number;
+  sellingPrice?: number;
+  variantSellingPrices?: Record<string, number>;
+  colors?: string[];
+  sizes?: string[];
+  syncStatus?: 'raw' | 'published';
   isEnabled: boolean;
   lastSynced: string;
 }
