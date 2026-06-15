@@ -30,8 +30,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   };
 
   const calculateTemplateRetailPrice = (basePrice: number) => {
-    const charges = settings.printifySettings?.charges;
-    return Number((basePrice > 0 ? basePrice : Math.max(0, Number(charges?.templateBasePrice ?? 14.99))).toFixed(2));
+    // Don't override $0.00 with hardcoded fallback - it should be visible if there's an issue
+    return Number(basePrice.toFixed(2));
   };
 
   const calculateTemplateOrderPrice = (basePrice: number) => {
@@ -477,7 +477,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       base = activeProduct?.price ?? 0;
     }
 
-    return base > 0 ? base : Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
+    // Only use fallback if we truly have no price data at all
+    // Don't override $0.00 - that might be intentional or indicate a sync issue that should be visible
+    if (base === 0 && !activePrintifyVariant && !activeTemplate?.baseCost && !activeProduct?.price) {
+      return Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
+    }
+    
+    return base;
   }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
 
   const activeDisplayBasePrice = useMemo(() => {

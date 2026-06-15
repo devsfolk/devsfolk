@@ -803,12 +803,30 @@ export const PrintifySettings: React.FC = () => {
           ? p.images.map((img: any) => img.src)
           : ['/custom-tee-mockup.png'];
 
+        // Calculate minimum variant price (Printify returns prices in cents for variants)
+        const variantPrices = Array.isArray(p.variants) 
+          ? p.variants
+              .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
+              .map((v: any) => {
+                const price = Number(v?.price ?? v?.retail_price ?? 0);
+                if (price === 0) return 0;
+                // Convert cents to dollars if needed
+                return price < 100 && !Number.isInteger(price) ? price : price / 100;
+              })
+              .filter((p: number) => p > 0)
+          : [];
+        
+        // Use minimum variant price, or fall back to settings default
+        const productPrice = variantPrices.length > 0 
+          ? Number(Math.min(...variantPrices).toFixed(2))
+          : Number(printifySettings.charges?.templateBasePrice ?? 24.99);
+
         productPayloads.push({
           categoryId: 'cat_printify',
           name: p.title,
           slug: `printify-${p.id}`,
           description: p.description || 'Print-on-demand product.',
-          price: 24.99,
+          price: productPrice,  // ✅ Now uses actual Printify price from variants
           images,
           stock: 100,
           isFeatured: true,
