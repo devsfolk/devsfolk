@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +19,10 @@ import {
   isVariantEnriched,
   templateVariantsNeedResync,
 } from '@/lib/printifyVariantEnrichment';
+import { TemplateImageGallery } from '@/components/printify/TemplateImageGallery';
+import { TemplateVariantsTable } from '@/components/printify/TemplateVariantsTable';
+import { TemplatePrintAreas } from '@/components/printify/TemplatePrintAreas';
+import { TemplatePricingPanel } from '@/components/printify/TemplatePricingPanel';
 
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, updatePrintifyCatalogTemplate, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
@@ -50,6 +55,7 @@ export const PrintifySettings: React.FC = () => {
   const [editingTemplateId, setEditingTemplateId] = useState('');
   const [templateDraft, setTemplateDraft] = useState<PrintifyCatalogTemplate | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [activeEditorTab, setActiveEditorTab] = useState('overview');
 
   const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
@@ -1989,174 +1995,304 @@ export const PrintifySettings: React.FC = () => {
         if (!open && !savingTemplate) {
           setEditingTemplateId('');
           setTemplateDraft(null);
+          setActiveEditorTab('overview');
         }
       }}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           {templateDraft && (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-lg font-black uppercase tracking-tight">Edit Printify Template</DialogTitle>
-                <DialogDescription className="text-xs">
-                  Review synced Printify data, complete missing storefront details, then publish when ready.
-                </DialogDescription>
+              <DialogHeader className="pb-4 border-b">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <DialogTitle className="text-xl font-black uppercase tracking-tight">{templateDraft.title}</DialogTitle>
+                    <DialogDescription className="text-xs mt-1">
+                      {templateDraft.brand && `${templateDraft.brand} • `}
+                      {templateDraft.model && `${templateDraft.model} • `}
+                      Blueprint ID: {templateDraft.blueprintId}
+                    </DialogDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={templateDraft.syncStatus === 'published' || templateDraft.isEnabled ? 'default' : 'secondary'} className="text-[10px] font-black uppercase">
+                      {templateDraft.syncStatus === 'published' || templateDraft.isEnabled ? '✓ Published' : 'Draft'}
+                    </Badge>
+                  </div>
+                </div>
               </DialogHeader>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
-                <div className="space-y-3">
-                  <div className="aspect-square rounded-xl border bg-gray-50 overflow-hidden flex items-center justify-center">
-                    {templateDraft.images?.[0] ? (
-                      <img src={normalizeTemplateImage(templateDraft.images[0])} alt={templateDraft.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <FileText className="h-8 w-8 text-gray-300" />
-                    )}
-                  </div>
-                  <div className="rounded-xl border bg-gray-50 p-3 text-[10px] space-y-1">
-                    <p><strong>Source:</strong> {templateDraft.productId ? 'Shop Product + Catalog' : 'Catalog Blueprint'}</p>
-                    {templateDraft.productId && <p><strong>Product:</strong> {templateDraft.productId}</p>}
-                    <p><strong>Blueprint:</strong> {templateDraft.blueprintId}</p>
-                    <p><strong>Provider:</strong> {templateDraft.printProviderId || 'Not selected'}</p>
-                    <p><strong>Status:</strong> {templateDraft.productStatus || 'raw'}</p>
-                    <p><strong>Base cost:</strong> {settings.currencySymbol}{Number(templateDraft.baseCost || 0).toFixed(2)}</p>
-                    <p><strong>Retail price:</strong> {settings.currencySymbol}{Number(templateDraft.retailPrice || 0).toFixed(2)}</p>
-                    <p><strong>Variants:</strong> {templateDraft.variants?.length || 0}</p>
-                    <p><strong>Print areas:</strong> {templateDraft.printAreas?.length || 0}</p>
-                    <p><strong>Shipping profiles:</strong> {templateDraft.shipping?.length || 0}</p>
-                  </div>
-                  <div className="rounded-xl border bg-white p-3 text-[10px] space-y-2">
-                    <p className="font-black uppercase text-gray-400">Provider</p>
-                    <p className="font-bold">{templateDraft.syncDetails?.provider?.title || templateDraft.syncDetails?.provider?.name || 'Not available'}</p>
-                    <p className="text-gray-500">
-                      {templateDraft.syncDetails?.providerLocation
-                        ? [templateDraft.syncDetails.providerLocation.city, templateDraft.syncDetails.providerLocation.region, templateDraft.syncDetails.providerLocation.country].filter(Boolean).join(', ')
-                        : 'Location not returned'}
-                    </p>
-                  </div>
-                </div>
+              <Tabs value={activeEditorTab} onValueChange={setActiveEditorTab} className="flex-1 flex flex-col min-h-0">
+                <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
+                  <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-transparent px-4 py-2.5 text-xs font-black uppercase">
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="images" className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-transparent px-4 py-2.5 text-xs font-black uppercase">
+                    Images ({(templateDraft.images || []).length})
+                  </TabsTrigger>
+                  <TabsTrigger value="pricing" className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-transparent px-4 py-2.5 text-xs font-black uppercase">
+                    Pricing
+                  </TabsTrigger>
+                  <TabsTrigger value="variants" className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-transparent px-4 py-2.5 text-xs font-black uppercase">
+                    Variants ({(templateDraft.variants || []).length})
+                  </TabsTrigger>
+                  <TabsTrigger value="print-areas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-transparent px-4 py-2.5 text-xs font-black uppercase">
+                    Print Areas ({(templateDraft.printAreas || []).length})
+                  </TabsTrigger>
+                  <TabsTrigger value="sync-data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-transparent px-4 py-2.5 text-xs font-black uppercase">
+                    Sync Data
+                  </TabsTrigger>
+                </TabsList>
 
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="grid gap-2">
-                      <Label className="text-[10px] font-black uppercase text-gray-400">Storefront Title</Label>
-                      <Input value={templateDraft.title} onChange={(event) => updateTemplateDraft({ title: event.target.value })} className="h-10 text-xs" />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label className="text-[10px] font-black uppercase text-gray-400">Default Selling Price</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={templateDraft.sellingPrice ?? ''}
-                        onChange={(event) => updateTemplateDraft({ sellingPrice: Math.max(0, Number(event.target.value) || 0) })}
-                        className="h-10 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="rounded-xl border bg-gray-50 p-3">
-                      <p className="text-[9px] font-black uppercase text-gray-400">Colors</p>
-                      <p className="mt-1 text-xs font-bold">{(templateDraft.colors || []).slice(0, 8).join(', ') || 'None returned'}</p>
-                    </div>
-                    <div className="rounded-xl border bg-gray-50 p-3">
-                      <p className="text-[9px] font-black uppercase text-gray-400">Sizes</p>
-                      <p className="mt-1 text-xs font-bold">{(templateDraft.sizes || []).slice(0, 10).join(', ') || 'None returned'}</p>
-                    </div>
-                    <div className="rounded-xl border bg-gray-50 p-3">
-                      <p className="text-[9px] font-black uppercase text-gray-400">Tags</p>
-                      <p className="mt-1 text-xs font-bold">{(templateDraft.tags || []).slice(0, 6).join(', ') || 'None returned'}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400">Description</Label>
-                    <Textarea value={templateDraft.description} onChange={(event) => updateTemplateDraft({ description: event.target.value })} className="min-h-24 text-xs" />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="grid gap-2">
-                      <Label className="text-[10px] font-black uppercase text-gray-400">Colors</Label>
-                      <Input
-                        value={(templateDraft.colors || []).join(', ')}
-                        onChange={(event) => updateTemplateDraft({ colors: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
-                        placeholder="Black, White, Navy"
-                        className="h-10 text-xs"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label className="text-[10px] font-black uppercase text-gray-400">Sizes</Label>
-                      <Input
-                        value={(templateDraft.sizes || []).join(', ')}
-                        onChange={(event) => updateTemplateDraft({ sizes: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
-                        placeholder="S, M, L, XL"
-                        className="h-10 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400">Images</Label>
-                    <Textarea
-                      value={(templateDraft.images || []).map(normalizeTemplateImage).filter(Boolean).join('\n')}
-                      onChange={(event) => updateTemplateDraft({ images: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) })}
-                      placeholder="One image URL per line"
-                      className="min-h-20 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400">Manual Print Areas JSON</Label>
-                    <Textarea
-                      value={JSON.stringify(templateDraft.printAreas || [], null, 2)}
-                      onChange={(event) => {
-                        try {
-                          updateTemplateDraft({ printAreas: JSON.parse(event.target.value || '[]') });
-                        } catch {
-                          updateTemplateDraft({ printAreas: templateDraft.printAreas });
-                        }
-                      }}
-                      className="min-h-24 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div className="rounded-xl border overflow-hidden">
-                    <div className="grid grid-cols-[1fr_90px_110px] gap-2 bg-gray-50 px-3 py-2 text-[9px] font-black uppercase text-gray-400">
-                      <span>Variant</span>
-                      <span>Base Cost</span>
-                      <span>Selling Price</span>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto divide-y">
-                      {(templateDraft.variants || []).slice(0, 80).map((variant: any) => {
-                        const variantId = getVariantId(variant);
-                        return (
-                          <div key={variantId} className="grid grid-cols-[1fr_90px_110px] gap-2 px-3 py-2 items-center text-[10px]">
-                            <span className="truncate" title={getVariantLabel(variant)}>{getVariantLabel(variant)}</span>
-                            <span className="font-mono">{settings.currencySymbol}{getVariantCostDollars(variant).toFixed(2)}</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={templateDraft.variantSellingPrices?.[variantId] ?? ''}
-                              onChange={(event) => updateDraftVariantPrice(variantId, event.target.value)}
-                              placeholder={String(templateDraft.sellingPrice ?? '')}
-                              className="h-8 text-[10px]"
+                <div className="flex-1 overflow-y-auto p-6 min-h-0">
+                  {/* Overview Tab */}
+                  <TabsContent value="overview" className="mt-0 space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Product Info */}
+                      <div className="lg:col-span-2 space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Product Title</Label>
+                            <Input 
+                              value={templateDraft.title} 
+                              onChange={(e) => updateTemplateDraft({ title: e.target.value })} 
+                              className="h-10 font-semibold"
                             />
                           </div>
-                        );
-                      })}
+                          <div>
+                            <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Category</Label>
+                            <Input 
+                              value={templateDraft.category || ''} 
+                              onChange={(e) => updateTemplateDraft({ category: e.target.value })}
+                              className="h-10"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Description</Label>
+                          <Textarea 
+                            value={templateDraft.description} 
+                            onChange={(e) => updateTemplateDraft({ description: e.target.value })} 
+                            className="min-h-32 text-sm leading-relaxed"
+                            placeholder="Enter a detailed product description..."
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Colors (comma separated)</Label>
+                            <Input
+                              value={(templateDraft.colors || []).join(', ')}
+                              onChange={(e) => updateTemplateDraft({ colors: e.target.value.split(',').map(c => c.trim()).filter(Boolean) })}
+                              placeholder="Black, White, Navy"
+                              className="h-10 text-xs"
+                            />
+                            <p className="text-[9px] text-gray-500 mt-1">{(templateDraft.colors || []).length} colors</p>
+                          </div>
+                          <div>
+                            <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Sizes (comma separated)</Label>
+                            <Input
+                              value={(templateDraft.sizes || []).join(', ')}
+                              onChange={(e) => updateTemplateDraft({ sizes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                              placeholder="S, M, L, XL"
+                              className="h-10 text-xs"
+                            />
+                            <p className="text-[9px] text-gray-500 mt-1">{(templateDraft.sizes || []).length} sizes</p>
+                          </div>
+                          <div>
+                            <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Tags (comma separated)</Label>
+                            <Input
+                              value={(templateDraft.tags || []).join(', ')}
+                              onChange={(e) => updateTemplateDraft({ tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
+                              placeholder="trendy, cotton, unisex"
+                              className="h-10 text-xs"
+                            />
+                            <p className="text-[9px] text-gray-500 mt-1">{(templateDraft.tags || []).length} tags</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Stats Sidebar */}
+                      <div className="space-y-3">
+                        <Card className="p-4 bg-gray-50 border-2">
+                          <h4 className="text-[10px] font-black uppercase text-gray-400 mb-3">Template Information</h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Source:</span>
+                              <span className="font-bold text-gray-800">{templateDraft.productId ? 'Shop Product' : 'Catalog'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Blueprint ID:</span>
+                              <span className="font-mono font-bold text-gray-800">{templateDraft.blueprintId}</span>
+                            </div>
+                            {templateDraft.productId && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Product ID:</span>
+                                <span className="font-mono font-bold text-gray-800">{templateDraft.productId}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Status:</span>
+                              <Badge variant="outline" className="text-[9px]">{templateDraft.productStatus || 'active'}</Badge>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Last Synced:</span>
+                              <span className="text-[10px] text-gray-500">{new Date(templateDraft.lastSynced).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </Card>
+
+                        <Card className="p-4 bg-blue-50 border-2 border-blue-200">
+                          <h4 className="text-[10px] font-black uppercase text-blue-600 mb-3">Provider Information</h4>
+                          <div className="space-y-2 text-xs">
+                            <div>
+                              <span className="text-blue-700 font-bold block mb-1">
+                                {templateDraft.syncDetails?.provider?.title || templateDraft.syncDetails?.provider?.name || 'Provider Name'}
+                              </span>
+                              {templateDraft.syncDetails?.providerLocation && (
+                                <span className="text-blue-600 text-[10px]">
+                                  {[
+                                    templateDraft.syncDetails.providerLocation.city,
+                                    templateDraft.syncDetails.providerLocation.region,
+                                    templateDraft.syncDetails.providerLocation.country
+                                  ].filter(Boolean).join(', ')}
+                                </span>
+                              )}
+                            </div>
+                            {templateDraft.syncDetails?.productionTime && (
+                              <div className="flex justify-between pt-2 border-t border-blue-200">
+                                <span className="text-blue-700">Production Time:</span>
+                                <span className="font-bold text-blue-900">{templateDraft.syncDetails.productionTime}</span>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+
+                        <Card className="p-4 border-2">
+                          <h4 className="text-[10px] font-black uppercase text-gray-400 mb-3">Quick Stats</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-gray-50 rounded-lg p-2 border text-center">
+                              <p className="text-lg font-black text-gray-800">{(templateDraft.images || []).length}</p>
+                              <p className="text-[9px] text-gray-500 uppercase font-bold">Images</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-2 border text-center">
+                              <p className="text-lg font-black text-gray-800">{(templateDraft.variants || []).length}</p>
+                              <p className="text-[9px] text-gray-500 uppercase font-bold">Variants</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-2 border text-center">
+                              <p className="text-lg font-black text-gray-800">{(templateDraft.printAreas || []).length}</p>
+                              <p className="text-[9px] text-gray-500 uppercase font-bold">Print Areas</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-2 border text-center">
+                              <p className="text-lg font-black text-gray-800">{(templateDraft.providers || []).length}</p>
+                              <p className="text-[9px] text-gray-500 uppercase font-bold">Providers</p>
+                            </div>
+                          </div>
+                        </Card>
+                      </div>
                     </div>
+                  </TabsContent>
+
+                  {/* Images Tab */}
+                  <TabsContent value="images" className="mt-0">
+                    <TemplateImageGallery
+                      images={templateDraft.images || []}
+                      variantImages={templateDraft.variantImages}
+                      colors={templateDraft.colors}
+                      title={templateDraft.title}
+                    />
+                  </TabsContent>
+
+                  {/* Pricing Tab */}
+                  <TabsContent value="pricing" className="mt-0">
+                    <TemplatePricingPanel
+                      baseCost={templateDraft.baseCost || 0}
+                      retailPrice={templateDraft.retailPrice || 0}
+                      sellingPrice={templateDraft.sellingPrice || 0}
+                      currencySymbol={settings.currencySymbol}
+                      onSellingPriceChange={(price) => updateTemplateDraft({ sellingPrice: price })}
+                    />
+                  </TabsContent>
+
+                  {/* Variants Tab */}
+                  <TabsContent value="variants" className="mt-0">
+                    <TemplateVariantsTable
+                      variants={templateDraft.variants || []}
+                      variantSellingPrices={templateDraft.variantSellingPrices || {}}
+                      defaultSellingPrice={templateDraft.sellingPrice || 0}
+                      currencySymbol={settings.currencySymbol}
+                      onPriceChange={updateDraftVariantPrice}
+                    />
+                  </TabsContent>
+
+                  {/* Print Areas Tab */}
+                  <TabsContent value="print-areas" className="mt-0">
+                    <TemplatePrintAreas
+                      printAreas={templateDraft.printAreas || []}
+                      syncDetails={templateDraft.syncDetails}
+                    />
+                  </TabsContent>
+
+                  {/* Sync Data Tab */}
+                  <TabsContent value="sync-data" className="mt-0">
+                    <div className="space-y-4">
+                      <Card className="p-4 bg-amber-50 border-amber-200">
+                        <h4 className="text-sm font-black uppercase text-amber-800 mb-2 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4" />
+                          Raw Printify Sync Data
+                        </h4>
+                        <p className="text-xs text-amber-700 mb-4">
+                          This section shows the raw data received from Printify. Editing here is for advanced users only.
+                        </p>
+                      </Card>
+
+                      <div className="grid gap-4">
+                        <div>
+                          <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Blueprint Data (JSON)</Label>
+                          <Textarea
+                            value={JSON.stringify(templateDraft.syncDetails?.blueprint || {}, null, 2)}
+                            readOnly
+                            className="min-h-48 text-[10px] font-mono bg-gray-50"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px] font-black uppercase text-gray-400 mb-2">Shop Product Data (JSON)</Label>
+                          <Textarea
+                            value={JSON.stringify(templateDraft.syncDetails?.shopProduct || {}, null, 2)}
+                            readOnly
+                            className="min-h-48 text-[10px] font-mono bg-gray-50"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </div>
+              </Tabs>
+
+              <DialogFooter className="border-t pt-4">
+                <div className="flex items-center justify-between w-full">
+                  <p className="text-[10px] text-gray-500">
+                    Last modified: {new Date().toLocaleString()}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      disabled={savingTemplate} 
+                      onClick={() => saveTemplateDraft(false)} 
+                      className="rounded-xl text-[10px] font-black uppercase h-10 px-4"
+                    >
+                      {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Save className="h-3 w-3 mr-2" />}
+                      Save Draft
+                    </Button>
+                    <Button 
+                      disabled={savingTemplate} 
+                      onClick={() => saveTemplateDraft(true)} 
+                      className="rounded-xl text-[10px] font-black uppercase bg-black text-white hover:bg-gray-800 h-10 px-4"
+                    >
+                      {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <CheckCircle2 className="h-3 w-3 mr-2" />}
+                      {templateDraft.syncStatus === 'published' || templateDraft.isEnabled ? 'Update & Publish' : 'Publish Template'}
+                    </Button>
                   </div>
                 </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" disabled={savingTemplate} onClick={() => saveTemplateDraft(false)} className="rounded-xl text-[10px] font-black uppercase">
-                  {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Save className="h-3 w-3 mr-2" />}
-                  Save Draft
-                </Button>
-                <Button disabled={savingTemplate} onClick={() => saveTemplateDraft(true)} className="rounded-xl text-[10px] font-black uppercase bg-black text-white">
-                  {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <CheckCircle2 className="h-3 w-3 mr-2" />}
-                  Publish
-                </Button>
               </DialogFooter>
             </>
           )}
