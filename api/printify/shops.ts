@@ -13,6 +13,15 @@ export default async function handler(request: any, response: any) {
 
     try {
       const result = await callPrintify(apiKey, '/shops.json');
+      if (result.status === 401 || result.status === 403) {
+        sendJson(response, result.status, {
+          error: 'Printify rejected this PAT while retrieving shops.',
+          details: 'Regenerate the token in Printify with shops.read enabled. For this integration, use a Full Access PAT or include every required Printify scope.',
+          requiredScopes: REQUIRED_SCOPES,
+        });
+        return;
+      }
+
       sendPrintifyResult(response, result.status, result.payload, 'Printify shop lookup failed.', REQUIRED_SCOPES);
     } catch (error: any) {
       sendJson(response, 502, {

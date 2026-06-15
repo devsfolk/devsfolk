@@ -1124,8 +1124,8 @@ export const PrintifySettings: React.FC = () => {
                 <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
                   <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
                   <div className="text-[11px] text-blue-700 leading-relaxed">
-                    <p className="font-bold mb-1">One Token, Full Access</p>
-                    <p>Printify uses a single Personal Access Token (PAT) that grants access to <strong>all</strong> API endpoints — Catalog, Uploads, Products, Orders, Shops, and Webhooks. You do not need separate keys for each service.</p>
+                    <p className="font-bold mb-1">Use One Full Access PAT</p>
+                    <p>Printify tokens can be generated with limited scopes. This integration needs a Full Access PAT, or at minimum: <strong>shops.read, catalog.read, print_providers.read, products.read, products.write, orders.read, orders.write, uploads.read, uploads.write, webhooks.read, and webhooks.write</strong>. You do not need separate keys for each service.</p>
                   </div>
                 </div>
 
@@ -2104,3 +2104,4 @@ export const PrintifySettings: React.FC = () => {
     </div>
   );
 };
+
