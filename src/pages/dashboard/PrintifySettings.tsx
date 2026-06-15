@@ -13,60 +13,11 @@ import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, Check
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
 import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintShipping, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProduct, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 import { PrintifyCatalogTemplate } from '@/types';
-
-// Pure helper: builds a Map from option value ID → { title, name, hex? } using Printify variant endpoint data.
-// Requirements 2.4, 2.5
-const buildOptionValueMap = (blueprintDetail: any): Map<number, { title: string; name: string; hex?: string }> => {
-  const map = new Map<number, { title: string; name: string; hex?: string }>();
-  const options = Array.isArray(blueprintDetail?.options) ? blueprintDetail.options : [];
-  for (const option of options) {
-    const values = Array.isArray(option?.values) ? option.values : [];
-    const optionName = String(option?.name || option?.type || option?.title || option?.id || '').toLowerCase();
-    const isColor = optionName.includes('color') || optionName.includes('colour');
-    for (const value of values) {
-      const id = Number(value?.id);
-      const title = String(value?.title || value?.name || '').trim();
-      if (!id || !title) continue;
-      const hex = isColor && Array.isArray(value?.colors) && value.colors.length > 0
-        ? String(value.colors[0]).trim()
-        : undefined;
-      map.set(id, { title, name: optionName, ...(hex ? { hex } : {}) });
-    }
-  }
-  return map;
-};
-
-// Pure helper: replaces integer option IDs in a variant with resolved { id, name, title, hex? } objects.
-// Requirements 2.4, 2.5
-const resolveVariantOptions = (
-  variant: any,
-  optionValueMap: Map<number, { title: string; name: string; hex?: string }>,
-  blueprintDetail?: any
-): any => {
-  if (!variant || !Array.isArray(variant.options)) return variant;
-  const options = Array.isArray(blueprintDetail?.options) ? blueprintDetail.options : [];
-  const resolvedOptions = variant.options.map((optionIdOrObj: any, idx: number) => {
-    // If already resolved (object with title), return as-is
-    if (optionIdOrObj && typeof optionIdOrObj === 'object' && optionIdOrObj.title) {
-      return optionIdOrObj;
-    }
-    const id = Number(optionIdOrObj);
-    const resolved = optionValueMap.get(id);
-    // Prefer the parent option found by value ID; fallback to array index only for unusual API shapes.
-    const optionDef = options.find((option: any) => (
-      Array.isArray(option?.values) &&
-      option.values.some((value: any) => Number(value?.id) === id)
-    )) || options[idx];
-    const name = String(optionDef?.name || optionDef?.type || optionDef?.id || '').toLowerCase();
-    return {
-      id,
-      name: resolved?.name || name,
-      title: resolved?.title ?? String(id),
-      ...(resolved?.hex ? { hex: resolved.hex } : {}),
-    };
-  });
-  return { ...variant, options: resolvedOptions };
-};
+import {
+  enrichVariants,
+  isVariantEnriched,
+  templateVariantsNeedResync,
+} from '@/lib/printifyVariantEnrichment';
 
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, updatePrintifyCatalogTemplate, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
@@ -202,6 +153,7 @@ export const PrintifySettings: React.FC = () => {
     const matchedShopProduct = shopProductsByBlueprintId?.get(template.blueprintId);
     let shopProductDetail = matchedShopProduct;
 
+    // Fetch full shop product detail if available (includes variants, images, pricing)
     if (shopId && matchedShopProduct?.id) {
       try {
         shopProductDetail = await fetchPrintifyShopProduct(apiKey, shopId, String(matchedShopProduct.id));
@@ -210,7 +162,10 @@ export const PrintifySettings: React.FC = () => {
       }
     }
 
+    // Fetch blueprint detail for option definitions and base imagery
     const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId).catch(() => template.syncDetails?.blueprint || null);
+    
+    // Fetch and select primary print provider
     const providerData = await fetchPrintifyBlueprintProviders(apiKey, template.blueprintId);
     const providers = normalizePrintifyList(providerData, ['print_providers', 'providers']);
     const productProviderId = Number(shopProductDetail?.print_provider_id || shopProductDetail?.printProviderId);
@@ -223,43 +178,120 @@ export const PrintifySettings: React.FC = () => {
     const variantImageMap: Record<string, string[]> = {};
 
     if (primaryProviderId) {
+      // Fetch variants for this blueprint + provider combination
       const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
       const rawVariants = normalizePrintifyList(variantData, ['variants']);
-      const optionValueMap = buildOptionValueMap(variantData);
-      variants = rawVariants.map((variant: any) => {
-        const resolved = resolveVariantOptions(variant, optionValueMap, variantData);
+      
+      // Enrich variants with human-readable option titles (Color: "Black" instead of Color: 123)
+      const enrichedVariants = enrichVariants(rawVariants, blueprintDetail, variantData);
+      
+      // PRIORITY 1: Map variant images from shop product (most accurate)
+      // Shop product images include variant_ids array that directly maps to specific variants
+      if (shopProductDetail && Array.isArray(shopProductDetail.images)) {
+        for (const img of shopProductDetail.images) {
+          const imgSrc = normalizeTemplateImage(img);
+          const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
+          
+          if (imgSrc && imgVariantIds.length > 0) {
+            for (const vid of imgVariantIds) {
+              const variantId = String(vid);
+              if (!variantImageMap[variantId]) {
+                variantImageMap[variantId] = [];
+              }
+              variantImageMap[variantId].push(imgSrc);
+            }
+          }
+        }
+      }
+
+      // PRIORITY 2: Map variant images from blueprint detail (fallback)
+      // Only use blueprint images for variants that don't have shop product images
+      if (blueprintDetail && Array.isArray(blueprintDetail.images)) {
+        for (const img of blueprintDetail.images) {
+          const imgSrc = normalizeTemplateImage(img);
+          const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
+          
+          if (imgSrc && imgVariantIds.length > 0) {
+            for (const vid of imgVariantIds) {
+              const numVid = Number(vid);
+              const variantId = String(numVid);
+              
+              if (numVid > 0 && !variantImageMap[variantId]) {
+                variantImageMap[variantId] = [imgSrc];
+              }
+            }
+          }
+        }
+      }
+
+      // Merge shop product variant data (SKU, pricing, availability) with enriched variant metadata
+      variants = enrichedVariants.map((resolved: any) => {
         const variantId = getVariantId(resolved);
         const shopVariant = (Array.isArray(shopProductDetail?.variants) ? shopProductDetail.variants : [])
           .find((entry: any) => String(entry?.id || entry?.variant_id) === variantId);
-        const images = (Array.isArray(shopProductDetail?.images) ? shopProductDetail.images : [])
-          .filter((image: any) => Array.isArray(image?.variant_ids) && image.variant_ids.map(String).includes(variantId))
-          .map(normalizeTemplateImage)
-          .filter(Boolean);
-        if (images.length > 0) {
-          variantImageMap[variantId] = images;
-        }
+        
+        // Get variant-specific images
+        const variantImages = variantImageMap[variantId] || [];
+        
         return {
           ...resolved,
           sku: shopVariant?.sku || resolved?.sku || '',
+          // Pricing: prefer shop product price, fall back to variant data price
+          cost: resolved?.cost ?? shopVariant?.cost,
           retail_price: shopVariant?.price ?? shopVariant?.retail_price ?? resolved?.retail_price ?? resolved?.price,
+          // Availability: merge shop and variant availability flags
           is_available: shopVariant?.is_available ?? shopVariant?.is_enabled ?? resolved?.is_available ?? resolved?.is_enabled,
           weight: shopVariant?.weight ?? resolved?.weight,
-          image_url: images[0] || resolved?.image_url,
-          _enriched: optionValueMap.size > 0,
+          // Image: use first variant-specific image, fall back to resolved image_url
+          image_url: variantImages[0] || resolved?.image_url,
+          _enriched: isVariantEnriched(resolved),
         };
       });
 
+      // Fetch shipping profiles
       const shippingData = await fetchPrintifyBlueprintShipping(apiKey, template.blueprintId, primaryProviderId).catch(() => null);
       shipping = shippingData ? normalizePrintifyList(shippingData, ['profiles', 'shipping']) : [];
-      printAreas = variants.flatMap((variant: any) => Array.isArray(variant?.placeholders) ? variant.placeholders : []);
+
+      // Extract print areas (priority: blueprint detail > variant data > variant placeholders)
+      const detailPrintAreas = Array.isArray(blueprintDetail?.print_areas) ? blueprintDetail.print_areas : [];
+      const variantPrintAreas = Array.isArray(variantData?.print_areas) ? variantData.print_areas : [];
+      printAreas = detailPrintAreas.length > 0
+        ? detailPrintAreas
+        : variantPrintAreas.length > 0
+        ? variantPrintAreas
+        : variants.flatMap((variant: any) => Array.isArray(variant?.placeholders) ? variant.placeholders : []);
     }
 
-    const blueprintImages = Array.isArray(blueprintDetail?.images) ? blueprintDetail.images.map(normalizeTemplateImage).filter(Boolean) : [];
+    // Build complete image arrays
+    const blueprintImages = Array.isArray(blueprintDetail?.images) 
+      ? blueprintDetail.images.map(normalizeTemplateImage).filter(Boolean) 
+      : [];
     const productImages = getProductImages(shopProductDetail);
-    const mockups = (Array.isArray(shopProductDetail?.images) ? shopProductDetail.images : []).map(normalizeTemplateImage).filter(Boolean);
-    const allImages = Array.from(new Set([...productImages, ...blueprintImages, ...(template.images || []).map(normalizeTemplateImage).filter(Boolean)]));
-    const baseCosts = variants.map(getVariantCostDollars).filter((value) => value > 0);
-    const retailPrices = variants.map(getVariantRetailDollars).filter((value) => value > 0);
+    
+    // Mockups are shop product images (usually styled product photos)
+    const mockups = (Array.isArray(shopProductDetail?.images) ? shopProductDetail.images : [])
+      .map(normalizeTemplateImage)
+      .filter(Boolean);
+    
+    // All images: prioritize shop product images, then blueprint images, then existing template images
+    const allImages = Array.from(new Set([
+      ...productImages, 
+      ...blueprintImages, 
+      ...(template.images || []).map(normalizeTemplateImage).filter(Boolean)
+    ]));
+
+    // Calculate pricing from variants (Printify returns costs in cents)
+    const baseCosts = variants
+      .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
+      .map(getVariantCostDollars)
+      .filter((value) => value > 0);
+    
+    const retailPrices = variants
+      .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
+      .map(getVariantRetailDollars)
+      .filter((value) => value > 0);
+    
+    // Extract unique color and size option values
     const colors = extractOptionTitles(variants, 'color');
     const sizes = extractOptionTitles(variants, 'size');
 
@@ -288,8 +320,11 @@ export const PrintifySettings: React.FC = () => {
       printAreas,
       shipping,
       printProviderId: primaryProviderId || undefined,
+      // Base cost = minimum variant cost (for pricing calculations)
       baseCost: baseCosts.length > 0 ? Number(Math.min(...baseCosts).toFixed(2)) : template.baseCost,
+      // Retail price = minimum suggested retail (often same as cost for POD)
       retailPrice: retailPrices.length > 0 ? Number(Math.min(...retailPrices).toFixed(2)) : template.retailPrice,
+      // Selling price = admin's custom price (defaults to retail if not set)
       sellingPrice: template.sellingPrice ?? (retailPrices.length > 0 ? Number(Math.min(...retailPrices).toFixed(2)) : template.sellingPrice),
       colors,
       sizes,
@@ -301,10 +336,10 @@ export const PrintifySettings: React.FC = () => {
         providerLocation: primaryProvider?.location || null,
         productionTime: primaryProvider?.production_time || primaryProvider?.average_production_time || null,
         designConstraints: printAreas.map((area: any) => ({
-          position: area.position,
-          decorationMethod: area.decoration_method,
-          width: area.width,
-          height: area.height,
+          position: area.position || area.name,
+          decorationMethod: area.decoration_method || area.method,
+          width: area.width || area.pixel_width,
+          height: area.height || area.pixel_height,
           safeArea: area.safe_area || null,
           bleedArea: area.bleed_area || null,
           dpi: area.dpi || area.dpi_requirement || null,
@@ -882,15 +917,10 @@ export const PrintifySettings: React.FC = () => {
             const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
             const rawVariants = normalizePrintifyList(variantData, ['variants']);
 
-            // Option enrichment from the variants endpoint — this is the correct source
-            const optionValueMap = buildOptionValueMap(variantData);
-
-            // Image mapping + print areas come from the blueprint detail endpoint,
-            // NOT the variants endpoint. Wrapped in try/catch so enrichment succeeds
-            // even if this optional fetch fails.
             const variantImageMap = new Map<number, string>();
+            let blueprintDetail: any = null;
             try {
-              const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
+              blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId);
 
               // Issue 1 fix: build image map from blueprintDetail.images[].variant_ids
               const detailImages = Array.isArray(blueprintDetail?.images) ? blueprintDetail.images : [];
@@ -921,11 +951,14 @@ export const PrintifySettings: React.FC = () => {
               setSyncLogs(prev => [...prev, `[INFO] Mockup image mapping skipped for ${template.title} — will use blueprint images instead.`]);
             }
 
-            const enrichedVariants = rawVariants.map((v: any) => {
-              const resolved = resolveVariantOptions(v, optionValueMap, variantData);
-              const variantId = Number(v?.id || v?.variant_id || 0);
+            const enrichedVariants = enrichVariants(rawVariants, blueprintDetail, variantData).map((resolved: any) => {
+              const variantId = Number(resolved?.id || resolved?.variant_id || 0);
               const imageUrl = variantImageMap.get(variantId);
-              return { ...resolved, ...(imageUrl ? { image_url: imageUrl } : {}), _enriched: optionValueMap.size > 0 };
+              return {
+                ...resolved,
+                ...(imageUrl ? { image_url: imageUrl } : {}),
+                _enriched: isVariantEnriched(resolved),
+              };
             });
 
             try {
@@ -953,21 +986,49 @@ export const PrintifySettings: React.FC = () => {
       const templatesWithProviders = mergeProvidersIntoTemplates(templates, providersByBlueprintId).map((template) => {
         const variants = variantsByBlueprintId[template.blueprintId] || template.variants;
         const printAreas = printAreasByBlueprintId[template.blueprintId] || template.printAreas || [];
+        
+        // Calculate base cost from cheapest enabled variant (Printify returns costs in cents)
         const baseCost = (() => {
           const enabledVariantCosts = variants
             .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
-            .map(getVariantCostDollars)
+            .map((v: any) => {
+              const costVal = Number(v?.cost ?? v?.price ?? 0);
+              if (costVal === 0) return 0;
+              // Convert cents to dollars: if value > 100 or is integer, divide by 100
+              return costVal < 100 && !Number.isInteger(costVal) ? costVal : costVal / 100;
+            })
             .filter((c: number) => c > 0);
-          return enabledVariantCosts.length > 0 ? Number(Math.min(...enabledVariantCosts).toFixed(2)) : template.baseCost ?? undefined;
+          
+          return enabledVariantCosts.length > 0 
+            ? Number(Math.min(...enabledVariantCosts).toFixed(2)) 
+            : template.baseCost ?? undefined;
         })();
-        // Derive baseCost from the cheapest enabled variant's cost (Printify returns costs in cents)
+
+        // Calculate retail price from cheapest variant retail/price
+        const retailPrice = (() => {
+          const enabledRetailPrices = variants
+            .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
+            .map((v: any) => {
+              const priceVal = Number(v?.retail_price ?? v?.price ?? 0);
+              if (priceVal === 0) return 0;
+              // Convert cents to dollars if needed
+              return priceVal < 100 && !Number.isInteger(priceVal) ? priceVal : priceVal / 100;
+            })
+            .filter((p: number) => p > 0);
+          
+          return enabledRetailPrices.length > 0
+            ? Number(Math.min(...enabledRetailPrices).toFixed(2))
+            : undefined;
+        })();
+        
         return {
           ...template,
           variants,
           printAreas,
           shipping: shippingByBlueprintId[template.blueprintId] || template.shipping || [],
           baseCost,
-          sellingPrice: template.sellingPrice ?? template.retailPrice ?? baseCost,
+          retailPrice,
+          sellingPrice: template.sellingPrice ?? retailPrice ?? baseCost,
           colors: template.colors?.length ? template.colors : extractOptionTitles(variants, 'color'),
           sizes: template.sizes?.length ? template.sizes : extractOptionTitles(variants, 'size'),
           printProviderId: providerIdByBlueprintId[template.blueprintId],
@@ -1730,10 +1791,10 @@ export const PrintifySettings: React.FC = () => {
                               </span>
                             </div>
                             <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{template.brand || 'Printify'} • {template.model || 'Generic'}</p>
-                            {(!template.baseCost || template.baseCost === 0 || !Array.isArray(template.variants) || template.variants.length === 0 || template.variants.some((v: any) => v._enriched === false)) && (
+                            {(!template.baseCost || template.baseCost === 0 || !Array.isArray(template.variants) || template.variants.length === 0 || templateVariantsNeedResync(template.variants)) && (
                               <p className="text-[9px] text-amber-600 font-bold mt-1 flex items-center gap-1">
                                 <AlertCircle className="h-3 w-3 shrink-0" />
-                                {template.variants?.some((v: any) => v._enriched === false)
+                                {templateVariantsNeedResync(template.variants)
                                   ? 'Resync Required (Variants not enriched)'
                                   : 'Resync Required (Incomplete data)'}
                               </p>

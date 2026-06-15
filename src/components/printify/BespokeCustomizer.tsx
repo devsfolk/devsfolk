@@ -20,7 +20,7 @@ interface BespokeCustomizerProps {
 export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlug, showHeader = true }) => {
   const navigate = useNavigate();
   const { products, settings, addToCart } = useShop();
-  const { enabledTemplates } = usePrintifyCatalog();
+  const { editorReadyTemplates } = usePrintifyCatalog();
   const [templateSearch, setTemplateSearch] = useState('');
 
   const normalizeTemplateImage = (image: any) => {
@@ -50,7 +50,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       id: `printify_template_${template.id}`,
       categoryId: 'cat_printify',
       name: template.title,
-      slug: `custom-template-${template.blueprintId}`,
+      slug: `printify-template-${template.blueprintId}`,
       description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
       price: calculateTemplateRetailPrice(template.sellingPrice ?? template.retailPrice ?? template.baseCost ?? 0),
       images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
@@ -81,17 +81,17 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       isRawPrintifyTemplateProduct(product) &&
       (
         product.variants?.some((variant: any) => getSyncedVariantId(variant) > 0 && variant.stock !== 0) ||
-        templateHasCheckoutMetadata(enabledTemplates.find((template) => String(template.blueprintId) === product.printifyCatalogId))
+        templateHasCheckoutMetadata(editorReadyTemplates.find((template) => String(template.blueprintId) === product.printifyCatalogId))
       )
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
-    const catalogTemplateProducts = enabledTemplates
+    const catalogTemplateProducts = editorReadyTemplates
       .filter(templateHasCheckoutMetadata)
       .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
       .map(templateToEditorProduct);
 
     return [...syncedTemplateProducts, ...catalogTemplateProducts];
-  }, [products, enabledTemplates, settings.printifySettings?.charges]);
+  }, [products, editorReadyTemplates, settings.printifySettings?.charges]);
 
   const filteredProducts = useMemo(() => {
     const query = templateSearch.trim().toLowerCase();
@@ -116,7 +116,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       product.id.replace(/^printify_template_bp_/, ''),
     ].filter(Boolean).map(String);
 
-    return enabledTemplates.find((template) => (
+    return editorReadyTemplates.find((template) => (
       candidateIds.includes(String(template.blueprintId)) ||
       candidateIds.includes(String(template.id)) ||
       candidateIds.includes(template.id.replace(/^bp_/, ''))
@@ -605,71 +605,112 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   }, [activeColorOptions, activeSizeOptions]);
 
-  // Initialize Fabric.js Canvas
+  // Initialize Fabric.js Canvas — deferred until the print area has real layout dimensions
   useEffect(() => {
-    if (!canvasElRef.current || !printAreaRef.current) return;
+    const printArea = printAreaRef.current;
+    const canvasEl = canvasElRef.current;
+    if (!printArea || !canvasEl || !activeProduct) return;
 
-    // Reset local canvas states
-    setCustomImage(null);
-    setCustomText('');
-    setHasSelection(false);
+    let canvas: fabric.Canvas | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let disposed = false;
 
-    // Get parent bounds
-    const rect = printAreaRef.current.getBoundingClientRect();
-    const width = rect.width || printAreaRef.current.clientWidth || 175;
-    const height = rect.height || printAreaRef.current.clientHeight || 225;
+    const resetWorkspaceState = () => {
+      setCustomImage(null);
+      setCustomText('');
+      setHasSelection(false);
+    };
 
-    const canvas = new fabric.Canvas(canvasElRef.current, {
-      width,
-      height,
-      backgroundColor: 'transparent',
-      preserveObjectStacking: true,
-    });
+    const initOrResizeCanvas = () => {
+      if (disposed) return;
 
-    fabricCanvasRef.current = canvas;
+      const rect = printArea.getBoundingClientRect();
+      const width = Math.round(rect.width || printArea.clientWidth);
+      const height = Math.round(rect.height || printArea.clientHeight);
+      if (width < 24 || height < 24) return;
 
-    // Selection syncing events
-    const syncSelection = () => {
-      const activeObj = canvas.getActiveObject();
-      if (activeObj) {
-        setHasSelection(true);
-        setSelectedAngle(Math.round(activeObj.angle || 0));
-        setSelectedScale(activeObj.scaleX || 1);
+      if (!canvas) {
+        resetWorkspaceState();
+        canvas = new fabric.Canvas(canvasEl, {
+          width,
+          height,
+          backgroundColor: 'transparent',
+          preserveObjectStacking: true,
+        });
+        fabricCanvasRef.current = canvas;
 
-        if (activeObj.type === 'i-text') {
-          const textObj = activeObj as fabric.IText;
-          setCustomText(textObj.text || '');
-          setTextFont(textObj.fontFamily || 'Inter');
-          setTextColor(textObj.fill as string || '#000000');
-          setTextIsBold(textObj.fontWeight === 'bold');
-          setTextIsItalic(textObj.fontStyle === 'italic');
-          setTextIsUnderline(!!textObj.underline);
-          setTextAlign((textObj.textAlign as 'left' | 'center' | 'right') || 'left');
-        }
+        const syncSelection = () => {
+          const activeObj = canvas?.getActiveObject();
+          if (activeObj) {
+            setHasSelection(true);
+            setSelectedAngle(Math.round(activeObj.angle || 0));
+            setSelectedScale(activeObj.scaleX || 1);
+
+            if (activeObj.type === 'i-text') {
+              const textObj = activeObj as fabric.IText;
+              setCustomText(textObj.text || '');
+              setTextFont(textObj.fontFamily || 'Inter');
+              setTextColor(textObj.fill as string || '#000000');
+              setTextIsBold(textObj.fontWeight === 'bold');
+              setTextIsItalic(textObj.fontStyle === 'italic');
+              setTextIsUnderline(!!textObj.underline);
+              setTextAlign((textObj.textAlign as 'left' | 'center' | 'right') || 'left');
+            }
+          } else {
+            setHasSelection(false);
+          }
+        };
+
+        canvas.on('selection:created', syncSelection);
+        canvas.on('selection:updated', syncSelection);
+        canvas.on('selection:cleared', () => setHasSelection(false));
+        canvas.on('object:moving', syncSelection);
+        canvas.on('object:scaling', syncSelection);
+        canvas.on('object:rotating', syncSelection);
+        canvas.on('object:modified', syncSelection);
       } else {
-        setHasSelection(false);
+        canvas.setWidth(width);
+        canvas.setHeight(height);
+        canvas.renderAll();
       }
     };
 
-    canvas.on('selection:created', syncSelection);
-    canvas.on('selection:updated', syncSelection);
-    canvas.on('selection:cleared', () => setHasSelection(false));
-    canvas.on('object:moving', syncSelection);
-    canvas.on('object:scaling', syncSelection);
-    canvas.on('object:rotating', syncSelection);
-    canvas.on('object:modified', syncSelection);
+    initOrResizeCanvas();
+    requestAnimationFrame(initOrResizeCanvas);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => initOrResizeCanvas());
+      resizeObserver.observe(printArea);
+    }
 
     return () => {
-      canvas.dispose();
+      disposed = true;
+      resizeObserver?.disconnect();
+      if (canvas) {
+        canvas.dispose();
+      }
       fabricCanvasRef.current = null;
     };
   }, [activeProduct]);
 
-  if (!activeProduct || !printifyEnabled) {
+  if (!printifyEnabled) {
     return (
       <div className="p-8 text-center bg-gray-50 border border-dashed rounded-3xl">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-          Printify Integration or Customizer Eligible Products are not active.
+          Printify integration is disabled. Enable it in Dashboard → Printify Settings.
+        </p>
+      </div>
+    );
+  }
+
+  if (!activeProduct) {
+    return (
+      <div className="p-8 text-center bg-gray-50 border border-dashed rounded-3xl space-y-2">
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+          No customizable templates are available yet.
+        </p>
+        <p className="text-[11px] text-gray-400 max-w-md mx-auto">
+          Sync templates in Dashboard → Printify, then publish or resync any template flagged as incomplete.
         </p>
       </div>
     );
