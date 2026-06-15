@@ -188,8 +188,29 @@ export const PrintifySettings: React.FC = () => {
       const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
       const rawVariants = normalizePrintifyList(variantData, ['variants']);
       
+      // DEBUG: Log raw variant structure to identify cost field
+      if (rawVariants.length > 0) {
+        console.log('[SYNC DEBUG] Raw variant sample:', {
+          id: rawVariants[0]?.id,
+          title: rawVariants[0]?.title,
+          cost: rawVariants[0]?.cost,
+          price: rawVariants[0]?.price,
+          allKeys: Object.keys(rawVariants[0] || {}),
+        });
+      }
+      
       // Enrich variants with human-readable option titles (Color: "Black" instead of Color: 123)
       const enrichedVariants = enrichVariants(rawVariants, blueprintDetail, variantData);
+      
+      // DEBUG: Log enriched variant to verify cost is preserved
+      if (enrichedVariants.length > 0) {
+        console.log('[SYNC DEBUG] Enriched variant sample:', {
+          id: enrichedVariants[0]?.id,
+          title: enrichedVariants[0]?.title,
+          cost: enrichedVariants[0]?.cost,
+          price: enrichedVariants[0]?.price,
+        });
+      }
       
       // PRIORITY 1: Map variant images from shop product (most accurate)
       // Shop product images include variant_ids array that directly maps to specific variants
@@ -239,11 +260,11 @@ export const PrintifySettings: React.FC = () => {
         // Get variant-specific images
         const variantImages = variantImageMap[variantId] || [];
         
-        return {
+        const merged = {
           ...resolved,
           sku: shopVariant?.sku || resolved?.sku || '',
-          // Pricing: prefer shop product price, fall back to variant data price
-          cost: resolved?.cost ?? shopVariant?.cost,
+          // Pricing: prefer raw variant cost (from Printify variants API), then shop product cost
+          cost: resolved?.cost ?? resolved?.price ?? shopVariant?.cost ?? shopVariant?.price,
           retail_price: shopVariant?.price ?? shopVariant?.retail_price ?? resolved?.retail_price ?? resolved?.price,
           // Availability: merge shop and variant availability flags
           is_available: shopVariant?.is_available ?? shopVariant?.is_enabled ?? resolved?.is_available ?? resolved?.is_enabled,
@@ -252,6 +273,19 @@ export const PrintifySettings: React.FC = () => {
           image_url: variantImages[0] || resolved?.image_url,
           _enriched: isVariantEnriched(resolved),
         };
+        
+        // DEBUG: Log merged variant to see final cost value
+        if (variantId === getVariantId(enrichedVariants[0])) {
+          console.log('[SYNC DEBUG] Merged variant sample:', {
+            id: merged.id,
+            title: merged.title,
+            cost: merged.cost,
+            retail_price: merged.retail_price,
+            costDollars: getVariantCostDollars(merged),
+          });
+        }
+        
+        return merged;
       });
 
       // Fetch shipping profiles
@@ -296,6 +330,15 @@ export const PrintifySettings: React.FC = () => {
       .filter((v: any) => v?.is_enabled !== false && v?.is_available !== false)
       .map(getVariantRetailDollars)
       .filter((value) => value > 0);
+    
+    // DEBUG: Log base cost calculation
+    console.log('[SYNC DEBUG] Base cost calculation:', {
+      template: template.title,
+      variantCount: variants.length,
+      baseCostsArray: baseCosts,
+      minBaseCost: baseCosts.length > 0 ? Math.min(...baseCosts) : 'NONE',
+      fallbackToTemplate: template.baseCost,
+    });
     
     // Extract unique color and size option values
     const colors = extractOptionTitles(variants, 'color');
