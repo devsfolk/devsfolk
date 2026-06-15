@@ -174,16 +174,23 @@ on conflict (id) do nothing;
 
 create table if not exists public.printify_catalog (
   id text primary key,
+  product_id text,
   blueprint_id integer,
   title text not null,
+  category text,
   brand text,
   model text,
+  tags jsonb not null default '[]'::jsonb,
+  product_status text,
   description text not null default '',
   images jsonb not null default '[]'::jsonb,
+  mockups jsonb not null default '[]'::jsonb,
+  variant_images jsonb not null default '{}'::jsonb,
   providers jsonb not null default '[]'::jsonb,
   variants jsonb not null default '[]'::jsonb,
   print_areas jsonb not null default '[]'::jsonb,
   shipping jsonb not null default '[]'::jsonb,
+  sync_details jsonb not null default '{}'::jsonb,
   base_cost numeric(12, 2),
   retail_price numeric(12, 2),
   profit_margin numeric(12, 2),
@@ -197,12 +204,19 @@ create table if not exists public.printify_catalog (
   last_synced timestamptz not null default now()
 );
 
+alter table public.printify_catalog add column if not exists product_id text;
 alter table public.printify_catalog add column if not exists blueprint_id integer;
+alter table public.printify_catalog add column if not exists category text;
 alter table public.printify_catalog add column if not exists brand text;
 alter table public.printify_catalog add column if not exists model text;
+alter table public.printify_catalog add column if not exists tags jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists product_status text;
 alter table public.printify_catalog add column if not exists images jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists mockups jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists variant_images jsonb not null default '{}'::jsonb;
 alter table public.printify_catalog add column if not exists providers jsonb not null default '[]'::jsonb;
 alter table public.printify_catalog add column if not exists shipping jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists sync_details jsonb not null default '{}'::jsonb;
 alter table public.printify_catalog add column if not exists base_cost numeric(12, 2);
 alter table public.printify_catalog add column if not exists retail_price numeric(12, 2);
 alter table public.printify_catalog add column if not exists profit_margin numeric(12, 2);

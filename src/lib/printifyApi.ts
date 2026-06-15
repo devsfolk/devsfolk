@@ -1,12 +1,13 @@
 import { Order, PrintifyCatalogTemplate } from '@/types';
 import { supabase } from '@/lib/supabase';
 
-type PrintifyRequestMode = 'shops' | 'shop-products' | 'blueprints' | 'blueprint' | 'providers' | 'variants' | 'shipping';
+type PrintifyRequestMode = 'shops' | 'shop-products' | 'shop-product' | 'blueprints' | 'blueprint' | 'providers' | 'variants' | 'shipping';
 
 interface PrintifyGatewayRequest {
   apiKey: string;
   mode: PrintifyRequestMode;
   shopId?: string;
+  productId?: string;
   blueprintId?: number;
   printProviderId?: number;
 }
@@ -58,6 +59,10 @@ export const fetchPrintifyShops = (apiKey: string) => {
 
 export const fetchPrintifyShopProducts = (apiKey: string, shopId: string) => {
   return callPrintifyGateway<any>({ apiKey, mode: 'shop-products', shopId });
+};
+
+export const fetchPrintifyShopProduct = (apiKey: string, shopId: string, productId: string) => {
+  return callPrintifyGateway<any>({ apiKey, mode: 'shop-product', shopId, productId });
 };
 
 export const submitPrintifyOrder = async (shopId: string, order: Order, apiKey = '') => {
@@ -130,11 +135,14 @@ export const mapBlueprintsToTemplates = (data: any): PrintifyCatalogTemplate[] =
   return normalizeBlueprintList(data).map((blueprint: any) => ({
     id: `bp_${blueprint.id}`,
     blueprintId: Number(blueprint.id),
+    category: blueprint.category || blueprint.type || undefined,
     title: blueprint.title || 'Untitled Printify Template',
     brand: blueprint.brand || undefined,
     model: blueprint.model || undefined,
     description: blueprint.description || '',
     images: Array.isArray(blueprint.images) ? blueprint.images : [],
+    tags: Array.isArray(blueprint.tags) ? blueprint.tags : [],
+    syncDetails: { blueprint },
     providers: [],
     variants: [],
     printAreas: [],

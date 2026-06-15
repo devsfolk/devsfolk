@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2 } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
-import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintShipping, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
+import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintShipping, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProduct, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 import { PrintifyCatalogTemplate } from '@/types';
 
 // Pure helper: builds a Map from option value ID → { title, name, hex? } using Printify variant endpoint data.
@@ -139,6 +139,8 @@ export const PrintifySettings: React.FC = () => {
 
   const getVariantCostDollars = (variant: any) => toDollars(variant?.cost ?? variant?.price ?? 0);
 
+  const getVariantRetailDollars = (variant: any) => toDollars(variant?.retail_price ?? variant?.price ?? 0);
+
   const extractOptionTitles = (variants: any[], optionType: 'color' | 'size') => {
     const values = new Set<string>();
     variants.forEach((variant) => {
@@ -151,6 +153,168 @@ export const PrintifySettings: React.FC = () => {
       });
     });
     return Array.from(values);
+  };
+
+  const extractOptionHexes = (variants: any[]) => {
+    const values: Record<string, string> = {};
+    variants.forEach((variant) => {
+      (Array.isArray(variant?.options) ? variant.options : []).forEach((option: any) => {
+        const name = String(option?.name || '').toLowerCase();
+        const title = String(option?.title || '').trim();
+        const hex = String(option?.hex || option?.color || option?.colors?.[0] || '').trim();
+        if (title && hex && (name.includes('color') || name.includes('colour'))) {
+          values[title] = hex;
+        }
+      });
+    });
+    return values;
+  };
+
+  const normalizeShopProductList = (payload: any) => normalizePrintifyList(payload, ['products']);
+
+  const getProductImages = (product: any) => {
+    const images = [
+      ...(Array.isArray(product?.images) ? product.images : []),
+      ...(Array.isArray(product?.mockups) ? product.mockups : []),
+    ];
+    return images
+      .map((image: any) => normalizeTemplateImage(image))
+      .filter(Boolean);
+  };
+
+  const mapShopProductsByBlueprint = (shopProducts: any[]) => {
+    const byBlueprintId = new Map<number, any>();
+    shopProducts.forEach((product) => {
+      const blueprintId = Number(product?.blueprint_id || product?.blueprintId);
+      if (blueprintId && !byBlueprintId.has(blueprintId)) {
+        byBlueprintId.set(blueprintId, product);
+      }
+    });
+    return byBlueprintId;
+  };
+
+  const buildSyncedTemplate = async (
+    apiKey: string,
+    template: PrintifyCatalogTemplate,
+    shopProductsByBlueprintId?: Map<number, any>,
+  ): Promise<PrintifyCatalogTemplate> => {
+    const shopId = printifySettings.providerSettings.shopId?.trim();
+    const matchedShopProduct = shopProductsByBlueprintId?.get(template.blueprintId);
+    let shopProductDetail = matchedShopProduct;
+
+    if (shopId && matchedShopProduct?.id) {
+      try {
+        shopProductDetail = await fetchPrintifyShopProduct(apiKey, shopId, String(matchedShopProduct.id));
+      } catch (err: any) {
+        setSyncLogs(prev => [...prev, `[INFO] Shop product detail skipped for ${template.title}: ${err.message || err}`]);
+      }
+    }
+
+    const blueprintDetail = await fetchPrintifyBlueprintDetail(apiKey, template.blueprintId).catch(() => template.syncDetails?.blueprint || null);
+    const providerData = await fetchPrintifyBlueprintProviders(apiKey, template.blueprintId);
+    const providers = normalizePrintifyList(providerData, ['print_providers', 'providers']);
+    const productProviderId = Number(shopProductDetail?.print_provider_id || shopProductDetail?.printProviderId);
+    const primaryProvider = providers.find((provider: any) => Number(provider?.id || provider?.print_provider_id) === productProviderId) || providers[0];
+    const primaryProviderId = Number(primaryProvider?.id || primaryProvider?.print_provider_id || template.printProviderId || 0);
+
+    let variants: any[] = [];
+    let shipping: any[] = [];
+    let printAreas: any[] = [];
+    const variantImageMap: Record<string, string[]> = {};
+
+    if (primaryProviderId) {
+      const variantData = await fetchPrintifyBlueprintVariants(apiKey, template.blueprintId, primaryProviderId);
+      const rawVariants = normalizePrintifyList(variantData, ['variants']);
+      const optionValueMap = buildOptionValueMap(variantData);
+      variants = rawVariants.map((variant: any) => {
+        const resolved = resolveVariantOptions(variant, optionValueMap, variantData);
+        const variantId = getVariantId(resolved);
+        const shopVariant = (Array.isArray(shopProductDetail?.variants) ? shopProductDetail.variants : [])
+          .find((entry: any) => String(entry?.id || entry?.variant_id) === variantId);
+        const images = (Array.isArray(shopProductDetail?.images) ? shopProductDetail.images : [])
+          .filter((image: any) => Array.isArray(image?.variant_ids) && image.variant_ids.map(String).includes(variantId))
+          .map(normalizeTemplateImage)
+          .filter(Boolean);
+        if (images.length > 0) {
+          variantImageMap[variantId] = images;
+        }
+        return {
+          ...resolved,
+          sku: shopVariant?.sku || resolved?.sku || '',
+          retail_price: shopVariant?.price ?? shopVariant?.retail_price ?? resolved?.retail_price ?? resolved?.price,
+          is_available: shopVariant?.is_available ?? shopVariant?.is_enabled ?? resolved?.is_available ?? resolved?.is_enabled,
+          weight: shopVariant?.weight ?? resolved?.weight,
+          image_url: images[0] || resolved?.image_url,
+          _enriched: optionValueMap.size > 0,
+        };
+      });
+
+      const shippingData = await fetchPrintifyBlueprintShipping(apiKey, template.blueprintId, primaryProviderId).catch(() => null);
+      shipping = shippingData ? normalizePrintifyList(shippingData, ['profiles', 'shipping']) : [];
+      printAreas = variants.flatMap((variant: any) => Array.isArray(variant?.placeholders) ? variant.placeholders : []);
+    }
+
+    const blueprintImages = Array.isArray(blueprintDetail?.images) ? blueprintDetail.images.map(normalizeTemplateImage).filter(Boolean) : [];
+    const productImages = getProductImages(shopProductDetail);
+    const mockups = (Array.isArray(shopProductDetail?.images) ? shopProductDetail.images : []).map(normalizeTemplateImage).filter(Boolean);
+    const allImages = Array.from(new Set([...productImages, ...blueprintImages, ...(template.images || []).map(normalizeTemplateImage).filter(Boolean)]));
+    const baseCosts = variants.map(getVariantCostDollars).filter((value) => value > 0);
+    const retailPrices = variants.map(getVariantRetailDollars).filter((value) => value > 0);
+    const colors = extractOptionTitles(variants, 'color');
+    const sizes = extractOptionTitles(variants, 'size');
+
+    return {
+      ...template,
+      id: `bp_${template.blueprintId}`,
+      productId: shopProductDetail?.id ? String(shopProductDetail.id) : template.productId,
+      title: shopProductDetail?.title || blueprintDetail?.title || template.title,
+      category: shopProductDetail?.category || blueprintDetail?.category || template.category || 'Catalog Blueprint',
+      brand: blueprintDetail?.brand || template.brand,
+      model: blueprintDetail?.model || template.model,
+      tags: Array.isArray(shopProductDetail?.tags) ? shopProductDetail.tags : template.tags || [],
+      productStatus: shopProductDetail?.visible === false
+        ? 'hidden'
+        : shopProductDetail?.status
+        ? String(shopProductDetail.status)
+        : shopProductDetail?.is_locked
+        ? 'locked'
+        : (shopProductDetail ? 'shop-product' : 'catalog-blueprint'),
+      description: shopProductDetail?.description || blueprintDetail?.description || template.description || '',
+      images: allImages.length > 0 ? allImages : ['/custom-tee-mockup.png'],
+      mockups,
+      variantImages: variantImageMap,
+      providers,
+      variants,
+      printAreas,
+      shipping,
+      printProviderId: primaryProviderId || undefined,
+      baseCost: baseCosts.length > 0 ? Number(Math.min(...baseCosts).toFixed(2)) : template.baseCost,
+      retailPrice: retailPrices.length > 0 ? Number(Math.min(...retailPrices).toFixed(2)) : template.retailPrice,
+      sellingPrice: template.sellingPrice ?? (retailPrices.length > 0 ? Number(Math.min(...retailPrices).toFixed(2)) : template.sellingPrice),
+      colors,
+      sizes,
+      syncDetails: {
+        blueprint: blueprintDetail || template.syncDetails?.blueprint || null,
+        shopProduct: shopProductDetail || null,
+        provider: primaryProvider || null,
+        colorCodes: extractOptionHexes(variants),
+        providerLocation: primaryProvider?.location || null,
+        productionTime: primaryProvider?.production_time || primaryProvider?.average_production_time || null,
+        designConstraints: printAreas.map((area: any) => ({
+          position: area.position,
+          decorationMethod: area.decoration_method,
+          width: area.width,
+          height: area.height,
+          safeArea: area.safe_area || null,
+          bleedArea: area.bleed_area || null,
+          dpi: area.dpi || area.dpi_requirement || null,
+        })),
+        syncedAt: new Date().toISOString(),
+      },
+      syncStatus: template.syncStatus || 'raw',
+      isEnabled: template.isEnabled && template.syncStatus === 'published',
+      lastSynced: new Date().toISOString(),
+    };
   };
 
   const openTemplateEditor = (template: PrintifyCatalogTemplate) => {
@@ -201,6 +365,131 @@ export const PrintifySettings: React.FC = () => {
       setTemplateDraft(null);
     } catch (err: any) {
       alert(`Template save failed:\n\n${err.message || err}`);
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const runReliableTemplateCatalogSync = async () => {
+    const apiKey = normalizeToken(privateApiKey);
+    if (!apiKey) {
+      alert('Please configure your Printify API Access Token in the APIs tab first.');
+      return;
+    }
+
+    setSyncingTemplates(true);
+    setSyncLogs([
+      '[INFO] Initializing reliable raw template sync...',
+      '[INFO] Fetching catalog blueprints and matching shop products...',
+    ]);
+
+    try {
+      const blueprintData = await fetchPrintifyBlueprints(apiKey);
+      const allTemplates = mapBlueprintsToTemplates(blueprintData);
+      const query = templateSyncSearch.trim().toLowerCase();
+      const filteredTemplates = query
+        ? allTemplates.filter((template) => (
+            template.title.toLowerCase().includes(query) ||
+            template.brand?.toLowerCase().includes(query) ||
+            template.model?.toLowerCase().includes(query) ||
+            String(template.blueprintId).includes(query)
+          ))
+        : allTemplates;
+      const maxTemplates = templateSyncLimit === 'all'
+        ? filteredTemplates.length
+        : templateSyncLimit === 'custom'
+        ? Math.max(1, Number(customSyncQuantity) || 1)
+        : Math.max(1, Number(templateSyncLimit) || 100);
+      const templates = filteredTemplates.slice(0, maxTemplates);
+
+      if (templates.length === 0) {
+        setSyncLogs(prev => [...prev, '[WARNING] No Printify templates matched the current sync filters.']);
+        return;
+      }
+
+      let shopProductsByBlueprintId = new Map<number, any>();
+      const shopId = printifySettings.providerSettings.shopId?.trim();
+      if (shopId && /^\d+$/.test(shopId)) {
+        try {
+          const shopProductsPayload = await fetchPrintifyShopProducts(apiKey, shopId);
+          shopProductsByBlueprintId = mapShopProductsByBlueprint(normalizeShopProductList(shopProductsPayload));
+          setSyncLogs(prev => [...prev, `[INFO] Matched ${shopProductsByBlueprintId.size} existing shop products by blueprint ID.`]);
+        } catch (shopErr: any) {
+          setSyncLogs(prev => [...prev, `[INFO] Shop-product merge skipped: ${shopErr.message || shopErr}`]);
+        }
+      }
+
+      const enrichedTemplates: PrintifyCatalogTemplate[] = [];
+      for (const template of templates) {
+        try {
+          const existingTemplate = printifyCatalog.find((entry) => entry.id === template.id);
+          const enriched = await buildSyncedTemplate(apiKey, { ...template, ...existingTemplate }, shopProductsByBlueprintId);
+          enrichedTemplates.push(enriched);
+          setSyncLogs(prev => [
+            ...prev,
+            `[SUCCESS] Synced ${enriched.title}: ${enriched.variants.length} variants, ${enriched.printAreas.length} print areas, base ${settings.currencySymbol}${Number(enriched.baseCost || 0).toFixed(2)}.`,
+          ]);
+        } catch (syncErr: any) {
+          setSyncLogs(prev => [...prev, `[WARNING] Template skipped for ${template.title}: ${syncErr.message || syncErr}`]);
+        }
+      }
+
+      await upsertPrintifyCatalogTemplates(enrichedTemplates, { replaceVisible: false });
+
+      handleUpdate({
+        sync: {
+          ...printifySettings.sync,
+          lastSyncAt: new Date().toLocaleString(),
+          lastSyncStatus: 'success'
+        }
+      });
+
+      setSyncLogs(prev => [
+        ...prev,
+        `[SUCCESS] Cached ${enrichedTemplates.length} raw template records without publishing them.`,
+        '[INFO] SKU, status, tags, retail price, and mockups are merged only when Printify returns a matching shop product for the same blueprint.'
+      ]);
+    } catch (err: any) {
+      console.error('Printify template sync failed:', err);
+      handleUpdate({
+        sync: {
+          ...printifySettings.sync,
+          lastSyncAt: new Date().toLocaleString(),
+          lastSyncStatus: 'failed'
+        }
+      });
+      setSyncLogs(prev => [
+        ...prev,
+        `[ERROR] Template sync failed: ${err.message || err}`,
+        '[TIP] Full Access PAT with catalog.read, products.read, and print_providers.read scopes is required for maximum enrichment.'
+      ]);
+    } finally {
+      setSyncingTemplates(false);
+    }
+  };
+
+  const resyncTemplate = async (template: PrintifyCatalogTemplate) => {
+    const apiKey = normalizeToken(privateApiKey);
+    if (!apiKey) {
+      alert('Please configure your Printify API Access Token in the APIs tab first.');
+      return;
+    }
+
+    setSavingTemplate(true);
+    setSyncLogs(prev => [...prev, `[INFO] Resyncing ${template.title} from Printify...`]);
+    try {
+      let shopProductsByBlueprintId = new Map<number, any>();
+      const shopId = printifySettings.providerSettings.shopId?.trim();
+      if (shopId && /^\d+$/.test(shopId)) {
+        const shopProductsPayload = await fetchPrintifyShopProducts(apiKey, shopId);
+        shopProductsByBlueprintId = mapShopProductsByBlueprint(normalizeShopProductList(shopProductsPayload));
+      }
+      const enriched = await buildSyncedTemplate(apiKey, template, shopProductsByBlueprintId);
+      await upsertPrintifyCatalogTemplates([enriched], { replaceVisible: false });
+      setSyncLogs(prev => [...prev, `[SUCCESS] Resynced ${enriched.title}: ${enriched.variants.length} variants, base ${settings.currencySymbol}${Number(enriched.baseCost || 0).toFixed(2)}.`]);
+    } catch (err: any) {
+      alert(`Template resync failed:\n\n${err.message || err}`);
+      setSyncLogs(prev => [...prev, `[ERROR] Resync failed for ${template.title}: ${err.message || err}`]);
     } finally {
       setSavingTemplate(false);
     }
@@ -1052,57 +1341,6 @@ export const PrintifySettings: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-              <CardHeader className="p-5 md:p-6">
-                <div className="flex items-center gap-3">
-                  <ShoppingCart className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Manual Template Pricing</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Set fallback fees only. Template selling prices are configured per raw synced template before publishing.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5 p-5 md:p-6 pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Estimated Design Fee</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={printifySettings.charges.designFee}
-                      onChange={(event) => handleUpdate({
-                        charges: {
-                          ...printifySettings.charges,
-                          designFee: Math.max(0, Number(event.target.value) || 0)
-                        }
-                      })}
-                      className="rounded-xl h-11 text-xs border-gray-200"
-                    />
-                    <p className="text-[9px] text-gray-400 pl-1">Shown in the editor estimate when a customer customizes a template.</p>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Estimated Edit Fee</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={printifySettings.charges.editFee}
-                      onChange={(event) => handleUpdate({
-                        charges: {
-                          ...printifySettings.charges,
-                          editFee: Math.max(0, Number(event.target.value) || 0)
-                        }
-                      })}
-                      className="rounded-xl h-11 text-xs border-gray-200"
-                    />
-                    <p className="text-[9px] text-gray-400 pl-1">Reserved for future customer edit/revision flows.</p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border bg-blue-50 border-blue-100 p-4 text-[11px] text-blue-700 leading-relaxed">
-                  <p className="font-bold mb-1">Estimate Formula</p>
-                  <p>Raw template estimate = Printify base/catalog price + template estimate margin. Customized estimate = template estimate + design fee. Existing Printify shop products keep their Printify retail price.</p>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Live Preview Tab */}
@@ -1353,7 +1591,7 @@ export const PrintifySettings: React.FC = () => {
                     </p>
                   </div>
                   <Button
-                    onClick={runTemplateCatalogSync}
+                    onClick={runReliableTemplateCatalogSync}
                     disabled={syncingTemplates || deletingTemplates}
                     className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800 self-stretch md:self-auto shrink-0"
                   >
@@ -1480,6 +1718,17 @@ export const PrintifySettings: React.FC = () => {
                           <div className="min-w-0">
                             <p className="text-xs font-black uppercase tracking-tight truncate" title={template.title}>{template.title}</p>
                             <p className="text-[10px] text-gray-400 truncate">Blueprint: {template.blueprintId}</p>
+                            <div className="mt-2 grid grid-cols-3 gap-1 text-[9px]">
+                              <span className="rounded-lg bg-gray-50 border px-2 py-1 font-bold text-gray-600">
+                                Base {settings.currencySymbol}{Number(template.baseCost || 0).toFixed(2)}
+                              </span>
+                              <span className="rounded-lg bg-gray-50 border px-2 py-1 font-bold text-gray-600">
+                                {template.variants?.length || 0} Variants
+                              </span>
+                              <span className="rounded-lg bg-gray-50 border px-2 py-1 font-bold text-gray-600">
+                                {template.printAreas?.length || 0} Areas
+                              </span>
+                            </div>
                             <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{template.brand || 'Printify'} • {template.model || 'Generic'}</p>
                             {(!template.baseCost || template.baseCost === 0 || !Array.isArray(template.variants) || template.variants.length === 0 || template.variants.some((v: any) => v._enriched === false)) && (
                               <p className="text-[9px] text-amber-600 font-bold mt-1 flex items-center gap-1">
@@ -1495,6 +1744,16 @@ export const PrintifySettings: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={savingTemplate || syncingTemplates}
+                            onClick={() => resyncTemplate(template)}
+                            className="h-8 w-8 text-gray-400 hover:text-blue-700 hover:bg-blue-50 rounded-xl"
+                            title="Resync template from Printify"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1691,12 +1950,25 @@ export const PrintifySettings: React.FC = () => {
                     )}
                   </div>
                   <div className="rounded-xl border bg-gray-50 p-3 text-[10px] space-y-1">
+                    <p><strong>Source:</strong> {templateDraft.productId ? 'Shop Product + Catalog' : 'Catalog Blueprint'}</p>
+                    {templateDraft.productId && <p><strong>Product:</strong> {templateDraft.productId}</p>}
                     <p><strong>Blueprint:</strong> {templateDraft.blueprintId}</p>
                     <p><strong>Provider:</strong> {templateDraft.printProviderId || 'Not selected'}</p>
+                    <p><strong>Status:</strong> {templateDraft.productStatus || 'raw'}</p>
                     <p><strong>Base cost:</strong> {settings.currencySymbol}{Number(templateDraft.baseCost || 0).toFixed(2)}</p>
+                    <p><strong>Retail price:</strong> {settings.currencySymbol}{Number(templateDraft.retailPrice || 0).toFixed(2)}</p>
                     <p><strong>Variants:</strong> {templateDraft.variants?.length || 0}</p>
                     <p><strong>Print areas:</strong> {templateDraft.printAreas?.length || 0}</p>
                     <p><strong>Shipping profiles:</strong> {templateDraft.shipping?.length || 0}</p>
+                  </div>
+                  <div className="rounded-xl border bg-white p-3 text-[10px] space-y-2">
+                    <p className="font-black uppercase text-gray-400">Provider</p>
+                    <p className="font-bold">{templateDraft.syncDetails?.provider?.title || templateDraft.syncDetails?.provider?.name || 'Not available'}</p>
+                    <p className="text-gray-500">
+                      {templateDraft.syncDetails?.providerLocation
+                        ? [templateDraft.syncDetails.providerLocation.city, templateDraft.syncDetails.providerLocation.region, templateDraft.syncDetails.providerLocation.country].filter(Boolean).join(', ')
+                        : 'Location not returned'}
+                    </p>
                   </div>
                 </div>
 
@@ -1716,6 +1988,21 @@ export const PrintifySettings: React.FC = () => {
                         onChange={(event) => updateTemplateDraft({ sellingPrice: Math.max(0, Number(event.target.value) || 0) })}
                         className="h-10 text-xs"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-xl border bg-gray-50 p-3">
+                      <p className="text-[9px] font-black uppercase text-gray-400">Colors</p>
+                      <p className="mt-1 text-xs font-bold">{(templateDraft.colors || []).slice(0, 8).join(', ') || 'None returned'}</p>
+                    </div>
+                    <div className="rounded-xl border bg-gray-50 p-3">
+                      <p className="text-[9px] font-black uppercase text-gray-400">Sizes</p>
+                      <p className="mt-1 text-xs font-bold">{(templateDraft.sizes || []).slice(0, 10).join(', ') || 'None returned'}</p>
+                    </div>
+                    <div className="rounded-xl border bg-gray-50 p-3">
+                      <p className="text-[9px] font-black uppercase text-gray-400">Tags</p>
+                      <p className="mt-1 text-xs font-bold">{(templateDraft.tags || []).slice(0, 6).join(', ') || 'None returned'}</p>
                     </div>
                   </div>
 

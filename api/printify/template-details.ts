@@ -1,11 +1,17 @@
 import { callPrintify, requireAdmin, requireApiKey, requirePost, sendJson, sendPrintifyResult } from './_shared.js';
 
-const REQUIRED_SCOPES = ['catalog.read', 'print_providers.read'];
+const REQUIRED_SCOPES = ['catalog.read', 'print_providers.read', 'products.read'];
 
 const buildTemplateDetailPath = (body: any) => {
   const mode = String(body?.mode || '').trim();
+  const shopId = String(body?.shopId || '').trim();
+  const productId = String(body?.productId || '').trim();
   const blueprintId = String(body?.blueprintId || '').trim();
   const printProviderId = String(body?.printProviderId || '').trim();
+
+  if (mode === 'shop-product' && /^\d+$/.test(shopId) && productId) {
+    return `/shops/${shopId}/products/${encodeURIComponent(productId)}.json`;
+  }
 
   if (!/^\d+$/.test(blueprintId)) {
     return null;

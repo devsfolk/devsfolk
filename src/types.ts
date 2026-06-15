@@ -136,17 +136,24 @@ export interface PrintifySettings {
 
 export interface PrintifyCatalogTemplate {
   id: string;
+  productId?: string;
   blueprintId: number;
   printProviderId?: number;
   title: string;
+  category?: string;
   brand?: string;
   model?: string;
+  tags?: string[];
+  productStatus?: string;
   description: string;
   images: string[];
+  mockups?: string[];
+  variantImages?: Record<string, string[]>;
   providers: any[];
   variants: any[];
   printAreas: any[];
   shipping: any[];
+  syncDetails?: any;
   baseCost?: number;
   retailPrice?: number;
   sellingPrice?: number;
