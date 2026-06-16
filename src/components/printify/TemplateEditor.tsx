@@ -161,19 +161,89 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           ).filter(Boolean)
         : [];
 
+      // Extract unique COLORS from variants
+      const colorsSet = new Set<string>();
+      variants.forEach((variant: any) => {
+        if (Array.isArray(variant.options)) {
+          variant.options.forEach((option: any) => {
+            const optionName = String(option.name || '').toLowerCase();
+            if (optionName.includes('color') || optionName.includes('colour')) {
+              const colorValue = String(option.title || option.value || '').trim();
+              if (colorValue) {
+                colorsSet.add(colorValue);
+              }
+            }
+          });
+        }
+      });
+      const extractedColors = Array.from(colorsSet);
+
+      // Extract unique SIZES and their base costs
+      // Group variants by size to get correct pricing
+      const sizeMap = new Map<string, { baseCost: number; count: number }>();
+      
+      variants.forEach((variant: any) => {
+        let sizeValue = '';
+        
+        // Extract size from variant options
+        if (Array.isArray(variant.options)) {
+          const sizeOption = variant.options.find((opt: any) => 
+            String(opt.name || '').toLowerCase().includes('size')
+          );
+          if (sizeOption) {
+            sizeValue = String(sizeOption.title || sizeOption.value || '').trim();
+          }
+        }
+        
+        // Fallback: try to extract size from variant title
+        if (!sizeValue && variant.title) {
+          const title = String(variant.title);
+          // Common size patterns: S, M, L, XL, XXL, XXXL, 2XL, 3XL, etc.
+          const sizeMatch = title.match(/\b(XXX?L|XX?L|[SML]|[2-5]XL)\b/i);
+          if (sizeMatch) {
+            sizeValue = sizeMatch[0].toUpperCase();
+          }
+        }
+        
+        if (sizeValue) {
+          const cost = Number(variant.cost || 0) / 100;
+          
+          if (!sizeMap.has(sizeValue)) {
+            sizeMap.set(sizeValue, { baseCost: cost, count: 1 });
+          } else {
+            // Average the costs if multiple variants have the same size
+            const existing = sizeMap.get(sizeValue)!;
+            existing.baseCost = ((existing.baseCost * existing.count) + cost) / (existing.count + 1);
+            existing.count += 1;
+          }
+        }
+      });
+
+      // Convert size map to array with proper sizing order
+      const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', 'XXXL', '4XL', '5XL'];
+      const extractedSizes = Array.from(sizeMap.entries())
+        .map(([size, data]) => ({
+          size,
+          baseCost: Number(data.baseCost.toFixed(2)),
+          sellingPrice: Number((data.baseCost * 1.5).toFixed(2)), // 50% markup
+        }))
+        .sort((a, b) => {
+          const aIndex = sizeOrder.indexOf(a.size);
+          const bIndex = sizeOrder.indexOf(b.size);
+          if (aIndex === -1 && bIndex === -1) return a.size.localeCompare(b.size);
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+
       // Auto-populate form data
       setFormData(prev => ({
         ...prev,
         title: prev.title || blueprintData.title || '',
         description: prev.description || blueprintData.description || '',
         images: prev.images.length > 0 ? prev.images : images,
-        sizes: variants.length > 0
-          ? variants.map((v: any) => ({
-              size: v.title || v.name || `Variant ${v.id}`,
-              baseCost: Number(v.cost || 0) / 100,
-              sellingPrice: Number(v.cost || 0) / 100 * 1.5, // 50% markup
-            }))
-          : prev.sizes,
+        colors: extractedColors.length > 0 ? extractedColors : prev.colors,
+        sizes: extractedSizes.length > 0 ? extractedSizes : prev.sizes,
         printAreas: printAreas.length > 0
           ? printAreas.map((pa: any) => ({
               name: pa.position || pa.name || 'Print Area',
