@@ -25,35 +25,48 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   const positions = [
     { value: 'front', label: 'Front' },
     { value: 'back', label: 'Back' },
-    { value: 'left', label: 'Left' },
-    { value: 'right', label: 'Right' },
+    { value: 'side', label: 'Side' },
+    { value: 'label', label: 'Label' },
     { value: 'sleeve_left', label: 'Left Sleeve' },
     { value: 'sleeve_right', label: 'Right Sleeve' },
   ];
+
+  // Auto-prefill position names based on image index
+  const getDefaultPositionForIndex = (index: number): string => {
+    const defaultPositions = ['front', 'back', 'side', 'label'];
+    return defaultPositions[index] || 'front';
+  };
+
+  const getDefaultNameForIndex = (index: number): string => {
+    const defaultNames = ['Front Design Area', 'Back Design Area', 'Side Design Area', 'Label Area'];
+    return defaultNames[index] || `Design Area ${index + 1}`;
+  };
 
   const currentImage = formData.images[currentImageIndex];
   const currentPrintArea = formData.printAreas.find((_, idx) => idx === currentImageIndex);
 
   const addPrintArea = () => {
-    if (newAreaName.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        printAreas: [
-          ...prev.printAreas,
-          {
-            name: newAreaName.trim(),
-            position: newAreaPosition,
-            width: 40, // Start with 40% width
-            height: 50, // Start with 50% height
-            x: 30, // Center-ish
-            y: 25, // Center-ish
-            dpi: 300,
-          },
-        ],
-      }));
-      setNewAreaName('');
-      setNewAreaPosition('front');
-    }
+    // Auto-use default name and position if not provided
+    const areaName = newAreaName.trim() || getDefaultNameForIndex(formData.printAreas.length);
+    const areaPosition = newAreaPosition || getDefaultPositionForIndex(formData.printAreas.length);
+    
+    setFormData(prev => ({
+      ...prev,
+      printAreas: [
+        ...prev.printAreas,
+        {
+          name: areaName,
+          position: areaPosition,
+          width: 40, // Start with 40% width
+          height: 50, // Start with 50% height
+          x: 30, // Center-ish
+          y: 25, // Center-ish
+          dpi: 300,
+        },
+      ],
+    }));
+    setNewAreaName('');
+    setNewAreaPosition(getDefaultPositionForIndex(formData.printAreas.length + 1));
   };
 
   const removePrintArea = (index: number) => {
@@ -185,7 +198,8 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
             </div>
 
             <div 
-              className="relative w-full aspect-square bg-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden cursor-crosshair"
+              className="relative w-full bg-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden cursor-crosshair"
+              style={{ maxHeight: '600px', aspectRatio: '1/1' }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -196,6 +210,7 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
                   src={currentImage}
                   alt={`Template ${currentImageIndex + 1}`}
                   className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  style={{ maxHeight: '600px' }}
                   onError={(e) => {
                     e.currentTarget.src = '/custom-tee-mockup.png';
                   }}
@@ -257,28 +272,41 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
 
             {/* Current Print Area Info */}
             {currentPrintArea && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                <p className="text-[10px] font-black uppercase text-blue-900 mb-1">
-                  {currentPrintArea.name} - {currentPrintArea.position}
-                </p>
-                <div className="grid grid-cols-4 gap-2 text-[9px]">
-                  <div>
-                    <span className="text-blue-700">X:</span>{' '}
-                    <span className="font-bold text-blue-900">{currentPrintArea.x.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">Y:</span>{' '}
-                    <span className="font-bold text-blue-900">{currentPrintArea.y.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">W:</span>{' '}
-                    <span className="font-bold text-blue-900">{currentPrintArea.width.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">H:</span>{' '}
-                    <span className="font-bold text-blue-900">{currentPrintArea.height.toFixed(1)}%</span>
+              <div className="space-y-2">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-[10px] font-black uppercase text-blue-900 mb-1">
+                    {currentPrintArea.name} - {currentPrintArea.position}
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 text-[9px]">
+                    <div>
+                      <span className="text-blue-700">X:</span>{' '}
+                      <span className="font-bold text-blue-900">{currentPrintArea.x.toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700">Y:</span>{' '}
+                      <span className="font-bold text-blue-900">{currentPrintArea.y.toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700">W:</span>{' '}
+                      <span className="font-bold text-blue-900">{currentPrintArea.width.toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700">H:</span>{' '}
+                      <span className="font-bold text-blue-900">{currentPrintArea.height.toFixed(1)}%</span>
+                    </div>
                   </div>
                 </div>
+                
+                {/* Save Confirmation Button */}
+                <Button
+                  type="button"
+                  onClick={() => {
+                    alert(`✓ Print area for "${currentPrintArea.name}" saved!\n\nPosition: ${currentPrintArea.position}\nArea: ${currentPrintArea.width.toFixed(1)}% × ${currentPrintArea.height.toFixed(1)}%\nCoordinates: (${currentPrintArea.x.toFixed(1)}%, ${currentPrintArea.y.toFixed(1)}%)`);
+                  }}
+                  className="w-full rounded-xl h-11 text-[10px] font-black uppercase bg-green-600 hover:bg-green-700 text-white"
+                >
+                  ✓ Save Print Area for {currentPrintArea.position}
+                </Button>
               </div>
             )}
           </div>
@@ -295,14 +323,14 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
       {/* Add Print Area */}
       <div className="space-y-3">
         <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">
-          Add Print Area
+          Add Print Area for Image #{currentImageIndex + 1}
         </Label>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
           <div className="md:col-span-5">
             <Input
               type="text"
-              placeholder="e.g., Main Design Area"
+              placeholder={getDefaultNameForIndex(formData.printAreas.length)}
               value={newAreaName}
               onChange={(e) => setNewAreaName(e.target.value)}
               className="rounded-xl h-11 text-xs"
@@ -310,7 +338,10 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
           </div>
 
           <div className="md:col-span-4">
-            <Select value={newAreaPosition} onValueChange={setNewAreaPosition}>
+            <Select 
+              value={newAreaPosition || getDefaultPositionForIndex(formData.printAreas.length)} 
+              onValueChange={setNewAreaPosition}
+            >
               <SelectTrigger className="rounded-xl h-11 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -333,6 +364,10 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
             </Button>
           </div>
         </div>
+        
+        <p className="text-[9px] text-gray-500 pl-1">
+          Position auto-filled: {getDefaultPositionForIndex(formData.printAreas.length)} • You can edit before adding
+        </p>
       </div>
 
       {/* Print Areas List */}

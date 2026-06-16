@@ -44,11 +44,34 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           ? (() => {
               // FIXED: Extract sizes with individual prices from variants
               const variantPrices = editingTemplate.variantSellingPrices || {};
-              return editingTemplate.variants.map((v: any) => ({
-                size: v.title || v.name || String(v.id),
-                baseCost: Number(v.cost || 0) / 100,
-                sellingPrice: Number(variantPrices[v.id] || v.price || editingTemplate.sellingPrice || 0) / 100,
-              }));
+              console.log('[Template Load] Loading prices from variants:', editingTemplate.variants.length);
+              console.log('[Template Load] Variant prices map:', variantPrices);
+              
+              return editingTemplate.variants.map((v: any) => {
+                const baseCostCents = Number(v.cost || 0);
+                const baseCostDollars = baseCostCents / 100; // Variants store in cents
+                
+                // Check variantPrices first (already in dollars), then v.price (in cents)
+                let sellingPriceDollars = 0;
+                if (variantPrices[v.id] !== undefined && variantPrices[v.id] !== null) {
+                  // variantSellingPrices is already in dollars - use directly
+                  sellingPriceDollars = Number(variantPrices[v.id]);
+                } else if (v.price !== undefined && v.price !== null) {
+                  // v.price is in cents - convert to dollars
+                  sellingPriceDollars = Number(v.price) / 100;
+                } else if (editingTemplate.sellingPrice !== undefined) {
+                  // Fallback to template-level price
+                  sellingPriceDollars = Number(editingTemplate.sellingPrice);
+                }
+                
+                console.log(`[Template Load] Size ${v.title}: baseCost=$${baseCostDollars}, sellingPrice=$${sellingPriceDollars}`);
+                
+                return {
+                  size: v.title || v.name || String(v.id),
+                  baseCost: baseCostDollars,
+                  sellingPrice: sellingPriceDollars,
+                };
+              });
             })()
           : Array.isArray(editingTemplate.sizes) && editingTemplate.sizes.length > 0
           ? (() => {
