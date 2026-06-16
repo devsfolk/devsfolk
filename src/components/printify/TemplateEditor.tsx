@@ -82,10 +82,16 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       });
 
       if (!blueprintResponse.ok) {
-        throw new Error('Failed to fetch blueprint details');
+        const errorData = await blueprintResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || `Blueprint API returned status ${blueprintResponse.status}`);
       }
 
       const blueprintData = await blueprintResponse.json();
+      
+      if (!blueprintData || !blueprintData.id) {
+        throw new Error('Invalid blueprint data received from Printify');
+      }
+
       // Fetch providers
       const providersResponse = await fetch('/api/printify/catalog', {
         method: 'POST',
@@ -97,57 +103,80 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         }),
       });
 
-      const providersData = await providersResponse.json();
+      if (!providersResponse.ok) {
+        console.warn('Failed to fetch providers, continuing with blueprint data only');
+      }
+
+      const providersData = await providersResponse.json().catch(() => ({}));
       const providers = providersData.data || providersData || [];
       const primaryProvider = providers[0];
+
+      let variants: any[] = [];
+      let printAreas: any[] = [];
 
       if (primaryProvider) {
         const providerId = primaryProvider.id || primaryProvider.print_provider_id;
 
         // Fetch variants
-        const variantsResponse = await fetch('/api/printify/catalog', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: 'variants',
-            blueprintId: formData.blueprintId,
-            printProviderId: providerId,
-            apiKey,
-          }),
-        });
+        try {
+          const variantsResponse = await fetch('/api/printify/catalog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'variants',
+              blueprintId: formData.blueprintId,
+              printProviderId: providerId,
+              apiKey,
+            }),
+          });
 
-        const variantsData = await variantsResponse.json();
-        const variants = variantsData.variants || variantsData.data || [];
-
-        // Auto-populate form data
-        setFormData(prev => ({
-          ...prev,
-          title: prev.title || blueprintData.title,
-          description: prev.description || blueprintData.description || '',
-          images: prev.images.length > 0 ? prev.images : (blueprintData.images || []).map((img: any) => 
-            typeof img === 'string' ? img : img.src || img.url || ''
-          ).filter(Boolean),
-          sizes: variants.map((v: any) => ({
-            size: v.title || v.name || `Variant ${v.id}`,
-            baseCost: Number(v.cost || 0) / 100,
-            sellingPrice: Number(v.cost || 0) / 100 * 1.5, // 50% markup
-          })),
-          printAreas: (blueprintData.print_areas || variantsData.print_areas || []).map((pa: any) => ({
-            name: pa.position || pa.name || 'Print Area',
-            position: pa.position || '',
-            width: pa.width || pa.pixel_width || 0,
-            height: pa.height || pa.pixel_height || 0,
-            x: pa.offset_x || 0,
-            y: pa.offset_y || 0,
-            dpi: pa.dpi || 300,
-          })),
-        }));
-
-        alert('✓ Data synced successfully from Printify!');
+          if (variantsResponse.ok) {
+            const variantsData = await variantsResponse.json();
+            variants = variantsData.variants || variantsData.data || [];
+            printAreas = variantsData.print_areas || blueprintData.print_areas || [];
+          }
+        } catch (err) {
+          console.warn('Failed to fetch variants:', err);
+        }
       }
+
+      // Extract images from blueprint data
+      const images = Array.isArray(blueprintData.images)
+        ? blueprintData.images.map((img: any) => 
+            typeof img === 'string' ? img : img.src || img.url || ''
+          ).filter(Boolean)
+        : [];
+
+      // Auto-populate form data
+      setFormData(prev => ({
+        ...prev,
+        title: prev.title || blueprintData.title || '',
+        description: prev.description || blueprintData.description || '',
+        images: prev.images.length > 0 ? prev.images : images,
+        sizes: variants.length > 0
+          ? variants.map((v: any) => ({
+              size: v.title || v.name || `Variant ${v.id}`,
+              baseCost: Number(v.cost || 0) / 100,
+              sellingPrice: Number(v.cost || 0) / 100 * 1.5, // 50% markup
+            }))
+          : prev.sizes,
+        printAreas: printAreas.length > 0
+          ? printAreas.map((pa: any) => ({
+              name: pa.position || pa.name || 'Print Area',
+              position: pa.position || '',
+              width: pa.width || pa.pixel_width || 0,
+              height: pa.height || pa.pixel_height || 0,
+              x: pa.offset_x || 0,
+              y: pa.offset_y || 0,
+              dpi: pa.dpi || 300,
+            }))
+          : prev.printAreas,
+      }));
+
+      alert('✓ Data synced successfully from Printify!');
     } catch (err: any) {
       console.error('[Template Sync] Error:', err);
-      alert(`Sync failed: ${err.message}`);
+      alert(`Sync failed: ${err.message || 'Unknown error occurred'}`);
     } finally {
       setSyncing(false);
     }
@@ -217,7 +246,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[92vh] overflow-hidden flex flex-col">
+      <DialogContent className="!max-w-[1600px] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader className="pb-4 border-b flex-shrink-0">
           <DialogTitle className="text-xl font-black uppercase tracking-tight">
             {editingTemplate ? 'Edit Template' : 'Create New Template'}
