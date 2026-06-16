@@ -25,43 +25,55 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   apiKey,
   editingTemplate,
 }) => {
-  const { settings, upsertPrintifyCatalogTemplates } = useShop();
+  const { settings, upsertPrintifyCatalogTemplates, deletePrintifyCatalogTemplate } = useShop();
   const [activeTab, setActiveTab] = useState('display');
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // Initialize form with editing template data if provided
-  const { formData, setFormData } = useTemplateForm(
-    editingTemplate
-      ? {
-          id: editingTemplate.id,
-          blueprintId: editingTemplate.blueprintId,
-          title: editingTemplate.title,
-          description: editingTemplate.description,
-          images: editingTemplate.images,
-          colors: editingTemplate.colors || [],
-          sizes: editingTemplate.variants?.map((v: any) => ({
-            size: v.title || v.name || '',
-            baseCost: Number(v.cost || 0) / 100,
-            sellingPrice: Number(editingTemplate.sellingPrice || 0),
-          })) || [],
-          printAreas: editingTemplate.printAreas?.map((pa: any) => ({
-            name: pa.position || pa.name || '',
-            position: pa.position || '',
-            width: pa.width || pa.pixel_width || 0,
-            height: pa.height || pa.pixel_height || 0,
-            x: pa.offset_x || 0,
-            y: pa.offset_y || 0,
-            dpi: pa.dpi || 300,
-          })) || [],
-          generatorSettings: {
-            enableColorization: false,
-            maskImageUrl: '',
-            baseImageUrl: '',
-          },
-        }
-      : undefined
-  );
+  // Prepare initial data from editing template
+  const initialFormData = editingTemplate
+    ? {
+        id: editingTemplate.id,
+        blueprintId: editingTemplate.blueprintId || null,
+        title: editingTemplate.title || '',
+        description: editingTemplate.description || '',
+        images: Array.isArray(editingTemplate.images) ? editingTemplate.images : [],
+        colors: Array.isArray(editingTemplate.colors) ? editingTemplate.colors : [],
+        sizes: Array.isArray(editingTemplate.sizes)
+          ? editingTemplate.sizes.map(size => ({
+              size: String(size),
+              baseCost: editingTemplate.baseCost || 0,
+              sellingPrice: editingTemplate.sellingPrice || 0,
+            }))
+          : Array.isArray(editingTemplate.variants)
+          ? editingTemplate.variants.map((v: any) => ({
+              size: v.title || v.name || String(v.id),
+              baseCost: Number(v.cost || 0) / 100,
+              sellingPrice: Number(editingTemplate.sellingPrice || v.price || 0) / 100,
+            }))
+          : [],
+        printAreas: Array.isArray(editingTemplate.printAreas)
+          ? editingTemplate.printAreas.map((pa: any) => ({
+              name: pa.position || pa.name || '',
+              position: pa.position || '',
+              width: pa.width || pa.pixel_width || 0,
+              height: pa.height || pa.pixel_height || 0,
+              x: pa.offset_x || pa.x || 0,
+              y: pa.offset_y || pa.y || 0,
+              dpi: pa.dpi || 300,
+            }))
+          : [],
+        generatorSettings: {
+          enableColorization: false,
+          maskImageUrl: '',
+          baseImageUrl: '',
+        },
+      }
+    : undefined;
+
+  // Initialize form with editing template data
+  const { formData, setFormData } = useTemplateForm(initialFormData);
 
   const handleSync = async () => {
     if (!formData.blueprintId) {
@@ -328,6 +340,28 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
     }
   };
 
+  const handleDelete = async () => {
+    if (!formData.id) {
+      alert('Cannot delete: Template has no ID');
+      return;
+    }
+
+    const confirmed = confirm(`Are you sure you want to delete "${formData.title}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await deletePrintifyCatalogTemplate(formData.id);
+      alert('✓ Template deleted successfully!');
+      onClose();
+    } catch (err: any) {
+      console.error('[Template Delete] Error:', err);
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="!max-w-[1600px] w-[98vw] max-h-[95vh] overflow-hidden flex flex-col">
@@ -407,9 +441,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
               <Button
                 type="button"
                 variant="outline"
+                onClick={handleDelete}
+                disabled={deleting || loading || syncing}
                 className="rounded-xl h-11 px-4 text-[10px] font-black uppercase text-red-600 border-red-200 hover:bg-red-50"
               >
-                <Trash2 className="h-3 w-3 mr-2" />
+                {deleting ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Trash2 className="h-3 w-3 mr-2" />}
                 Delete
               </Button>
             )}
@@ -417,7 +453,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
             <Button
               type="button"
               onClick={handlePublish}
-              disabled={loading || syncing}
+              disabled={loading || syncing || deleting}
               className="rounded-xl h-11 px-6 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800"
             >
               {loading ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Save className="h-3 w-3 mr-2" />}

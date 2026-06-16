@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export interface SizePrice {
   size: string;
@@ -36,24 +36,45 @@ export interface TemplateFormData {
   generatorSettings: GeneratorSettings;
 }
 
+const getDefaultFormData = (): TemplateFormData => ({
+  id: undefined,
+  blueprintId: null,
+  title: '',
+  description: '',
+  images: [],
+  primaryImageIndex: 0,
+  colors: [],
+  newColor: '',
+  sizes: [],
+  printAreas: [],
+  generatorSettings: {
+    enableColorization: false,
+    maskImageUrl: '',
+    baseImageUrl: '',
+  },
+});
+
 export const useTemplateForm = (initialData?: Partial<TemplateFormData>) => {
-  const [formData, setFormData] = useState<TemplateFormData>({
-    id: initialData?.id,
-    blueprintId: initialData?.blueprintId || null,
-    title: initialData?.title || '',
-    description: initialData?.description || '',
-    images: initialData?.images || [],
-    primaryImageIndex: initialData?.primaryImageIndex || 0,
-    colors: initialData?.colors || [],
-    newColor: '',
-    sizes: initialData?.sizes || [],
-    printAreas: initialData?.printAreas || [],
-    generatorSettings: initialData?.generatorSettings || {
-      enableColorization: false,
-      maskImageUrl: '',
-      baseImageUrl: '',
-    },
+  const [formData, setFormData] = useState<TemplateFormData>(() => {
+    if (!initialData) return getDefaultFormData();
+    
+    return {
+      ...getDefaultFormData(),
+      ...initialData,
+    };
   });
+
+  // Update form data when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        ...getDefaultFormData(),
+        ...initialData,
+      });
+    } else {
+      setFormData(getDefaultFormData());
+    }
+  }, [initialData?.id]); // Only reset when template ID changes
 
   return { formData, setFormData };
 };
