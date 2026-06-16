@@ -204,10 +204,14 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       variants.forEach((variant: any) => {
         if (Array.isArray(variant.options)) {
           variant.options.forEach((option: any) => {
-            const optionName = String(option.name || '').toLowerCase();
-            if (optionName.includes('color') || optionName.includes('colour')) {
-              const colorValue = String(option.title || option.value || '').trim();
-              if (colorValue) {
+            // Check name, type, key, or label for "color"/"colour"
+            const optionName = String(option.name || option.type || option.key || option.label || '').toLowerCase();
+            const hasColorMetadata = !!option?.hex || (Array.isArray(option?.colors) && option.colors.length > 0);
+            
+            if (optionName.includes('color') || optionName.includes('colour') || hasColorMetadata) {
+              // Extract color value from title, value, or name
+              const colorValue = String(option.title || option.value || option.name || '').trim();
+              if (colorValue && colorValue.toLowerCase() !== optionName) {
                 colorsSet.add(colorValue);
               }
             }

@@ -142,7 +142,7 @@ export const PricesTab: React.FC<PricesTabProps> = ({
       variants.forEach((variant: any, variantIndex: number) => {
         let sizeValue = '';
         
-        // Log each variant structure for debugging
+        // Log first 3 variants for debugging
         if (variantIndex < 3) {
           console.log(`[Variant ${variantIndex}] Full structure:`, JSON.stringify(variant, null, 2));
           console.log(`[Variant ${variantIndex}] Has options?`, Array.isArray(variant.options));
@@ -153,34 +153,35 @@ export const PricesTab: React.FC<PricesTabProps> = ({
         
         if (Array.isArray(variant.options)) {
           // Extract size
-          const sizeOption = variant.options.find((opt: any) => 
-            String(opt.name || '').toLowerCase().includes('size')
-          );
+          const sizeOption = variant.options.find((opt: any) => {
+            const optName = String(opt.name || opt.type || opt.key || opt.label || '').toLowerCase();
+            return optName.includes('size');
+          });
           if (sizeOption) {
-            sizeValue = String(sizeOption.title || sizeOption.value || '').trim();
+            sizeValue = String(sizeOption.title || sizeOption.value || sizeOption.name || '').trim();
           }
 
-          // Extract colors - log each option
+          // FIXED: Extract colors with correct field names matching BespokeCustomizer
           variant.options.forEach((option: any, optIndex: number) => {
             if (variantIndex < 3) {
               console.log(`[Variant ${variantIndex}][Option ${optIndex}]`, option);
             }
             
-            const optionName = String(option.name || '').toLowerCase();
-            const optionType = String(option.type || '').toLowerCase();
+            // Check name, type, key, or label for "color"/"colour"
+            const optionName = String(option.name || option.type || option.key || option.label || '').toLowerCase();
+            const hasColorMetadata = !!option?.hex || (Array.isArray(option?.colors) && option.colors.length > 0);
             
-            // Check both name and type fields for color
-            if (optionName.includes('color') || optionName.includes('colour') || 
-                optionType.includes('color') || optionType.includes('colour')) {
-              const colorValue = String(option.title || option.value || option.label || '').trim();
-              if (colorValue) {
+            if (optionName.includes('color') || optionName.includes('colour') || hasColorMetadata) {
+              // Extract color value from title, value, or name
+              const colorValue = String(option.title || option.value || option.name || '').trim();
+              if (colorValue && colorValue.toLowerCase() !== optionName) {
                 console.log('[Color Found]', colorValue, 'from variant', variantIndex, 'option:', option);
                 colorsSet.add(colorValue);
               }
             }
           });
         } else {
-          // Check if color is directly on variant
+          // Check if color is directly on variant (fallback)
           if (variantIndex < 3) {
             console.log(`[Variant ${variantIndex}] No options array. Checking direct fields...`);
             console.log(`[Variant ${variantIndex}] Available fields:`, Object.keys(variant));
