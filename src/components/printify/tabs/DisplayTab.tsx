@@ -155,7 +155,7 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({
         </div>
 
         {formData.images.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {formData.images.map((img, index) => (
               <div key={index} className="relative group">
                 <div className="aspect-square rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50">

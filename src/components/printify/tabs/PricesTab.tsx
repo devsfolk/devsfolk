@@ -96,11 +96,11 @@ export const PricesTab: React.FC<PricesTabProps> = ({
             {formData.sizes.map((size, index) => (
               <div
                 key={index}
-                className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border"
+                className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 bg-gray-50 rounded-2xl border"
               >
 
                 {/* Size Name */}
-                <div className="md:col-span-2">
+                <div className="lg:col-span-2">
                   <Label className="text-[9px] font-black uppercase text-gray-400">Size</Label>
                   <div className="mt-1 px-3 py-2 bg-white border rounded-xl">
                     <p className="text-xs font-black">{size.size}</p>
@@ -108,7 +108,7 @@ export const PricesTab: React.FC<PricesTabProps> = ({
                 </div>
 
                 {/* Base Cost */}
-                <div className="md:col-span-4">
+                <div className="lg:col-span-4">
                   <Label className="text-[9px] font-black uppercase text-gray-400">
                     Printify Base Cost
                   </Label>
@@ -122,13 +122,13 @@ export const PricesTab: React.FC<PricesTabProps> = ({
                       min="0"
                       value={size.baseCost}
                       onChange={(e) => updateSize(index, 'baseCost', parseFloat(e.target.value) || 0)}
-                      className="pl-7 rounded-xl h-10 text-xs"
+                      className="pl-7 rounded-xl h-10 text-xs w-full"
                     />
                   </div>
                 </div>
 
                 {/* Selling Price */}
-                <div className="md:col-span-4">
+                <div className="lg:col-span-4">
                   <Label className="text-[9px] font-black uppercase text-gray-400">
                     Your Selling Price
                   </Label>
@@ -142,13 +142,13 @@ export const PricesTab: React.FC<PricesTabProps> = ({
                       min="0"
                       value={size.sellingPrice}
                       onChange={(e) => updateSize(index, 'sellingPrice', parseFloat(e.target.value) || 0)}
-                      className="pl-7 rounded-xl h-10 text-xs"
+                      className="pl-7 rounded-xl h-10 text-xs w-full"
                     />
                   </div>
                 </div>
 
                 {/* Margin & Delete */}
-                <div className="md:col-span-2 flex items-end gap-2">
+                <div className="lg:col-span-2 flex items-end gap-2">
                   <div className="flex-1">
                     <Label className="text-[9px] font-black uppercase text-gray-400">Margin</Label>
                     <div className="mt-1 px-2 py-2 bg-white border rounded-xl text-center">
@@ -168,7 +168,7 @@ export const PricesTab: React.FC<PricesTabProps> = ({
                     variant="ghost"
                     size="icon"
                     onClick={() => removeSize(index)}
-                    className="h-10 w-10 text-red-600 hover:bg-red-50"
+                    className="h-10 w-10 text-red-600 hover:bg-red-50 flex-shrink-0"
                     title="Remove size"
                   >
                     <Trash2 className="h-4 w-4" />

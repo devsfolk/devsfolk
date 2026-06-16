@@ -217,8 +217,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="pb-4 border-b">
+      <DialogContent className="max-w-[95vw] w-full max-h-[92vh] overflow-hidden flex flex-col">
+        <DialogHeader className="pb-4 border-b flex-shrink-0">
           <DialogTitle className="text-xl font-black uppercase tracking-tight">
             {editingTemplate ? 'Edit Template' : 'Create New Template'}
           </DialogTitle>
@@ -277,7 +277,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         </Tabs>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between gap-3 p-6 border-t bg-gray-50">
+        <div className="flex-shrink-0 flex items-center justify-between gap-3 p-6 border-t bg-gray-50">
           <Button
             type="button"
             variant="outline"
