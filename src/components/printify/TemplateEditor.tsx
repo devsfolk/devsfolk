@@ -118,6 +118,13 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         throw new Error('Invalid blueprint data received from Printify');
       }
 
+      // Extract images from blueprint data
+      const images = Array.isArray(blueprintData.images)
+        ? blueprintData.images.map((img: any) => 
+            typeof img === 'string' ? img : img.src || img.url || ''
+          ).filter(Boolean)
+        : [];
+
       // Fetch providers
       const providersResponse = await fetch('/api/printify/catalog', {
         method: 'POST',
@@ -130,48 +137,59 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       });
 
       if (!providersResponse.ok) {
-        console.warn('Failed to fetch providers, continuing with blueprint data only');
+        console.warn('Failed to fetch providers');
+        // Update with basic blueprint data only
+        setFormData(prev => ({
+          ...prev,
+          title: prev.title || blueprintData.title || '',
+          description: prev.description || blueprintData.description || '',
+          images: prev.images.length > 0 ? prev.images : images,
+        }));
+        alert('⚠️ Blueprint synced, but providers unavailable. Please select a print provider in the Prices tab to load sizes and pricing.');
+        return;
       }
 
-      const providersData = await providersResponse.json().catch(() => ({}));
+      const providersData = await providersResponse.json();
       const providers = providersData.data || providersData || [];
+      
+      if (providers.length === 0) {
+        setFormData(prev => ({
+          ...prev,
+          title: prev.title || blueprintData.title || '',
+          description: prev.description || blueprintData.description || '',
+          images: prev.images.length > 0 ? prev.images : images,
+        }));
+        alert('⚠️ No print providers available for this blueprint.');
+        return;
+      }
+
       const primaryProvider = providers[0];
+      const providerId = primaryProvider.id || primaryProvider.print_provider_id;
+
+      // Fetch variants with the primary provider
+      const variantsResponse = await fetch('/api/printify/catalog', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          mode: 'variants',
+          blueprintId: formData.blueprintId,
+          printProviderId: providerId,
+          apiKey,
+        }),
+      });
 
       let variants: any[] = [];
       let printAreas: any[] = [];
 
-      if (primaryProvider) {
-        const providerId = primaryProvider.id || primaryProvider.print_provider_id;
-
-        // Fetch variants
-        try {
-          const variantsResponse = await fetch('/api/printify/catalog', {
-            method: 'POST',
-            headers: authHeaders,
-            body: JSON.stringify({
-              mode: 'variants',
-              blueprintId: formData.blueprintId,
-              printProviderId: providerId,
-              apiKey,
-            }),
-          });
-
-          if (variantsResponse.ok) {
-            const variantsData = await variantsResponse.json();
-            variants = variantsData.variants || variantsData.data || [];
-            printAreas = variantsData.print_areas || blueprintData.print_areas || [];
-          }
-        } catch (err) {
-          console.warn('Failed to fetch variants:', err);
-        }
+      if (variantsResponse.ok) {
+        const variantsData = await variantsResponse.json();
+        variants = variantsData.variants || variantsData.data || [];
+        printAreas = variantsData.print_areas || blueprintData.print_areas || [];
+        
+        console.log('[Sync Debug] Variants fetched:', variants.length);
+        console.log('[Sync Debug] Sample variant:', variants[0]);
+        console.log('[Sync Debug] Print areas:', printAreas.length);
       }
-
-      // Extract images from blueprint data
-      const images = Array.isArray(blueprintData.images)
-        ? blueprintData.images.map((img: any) => 
-            typeof img === 'string' ? img : img.src || img.url || ''
-          ).filter(Boolean)
-        : [];
 
       // Extract unique COLORS from variants
       const colorsSet = new Set<string>();
@@ -189,15 +207,14 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         }
       });
       const extractedColors = Array.from(colorsSet);
+      console.log('[Sync Debug] Extracted colors:', extractedColors);
 
       // Extract unique SIZES and their base costs
-      // Group variants by size to get correct pricing
       const sizeMap = new Map<string, { baseCost: number; count: number }>();
       
       variants.forEach((variant: any) => {
         let sizeValue = '';
         
-        // Extract size from variant options
         if (Array.isArray(variant.options)) {
           const sizeOption = variant.options.find((opt: any) => 
             String(opt.name || '').toLowerCase().includes('size')
@@ -207,10 +224,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           }
         }
         
-        // Fallback: try to extract size from variant title
         if (!sizeValue && variant.title) {
           const title = String(variant.title);
-          // Common size patterns: S, M, L, XL, XXL, XXXL, 2XL, 3XL, etc.
           const sizeMatch = title.match(/\b(XXX?L|XX?L|[SML]|[2-5]XL)\b/i);
           if (sizeMatch) {
             sizeValue = sizeMatch[0].toUpperCase();
@@ -223,7 +238,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           if (!sizeMap.has(sizeValue)) {
             sizeMap.set(sizeValue, { baseCost: cost, count: 1 });
           } else {
-            // Average the costs if multiple variants have the same size
             const existing = sizeMap.get(sizeValue)!;
             existing.baseCost = ((existing.baseCost * existing.count) + cost) / (existing.count + 1);
             existing.count += 1;
@@ -231,13 +245,12 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         }
       });
 
-      // Convert size map to array with proper sizing order
       const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', 'XXXL', '4XL', '5XL'];
       const extractedSizes = Array.from(sizeMap.entries())
         .map(([size, data]) => ({
           size,
           baseCost: Number(data.baseCost.toFixed(2)),
-          sellingPrice: Number((data.baseCost * 1.5).toFixed(2)), // 50% markup
+          sellingPrice: Number((data.baseCost * 1.5).toFixed(2)),
         }))
         .sort((a, b) => {
           const aIndex = sizeOrder.indexOf(a.size);
@@ -248,7 +261,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           return aIndex - bIndex;
         });
 
-      // Auto-populate form data
+      console.log('[Sync Debug] Extracted sizes:', extractedSizes);
+
+      // Update form data with everything
       setFormData(prev => ({
         ...prev,
         title: prev.title || blueprintData.title || '',
@@ -410,7 +425,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
             </TabsContent>
 
             <TabsContent value="prices" className="mt-0">
-              <PricesTab formData={formData} setFormData={setFormData} currencySymbol={settings.currencySymbol} />
+              <PricesTab formData={formData} setFormData={setFormData} currencySymbol={settings.currencySymbol} apiKey={apiKey} />
             </TabsContent>
 
             <TabsContent value="printareas" className="mt-0">
