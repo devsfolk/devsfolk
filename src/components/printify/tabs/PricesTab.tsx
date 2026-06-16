@@ -110,18 +110,46 @@ export const PricesTab: React.FC<PricesTabProps> = ({
       }
 
       const variantsData = await response.json();
+      
+      // CRITICAL DEBUG: Log full API response structure
+      console.log('===== RAW API RESPONSE =====');
+      console.log('[API Response] Full variantsData:', JSON.stringify(variantsData, null, 2));
+      console.log('[API Response] Keys in response:', Object.keys(variantsData));
+      
       const variants = variantsData.variants || variantsData.data || [];
-      const printAreas = variantsData.print_areas || [];
+      const printAreas = variantsData.print_areas || variantsData.printAreas || [];
 
-      console.log('[Fetch Prices] Variants:', variants.length);
-      console.log('[Fetch Prices] Print Areas:', printAreas.length);
+      console.log('[Fetch Prices] Extracted Variants Count:', variants.length);
+      console.log('[Fetch Prices] Extracted Print Areas Count:', printAreas.length);
+      
+      if (variants.length > 0) {
+        console.log('[Fetch Prices] Sample Variant Structure:', JSON.stringify(variants[0], null, 2));
+      }
+      
+      if (printAreas.length > 0) {
+        console.log('[Fetch Prices] Sample Print Area Structure:', JSON.stringify(printAreas[0], null, 2));
+      } else {
+        console.log('[Fetch Prices] Print Areas not found. Checking alternative fields...');
+        console.log('[Fetch Prices] Possible print area fields:', Object.keys(variantsData).filter(k => k.toLowerCase().includes('print') || k.toLowerCase().includes('area')));
+      }
 
       // Extract unique SIZES and their base costs
       const sizeMap = new Map<string, { baseCost: number; count: number }>();
       const colorsSet = new Set<string>();
       
-      variants.forEach((variant: any) => {
+      console.log('[Color Extraction] Starting color extraction from', variants.length, 'variants');
+      
+      variants.forEach((variant: any, variantIndex: number) => {
         let sizeValue = '';
+        
+        // Log each variant structure for debugging
+        if (variantIndex < 3) {
+          console.log(`[Variant ${variantIndex}] Full structure:`, JSON.stringify(variant, null, 2));
+          console.log(`[Variant ${variantIndex}] Has options?`, Array.isArray(variant.options));
+          if (Array.isArray(variant.options)) {
+            console.log(`[Variant ${variantIndex}] Options:`, variant.options);
+          }
+        }
         
         if (Array.isArray(variant.options)) {
           // Extract size
@@ -132,16 +160,31 @@ export const PricesTab: React.FC<PricesTabProps> = ({
             sizeValue = String(sizeOption.title || sizeOption.value || '').trim();
           }
 
-          // Extract colors
-          variant.options.forEach((option: any) => {
+          // Extract colors - log each option
+          variant.options.forEach((option: any, optIndex: number) => {
+            if (variantIndex < 3) {
+              console.log(`[Variant ${variantIndex}][Option ${optIndex}]`, option);
+            }
+            
             const optionName = String(option.name || '').toLowerCase();
-            if (optionName.includes('color') || optionName.includes('colour')) {
-              const colorValue = String(option.title || option.value || '').trim();
+            const optionType = String(option.type || '').toLowerCase();
+            
+            // Check both name and type fields for color
+            if (optionName.includes('color') || optionName.includes('colour') || 
+                optionType.includes('color') || optionType.includes('colour')) {
+              const colorValue = String(option.title || option.value || option.label || '').trim();
               if (colorValue) {
+                console.log('[Color Found]', colorValue, 'from variant', variantIndex, 'option:', option);
                 colorsSet.add(colorValue);
               }
             }
           });
+        } else {
+          // Check if color is directly on variant
+          if (variantIndex < 3) {
+            console.log(`[Variant ${variantIndex}] No options array. Checking direct fields...`);
+            console.log(`[Variant ${variantIndex}] Available fields:`, Object.keys(variant));
+          }
         }
         
         if (!sizeValue && variant.title) {
@@ -164,6 +207,9 @@ export const PricesTab: React.FC<PricesTabProps> = ({
           }
         }
       });
+
+      console.log('[Color Extraction] Final colors extracted:', Array.from(colorsSet));
+      console.log('[Color Extraction] Total unique colors:', colorsSet.size);
 
       const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', 'XXXL', '4XL', '5XL'];
       const extractedSizes = Array.from(sizeMap.entries())
@@ -256,57 +302,68 @@ export const PricesTab: React.FC<PricesTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Print Provider Selector */}
-      {formData.blueprintId && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label className="text-[10px] font-black uppercase text-blue-900">
-                Print Provider Selection
-              </Label>
-              <p className="text-[9px] text-blue-700 mt-1">
-                Select a print provider to load sizes and pricing
-              </p>
-            </div>
-            {loadingProviders && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
-          </div>
-
-          {providers.length > 0 ? (
-            <div className="flex gap-2">
-              <Select value={selectedProvider} onValueChange={handleProviderChange}>
-                <SelectTrigger className="rounded-xl h-11 flex-1">
-                  <SelectValue placeholder="Select a print provider..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((provider) => {
-                    const id = String(provider.id || provider.print_provider_id || '');
-                    const title = provider.title || provider.name || `Provider ${id}`;
-                    return (
-                      <SelectItem key={id} value={id}>
-                        {title}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => selectedProvider && fetchPricesForProvider(selectedProvider)}
-                disabled={!selectedProvider || loadingPrices}
-                className="rounded-xl h-11 px-4 text-[10px] font-black uppercase"
-              >
-                {loadingPrices ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-2" />}
-                Load Prices
-              </Button>
-            </div>
-          ) : (
-            <p className="text-[10px] text-blue-600">
-              {loadingProviders ? 'Loading providers...' : 'No providers available. Please sync blueprint first.'}
+      {/* Print Provider Selector - ALWAYS VISIBLE */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-[10px] font-black uppercase text-blue-900">
+              Print Provider Selection
+            </Label>
+            <p className="text-[9px] text-blue-700 mt-1">
+              {formData.blueprintId 
+                ? 'Select a print provider to load sizes and pricing' 
+                : 'First add a Blueprint ID in the Display Tab, then sync to enable provider selection'}
             </p>
-          )}
+          </div>
+          {loadingProviders && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
         </div>
-      )}
+
+        {!formData.blueprintId ? (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-[10px] text-amber-800 font-bold">
+              ⚠️ Blueprint ID Required
+            </p>
+            <p className="text-[9px] text-amber-700 mt-1">
+              Go to Display Tab → Enter Blueprint ID → Click "Sync from Printify" → Return here to select provider
+            </p>
+          </div>
+        ) : providers.length > 0 ? (
+          <div className="flex gap-2">
+            <Select value={selectedProvider} onValueChange={handleProviderChange}>
+              <SelectTrigger className="rounded-xl h-11 flex-1">
+                <SelectValue placeholder="Select a print provider..." />
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((provider) => {
+                  const id = String(provider.id || provider.print_provider_id || '');
+                  const title = provider.title || provider.name || `Provider ${id}`;
+                  return (
+                    <SelectItem key={id} value={id}>
+                      {title}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => selectedProvider && fetchPricesForProvider(selectedProvider)}
+              disabled={!selectedProvider || loadingPrices}
+              className="rounded-xl h-11 px-4 text-[10px] font-black uppercase"
+            >
+              {loadingPrices ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-2" />}
+              Load Prices
+            </Button>
+          </div>
+        ) : (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+            <p className="text-[10px] text-yellow-800">
+              {loadingProviders ? 'Loading providers...' : 'No providers available. Please sync blueprint in Display Tab first.'}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Add Size */}
       <div className="space-y-3">
