@@ -1226,7 +1226,7 @@ export const PrintifySettings: React.FC = () => {
             </TabsTrigger>
             <TabsTrigger value="sync" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
               <RefreshCw className="h-4 w-4 md:h-3.5 md:w-3.5 mb-0.5 md:mb-0 md:mr-2" />
-              <span className="hidden md:inline">Product Sync</span>
+              <span className="hidden md:inline">Shop Product Sync</span>
               <span className="md:hidden">Sync</span>
             </TabsTrigger>
             <TabsTrigger value="orders" className="flex-1 flex flex-col md:flex-row items-center justify-center rounded-xl font-black px-2 py-2.5 md:py-2 text-[7px] md:text-xs uppercase tracking-tighter md:tracking-wider min-h-[48px] md:min-h-0">
@@ -1634,287 +1634,8 @@ export const PrintifySettings: React.FC = () => {
 
           {/* Product Sync Tab */}
           <TabsContent value="sync" className="space-y-6 animate-in fade-in duration-200 outline-none">
-            {/* Sync Mode Settings */}
-            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-              <CardHeader className="p-5 md:p-6">
-                <div className="flex items-center gap-3">
-                  <Zap className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Sync Strategy</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Choose how product data stays in sync between Printify and your store.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5 p-5 md:p-6 pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {[
-                    { id: 'webhook', label: 'Real-time (Webhook)', desc: 'Syncs instantly when Printify products change.', icon: Zap },
-                    { id: 'scheduled', label: 'Scheduled', desc: 'Automatic daily, weekly, or hourly sync.', icon: Clock },
-                    { id: 'manual', label: 'Manual Only', desc: 'You decide when to pull latest catalog data.', icon: Play },
-                  ].map((mode) => (
-                    <button
-                      key={mode.id}
-                      onClick={() => handleUpdate({
-                        sync: { ...printifySettings.sync, mode: mode.id as 'manual' | 'scheduled' | 'webhook' }
-                      })}
-                      className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                        printifySettings.sync?.mode === mode.id 
-                          ? 'border-black bg-neutral-50' 
-                          : 'border-gray-100 bg-white hover:border-gray-200'
-                      }`}
-                    >
-                      <mode.icon className={`h-5 w-5 mb-2 ${printifySettings.sync?.mode === mode.id ? 'text-black' : 'text-gray-400'}`} />
-                      <h4 className="font-bold text-xs uppercase tracking-tight">{mode.label}</h4>
-                      <p className="text-[10px] text-gray-500 mt-1 leading-snug">{mode.desc}</p>
-                    </button>
-                  ))}
-                </div>
-
-                {printifySettings.sync?.mode === 'scheduled' && (
-                  <div className="p-4 bg-gray-50 border rounded-2xl space-y-3 animate-in fade-in duration-200">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Schedule Interval</Label>
-                    <Select
-                      value={printifySettings.sync?.scheduleInterval || 'daily'}
-                      onValueChange={(val) => handleUpdate({
-                        sync: { ...printifySettings.sync, scheduleInterval: val as 'daily' | 'weekly' | 'hourly' }
-                      })}
-                    >
-                      <SelectTrigger className="rounded-xl h-10 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hourly">Every Hour</SelectItem>
-                        <SelectItem value="daily">Once a Day</SelectItem>
-                        <SelectItem value="weekly">Once a Week</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {printifySettings.sync?.mode === 'webhook' && (
-                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl animate-in fade-in duration-200">
-                    <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="text-[11px] text-amber-700 leading-relaxed">
-                      <p className="font-bold mb-1">Webhook Sync Active</p>
-                      <p>Configure your Printify webhook to send product update events to your store. Products, pricing, variants, and availability will update in real-time when they change in Printify.</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Raw Template Catalog */}
-            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-              <CardHeader className="p-5 md:p-6">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Raw Template Catalog</CardTitle>
-                </div>
-                <CardDescription className="text-xs">Cache blank Printify templates for the customer editor product picker.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6 p-5 md:p-6 pt-0">
-                <div className="bg-neutral-50 border p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync Blank Templates</h4>
-                    <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Fetches selected Printify blueprints such as T-shirts, hoodies, mugs, posters, and other POD blanks. Templates stay raw until an admin reviews and publishes them.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={runReliableTemplateCatalogSync}
-                    disabled={syncingTemplates || deletingTemplates}
-                    className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800 self-stretch md:self-auto shrink-0"
-                  >
-                    {syncingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <RefreshCw className="h-3 w-3 mr-2" />}
-                    Sync Templates
-                  </Button>
-                  <Button
-                    onClick={deleteAllRawTemplates}
-                    disabled={syncingTemplates || deletingTemplates}
-                    className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-red-600 text-white hover:bg-red-700 self-stretch md:self-auto shrink-0"
-                  >
-                    {deletingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Trash2 className="h-3 w-3 mr-2" />}
-                    Delete All Templates
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Template Search Filter</Label>
-                    <Input
-                      value={templateSyncSearch}
-                      onChange={(event) => setTemplateSyncSearch(event.target.value)}
-                      placeholder="Optional: t-shirt, hoodie, mug, poster..."
-                      className="rounded-xl h-11 text-xs border-gray-200"
-                    />
-                    <p className="text-[9px] text-gray-400 pl-1">
-                      Leave empty to sync from the full Printify template catalog.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">Maximum Templates to Sync</Label>
-                    <Select value={templateSyncLimit} onValueChange={setTemplateSyncLimit}>
-                      <SelectTrigger className="rounded-xl h-11 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 template</SelectItem>
-                        <SelectItem value="2">2 templates</SelectItem>
-                        <SelectItem value="3">3 templates</SelectItem>
-                        <SelectItem value="4">4 templates</SelectItem>
-                        <SelectItem value="5">5 templates</SelectItem>
-                        <SelectItem value="10">10 templates</SelectItem>
-                        <SelectItem value="25">25 templates</SelectItem>
-                        <SelectItem value="50">50 templates</SelectItem>
-                        <SelectItem value="100">100 templates</SelectItem>
-                        <SelectItem value="250">250 templates</SelectItem>
-                        <SelectItem value="custom">Custom quantity</SelectItem>
-                        <SelectItem value="all">All matching templates</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {templateSyncLimit === 'custom' && (
-                      <div className="mt-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="Enter quantity (e.g., 1, 2, 3...)"
-                          value={customSyncQuantity}
-                          onChange={(e) => setCustomSyncQuantity(e.target.value)}
-                          className="rounded-xl h-11 text-xs"
-                        />
-                      </div>
-                    )}
-                    <p className="text-[9px] text-gray-400 pl-1">
-                      Recommended: start with 50–100 to keep the editor clean.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 bg-gray-50 rounded-xl border">
-                    <p className="text-[9px] font-black uppercase text-gray-400">Cached Templates</p>
-                    <p className="text-xs font-bold mt-1">{printifyCatalog.length}</p>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl border">
-                    <p className="text-[9px] font-black uppercase text-gray-400">Enabled Templates</p>
-                    <p className="text-xs font-bold mt-1">{printifyCatalog.filter((template) => (template.syncStatus || (template.isEnabled ? 'published' : 'raw')) === 'published').length}</p>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl border">
-                    <p className="text-[9px] font-black uppercase text-gray-400">Editor-Ready</p>
-                    <p className="text-xs font-bold mt-1">{printifyCatalog.filter((template) => template.providers.length > 0).length}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                  <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-                  <div className="text-[11px] text-blue-700 leading-relaxed">
-                    <p className="font-bold mb-1">Template Readiness</p>
-                    <p>Synced templates are raw drafts. They become editor-ready only after the admin reviews Printify costs, fills missing pricing/images/print-area settings, and publishes them.</p>
-                  </div>
-                </div>
-
-              </CardContent>
-            </Card>
-
-            {/* Raw Synced Templates */}
-            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-              <CardHeader className="p-5 md:p-6 pb-0 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Raw Synced Templates</CardTitle>
-                  <CardDescription className="text-xs">Review raw Printify data, set manual selling prices, then publish templates to the customizer editor.</CardDescription>
-                </div>
-                <span className="px-3 py-1 bg-neutral-100 text-neutral-800 text-[10px] font-black uppercase rounded-full shrink-0">
-                  {printifyCatalog.length} Total
-                </span>
-              </CardHeader>
-              <CardContent className="p-5 md:p-6">
-                {printifyCatalog.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-gray-400 border border-dashed rounded-2xl">
-                    No templates synced yet. Click "Sync Templates" above to populate.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-1">
-                    {printifyCatalog.map((template) => (
-                      <div key={template.id} className="p-4 rounded-2xl border bg-white flex items-center justify-between gap-3 hover:shadow-sm transition-shadow">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-14 w-14 rounded-xl bg-gray-50 overflow-hidden shrink-0 border flex items-center justify-center">
-                            {template.images && template.images[0] ? (
-                              <img src={template.images[0]} alt={template.title} className="h-full w-full object-cover" />
-                            ) : (
-                              <FileText className="h-5 w-5 text-gray-300" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-black uppercase tracking-tight truncate" title={template.title}>{template.title}</p>
-                            <p className="text-[10px] text-gray-400 truncate">Blueprint: {template.blueprintId}</p>
-                            <div className="mt-2 grid grid-cols-3 gap-1 text-[9px]">
-                              <span className="rounded-lg bg-gray-50 border px-2 py-1 font-bold text-gray-600">
-                                Base {settings.currencySymbol}{Number(template.baseCost || 0).toFixed(2)}
-                              </span>
-                              <span className="rounded-lg bg-gray-50 border px-2 py-1 font-bold text-gray-600">
-                                {template.variants?.length || 0} Variants
-                              </span>
-                              <span className="rounded-lg bg-gray-50 border px-2 py-1 font-bold text-gray-600">
-                                {template.printAreas?.length || 0} Areas
-                              </span>
-                            </div>
-                            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide truncate mt-0.5">{template.brand || 'Printify'} • {template.model || 'Generic'}</p>
-                            {(!template.baseCost || template.baseCost === 0 || !Array.isArray(template.variants) || template.variants.length === 0 || templateVariantsNeedResync(template.variants)) && (
-                              <p className="text-[9px] text-amber-600 font-bold mt-1 flex items-center gap-1">
-                                <AlertCircle className="h-3 w-3 shrink-0" />
-                                {templateVariantsNeedResync(template.variants)
-                                  ? 'Resync Required (Variants not enriched)'
-                                  : 'Resync Required (Incomplete data)'}
-                              </p>
-                            )}
-                            <p className={`text-[9px] font-black uppercase tracking-wide mt-1 ${template.syncStatus === 'published' || template.isEnabled ? 'text-green-600' : 'text-blue-600'}`}>
-                              {template.syncStatus === 'published' || template.isEnabled ? 'Published' : 'Raw Draft'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={savingTemplate || syncingTemplates}
-                            onClick={() => resyncTemplate(template)}
-                            className="h-8 w-8 text-gray-400 hover:text-blue-700 hover:bg-blue-50 rounded-xl"
-                            title="Resync template from Printify"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openTemplateEditor(template)}
-                            className="h-8 w-8 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={async () => {
-                              if (confirm(`Are you sure you want to delete the template "${template.title}"?`)) {
-                                try {
-                                  await deletePrintifyCatalogTemplate(template.id);
-                                } catch (err: any) {
-                                  alert(`Failed to delete template: ${err.message || err}`);
-                                }
-                              }
-                            }}
-                            className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Manual Sync + Logs */}
+            
+            {/* Shop Product Sync */}
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
@@ -1928,7 +1649,7 @@ export const PrintifySettings: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync Published Shop Products</h4>
                     <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
-                      Imports products the admin already created inside Printify. Raw customer-customizable templates are handled separately above.
+                      Imports products the admin already created inside Printify. These products will appear in your storefront catalog.
                     </p>
                   </div>
                   <Button 
@@ -1937,7 +1658,7 @@ export const PrintifySettings: React.FC = () => {
                     className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800 self-stretch md:self-auto shrink-0"
                   >
                     {syncingProducts ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Play className="h-3 w-3 mr-2" />}
-                    Sync Catalog now
+                    Sync Catalog Now
                   </Button>
                 </div>
 
@@ -1953,13 +1674,14 @@ export const PrintifySettings: React.FC = () => {
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl border">
                     <p className="text-[9px] font-black uppercase text-gray-400">Sync Mode</p>
-                    <p className="text-xs font-bold mt-1 capitalize">{printifySettings.sync?.mode || 'Scheduled'}</p>
+                    <p className="text-xs font-bold mt-1 capitalize">{printifySettings.sync?.mode || 'Manual'}</p>
                   </div>
                 </div>
 
+                {/* Sync Logs */}
                 {syncLogs.length > 0 && (
                   <div className="rounded-2xl bg-neutral-900 p-4 font-mono text-[10px] text-green-400 space-y-1.5 h-44 overflow-y-auto border border-neutral-800">
-                    <p className="text-gray-500 mb-2">// Console Output logs</p>
+                    <p className="text-gray-500 mb-2">// Console Output Logs</p>
                     {syncLogs.map((log, idx) => (
                       <p key={idx}>{log}</p>
                     ))}
