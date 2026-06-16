@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2 } from 'lucide-react';
+import { Key, Eye, Edit, RefreshCw, ShoppingCart, Link, AlertCircle, Save, CheckCircle2, Loader2, Play, Clock, Zap, Info, FileText, Trash2, Plus, Layers } from 'lucide-react';
 import { loadPrintifyCredentials, savePrintifyCredentials } from '@/lib/printifyCredentials';
 import { fetchPrintifyBlueprintDetail, fetchPrintifyBlueprintProviders, fetchPrintifyBlueprintShipping, fetchPrintifyBlueprintVariants, fetchPrintifyBlueprints, fetchPrintifyShopProduct, fetchPrintifyShopProducts, fetchPrintifyShops, mapBlueprintsToTemplates, mergeProvidersIntoTemplates, submitPrintifyOrder } from '@/lib/printifyApi';
 import { PrintifyCatalogTemplate } from '@/types';
@@ -23,6 +23,7 @@ import { TemplateImageGallery } from '@/components/printify/TemplateImageGallery
 import { TemplateVariantsTable } from '@/components/printify/TemplateVariantsTable';
 import { TemplatePrintAreas } from '@/components/printify/TemplatePrintAreas';
 import { TemplatePricingPanel } from '@/components/printify/TemplatePricingPanel';
+import { TemplateEditor } from '@/components/printify/TemplateEditor';
 
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, updatePrintifyCatalogTemplate, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
@@ -56,6 +57,8 @@ export const PrintifySettings: React.FC = () => {
   const [templateDraft, setTemplateDraft] = useState<PrintifyCatalogTemplate | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [activeEditorTab, setActiveEditorTab] = useState('overview');
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<PrintifyCatalogTemplate | null>(null);
 
   const initialApiKeyRef = useRef('');
   const lastCheckedTokenRef = useRef('');
@@ -1402,6 +1405,72 @@ export const PrintifySettings: React.FC = () => {
 
           {/* Editor Tab */}
           <TabsContent value="editor" className="space-y-6 animate-in fade-in duration-200 outline-none">
+            
+            {/* Template Management System */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="p-5 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Layers className="h-5 w-5 text-gray-400" />
+                    <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">
+                      Template Management
+                    </CardTitle>
+                  </div>
+                  <Button
+                    onClick={() => setShowTemplateEditor(true)}
+                    className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800"
+                  >
+                    <Plus className="h-3 w-3 mr-2" />
+                    Create Template
+                  </Button>
+                </div>
+                <CardDescription className="text-xs">
+                  Manually create templates or sync from Printify blueprints
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 md:p-6 pt-0">
+                {printifyCatalog.filter(t => t.syncStatus === 'published').length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed rounded-2xl">
+                    <p className="text-xs text-gray-400">No templates created yet</p>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Click "Create Template" to add your first template
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {printifyCatalog.filter(t => t.syncStatus === 'published').map((template) => (
+                      <div key={template.id} className="p-4 rounded-2xl border bg-white hover:shadow-sm transition-shadow">
+                        <div className="aspect-square rounded-xl overflow-hidden bg-gray-50 mb-3">
+                          <img
+                            src={template.images[0] || '/custom-tee-mockup.png'}
+                            alt={template.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <p className="text-xs font-black truncate">{template.title}</p>
+                        <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                          {template.variants?.length || 0} variants • {template.printAreas?.length || 0} print areas
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingTemplate(template);
+                            setShowTemplateEditor(true);
+                          }}
+                          className="w-full mt-3 rounded-xl h-8 text-[9px] font-black uppercase"
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Editor Type Selection Card */}
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="p-5 md:p-6">
                 <div className="flex items-center gap-3">
@@ -2081,6 +2150,17 @@ export const PrintifySettings: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Template Editor Dialog */}
+      <TemplateEditor
+        open={showTemplateEditor}
+        onClose={() => {
+          setShowTemplateEditor(false);
+          setEditingTemplate(null);
+        }}
+        apiKey={normalizeToken(privateApiKey)}
+        editingTemplate={editingTemplate}
+      />
     </div>
   );
 };
