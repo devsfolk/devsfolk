@@ -111,6 +111,16 @@ export const PricesTab: React.FC<PricesTabProps> = ({
 
       const variantsData = await response.json();
       
+      // ===== CRITICAL DEBUGGING - FULL RAW API RESPONSE =====
+      console.log('============================================');
+      console.log('===== PRINTIFY API VARIANTS RESPONSE =====');
+      console.log('============================================');
+      console.log('FULL RAW VARIANT DATA:', JSON.stringify(variantsData, null, 2));
+      console.log('Response Keys:', Object.keys(variantsData));
+      console.log('Response Type:', typeof variantsData);
+      console.log('Is Array?:', Array.isArray(variantsData));
+      console.log('============================================');
+      
       // CRITICAL DEBUG: Log full API response structure
       console.log('===== RAW API RESPONSE =====');
       console.log('[API Response] Full variantsData:', JSON.stringify(variantsData, null, 2));

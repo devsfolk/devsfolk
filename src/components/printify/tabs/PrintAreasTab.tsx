@@ -199,7 +199,7 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
 
             <div 
               className="relative w-full bg-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden cursor-crosshair"
-              style={{ maxHeight: '600px', aspectRatio: '1/1' }}
+              style={{ height: '400px' }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -209,8 +209,8 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
                 <img
                   src={currentImage}
                   alt={`Template ${currentImageIndex + 1}`}
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                  style={{ maxHeight: '600px' }}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   onError={(e) => {
                     e.currentTarget.src = '/custom-tee-mockup.png';
                   }}

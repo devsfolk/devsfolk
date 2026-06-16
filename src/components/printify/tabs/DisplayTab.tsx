@@ -220,7 +220,7 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({
           </Button>
         </div>
 
-        {formData.colors.length > 0 && (
+        {formData.colors.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {formData.colors.map((color, index) => (
               <div
@@ -243,6 +243,13 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({
                 </button>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="p-4 bg-gray-50 border-2 border-dashed rounded-xl text-center">
+            <p className="text-xs text-gray-500">No colors added yet</p>
+            <p className="text-[9px] text-gray-400 mt-1">
+              Add colors manually above, or go to Prices Tab → Select Provider → Load Prices to auto-sync from Printify
+            </p>
           </div>
         )}
       </div>
