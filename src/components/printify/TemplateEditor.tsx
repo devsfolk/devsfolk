@@ -40,18 +40,26 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         description: editingTemplate.description || '',
         images: Array.isArray(editingTemplate.images) ? editingTemplate.images : [],
         colors: Array.isArray(editingTemplate.colors) ? editingTemplate.colors : [],
-        sizes: Array.isArray(editingTemplate.sizes)
-          ? editingTemplate.sizes.map(size => ({
-              size: String(size),
-              baseCost: editingTemplate.baseCost || 0,
-              sellingPrice: editingTemplate.sellingPrice || 0,
-            }))
-          : Array.isArray(editingTemplate.variants)
-          ? editingTemplate.variants.map((v: any) => ({
-              size: v.title || v.name || String(v.id),
-              baseCost: Number(v.cost || 0) / 100,
-              sellingPrice: Number(editingTemplate.sellingPrice || v.price || 0) / 100,
-            }))
+        sizes: Array.isArray(editingTemplate.variants) && editingTemplate.variants.length > 0
+          ? (() => {
+              // FIXED: Extract sizes with individual prices from variants
+              const variantPrices = editingTemplate.variantSellingPrices || {};
+              return editingTemplate.variants.map((v: any) => ({
+                size: v.title || v.name || String(v.id),
+                baseCost: Number(v.cost || 0) / 100,
+                sellingPrice: Number(variantPrices[v.id] || v.price || editingTemplate.sellingPrice || 0) / 100,
+              }));
+            })()
+          : Array.isArray(editingTemplate.sizes) && editingTemplate.sizes.length > 0
+          ? (() => {
+              // FALLBACK: If only sizes array exists (legacy), use template-level pricing
+              console.warn('[Template Load] Using legacy sizes array without individual pricing');
+              return editingTemplate.sizes.map((size: string) => ({
+                size: String(size),
+                baseCost: editingTemplate.baseCost || 0,
+                sellingPrice: editingTemplate.sellingPrice || 0,
+              }));
+            })()
           : [],
         printAreas: Array.isArray(editingTemplate.printAreas)
           ? editingTemplate.printAreas.map((pa: any) => ({

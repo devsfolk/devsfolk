@@ -154,26 +154,53 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({
                 Preview Demo (How it will look)
               </Label>
 
-              <div className="grid grid-cols-3 gap-3">
-                {['#000000', '#FFFFFF', '#FF0000', '#0000FF', '#00FF00', '#FFD700'].map((color) => (
-                  <div key={color} className="space-y-1">
-                    <div className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden border-2">
-                      {/* Layer 1: Colored background */}
-                      <div
-                        className="absolute inset-0"
-                        style={{ backgroundColor: color }}
-                      />
-                      {/* Layer 2: Mask overlay */}
-                      <img
-                        src={formData.generatorSettings.maskImageUrl}
-                        alt="Mask"
-                        className="absolute inset-0 w-full h-full object-cover mix-blend-multiply"
-                      />
-                    </div>
-                    <p className="text-[9px] text-center text-gray-600 font-bold">{color}</p>
-                  </div>
-                ))}
-              </div>
+              {formData.colors.length > 0 ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {formData.colors.slice(0, 6).map((color) => {
+                    // Convert color names to hex if needed (basic mapping)
+                    const colorMap: Record<string, string> = {
+                      'black': '#000000',
+                      'white': '#FFFFFF',
+                      'red': '#FF0000',
+                      'blue': '#0000FF',
+                      'green': '#00FF00',
+                      'yellow': '#FFFF00',
+                      'navy': '#000080',
+                      'gray': '#808080',
+                      'grey': '#808080',
+                    };
+                    
+                    const colorValue = color.startsWith('#') 
+                      ? color 
+                      : colorMap[color.toLowerCase()] || '#CCCCCC';
+
+                    return (
+                      <div key={color} className="space-y-1">
+                        <div className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden border-2">
+                          {/* Layer 1: Colored background */}
+                          <div
+                            className="absolute inset-0"
+                            style={{ backgroundColor: colorValue }}
+                          />
+                          {/* Layer 2: Mask overlay */}
+                          <img
+                            src={formData.generatorSettings.maskImageUrl}
+                            alt="Mask"
+                            className="absolute inset-0 w-full h-full object-cover mix-blend-multiply"
+                          />
+                        </div>
+                        <p className="text-[9px] text-center text-gray-600 font-bold truncate">{color}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                  <p className="text-[10px] text-yellow-800">
+                    No colors defined yet. Go to Display Tab → Add colors or use Load Prices to populate colors from Printify.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </>
