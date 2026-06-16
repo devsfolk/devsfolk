@@ -10,6 +10,7 @@ import { PricesTab } from './tabs/PricesTab';
 import { PrintAreasTab } from './tabs/PrintAreasTab';
 import { GeneratorTab } from './tabs/GeneratorTab';
 import { PrintifyCatalogTemplate } from '@/types';
+import { supabase } from '@/lib/supabase';
 
 interface TemplateEditorProps {
   open: boolean;
@@ -70,10 +71,23 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
     setSyncing(true);
     try {
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      const authToken = session?.access_token;
+
+      if (!authToken) {
+        throw new Error('Admin authentication required. Please log in again.');
+      }
+
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      };
+
       // Fetch blueprint details
       const blueprintResponse = await fetch('/api/printify/catalog', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           mode: 'blueprint',
           blueprintId: formData.blueprintId,
@@ -95,7 +109,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       // Fetch providers
       const providersResponse = await fetch('/api/printify/catalog', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           mode: 'providers',
           blueprintId: formData.blueprintId,
@@ -121,7 +135,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         try {
           const variantsResponse = await fetch('/api/printify/catalog', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders,
             body: JSON.stringify({
               mode: 'variants',
               blueprintId: formData.blueprintId,
