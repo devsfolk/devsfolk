@@ -115,6 +115,16 @@ export interface PrintifyCharges {
   editFee: number;
   sizeFees: Record<string, number>;
   placementFees: Record<string, number>;
+  editorCharges?: {
+    textOnly?: number;
+    designOnly?: number;
+    textAndDesign?: number;
+    areaMultiplier?: {
+      enabled: boolean;
+      threshold: number;
+      surcharge: number;
+    };
+  };
 }
 
 export interface PrintifySyncSettings {

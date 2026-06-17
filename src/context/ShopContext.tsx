@@ -132,7 +132,17 @@ const DEFAULT_SETTINGS: ThemeSettings = {
       designFee: 0, 
       editFee: 0, 
       sizeFees: {}, 
-      placementFees: {} 
+      placementFees: {},
+      editorCharges: {
+        textOnly: 5.00,
+        designOnly: 10.00,
+        textAndDesign: 12.00,
+        areaMultiplier: {
+          enabled: false,
+          threshold: 50,
+          surcharge: 3.00,
+        },
+      },
     },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true },
   },

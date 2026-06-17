@@ -1470,6 +1470,250 @@ export const PrintifySettings: React.FC = () => {
               </CardContent>
             </Card>
 
+            {/* Design Charges Configuration */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="p-5 md:p-6">
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-gray-400" />
+                  <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">
+                    Design Charges
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-xs">
+                  Set customization fees added to template base price when customers add text or designs
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 p-5 md:p-6 pt-0">
+                {/* Base Customization Fees */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">
+                      Text Only Fee
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                        {settings.currencySymbol}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={printifySettings.charges.editorCharges?.textOnly || 0}
+                        onChange={(e) => handleUpdate({
+                          charges: {
+                            ...printifySettings.charges,
+                            editorCharges: {
+                              ...printifySettings.charges.editorCharges,
+                              textOnly: parseFloat(e.target.value) || 0,
+                            },
+                          },
+                        })}
+                        className="pl-7 rounded-xl h-11 text-xs"
+                        placeholder="5.00"
+                      />
+                    </div>
+                    <p className="text-[9px] text-gray-500">
+                      Fee when customer adds only text
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">
+                      Design Upload Fee
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                        {settings.currencySymbol}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={printifySettings.charges.editorCharges?.designOnly || 0}
+                        onChange={(e) => handleUpdate({
+                          charges: {
+                            ...printifySettings.charges,
+                            editorCharges: {
+                              ...printifySettings.charges.editorCharges,
+                              designOnly: parseFloat(e.target.value) || 0,
+                            },
+                          },
+                        })}
+                        className="pl-7 rounded-xl h-11 text-xs"
+                        placeholder="10.00"
+                      />
+                    </div>
+                    <p className="text-[9px] text-gray-500">
+                      Fee when customer uploads design only
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-gray-400">
+                      Text + Design Fee
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                        {settings.currencySymbol}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={printifySettings.charges.editorCharges?.textAndDesign || 0}
+                        onChange={(e) => handleUpdate({
+                          charges: {
+                            ...printifySettings.charges,
+                            editorCharges: {
+                              ...printifySettings.charges.editorCharges,
+                              textAndDesign: parseFloat(e.target.value) || 0,
+                            },
+                          },
+                        })}
+                        className="pl-7 rounded-xl h-11 text-xs"
+                        placeholder="12.00"
+                      />
+                    </div>
+                    <p className="text-[9px] text-gray-500">
+                      Fee when customer adds both
+                    </p>
+                  </div>
+                </div>
+
+                {/* Area Multiplier (Optional) */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-[10px] font-black uppercase text-blue-900">
+                        Area-Based Surcharge
+                      </Label>
+                      <p className="text-[9px] text-blue-700 mt-1">
+                        Add extra fee when design covers more than threshold % of print area
+                      </p>
+                    </div>
+                    <Switch
+                      checked={printifySettings.charges.editorCharges?.areaMultiplier?.enabled || false}
+                      onCheckedChange={(checked) => handleUpdate({
+                        charges: {
+                          ...printifySettings.charges,
+                          editorCharges: {
+                            ...printifySettings.charges.editorCharges,
+                            areaMultiplier: {
+                              ...printifySettings.charges.editorCharges?.areaMultiplier,
+                              enabled: checked,
+                            },
+                          },
+                        },
+                      })}
+                    />
+                  </div>
+
+                  {printifySettings.charges.editorCharges?.areaMultiplier?.enabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-blue-800">
+                          Coverage Threshold (%)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="100"
+                          value={printifySettings.charges.editorCharges?.areaMultiplier?.threshold || 50}
+                          onChange={(e) => handleUpdate({
+                            charges: {
+                              ...printifySettings.charges,
+                              editorCharges: {
+                                ...printifySettings.charges.editorCharges,
+                                areaMultiplier: {
+                                  ...printifySettings.charges.editorCharges?.areaMultiplier,
+                                  threshold: parseInt(e.target.value) || 50,
+                                },
+                              },
+                            },
+                          })}
+                          className="rounded-xl h-11 text-xs"
+                          placeholder="50"
+                        />
+                        <p className="text-[9px] text-blue-600">
+                          If design covers more than this %
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-blue-800">
+                          Additional Surcharge
+                        </Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                            {settings.currencySymbol}
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={printifySettings.charges.editorCharges?.areaMultiplier?.surcharge || 0}
+                            onChange={(e) => handleUpdate({
+                              charges: {
+                                ...printifySettings.charges,
+                                editorCharges: {
+                                  ...printifySettings.charges.editorCharges,
+                                  areaMultiplier: {
+                                    ...printifySettings.charges.editorCharges?.areaMultiplier,
+                                    surcharge: parseFloat(e.target.value) || 0,
+                                  },
+                                },
+                              },
+                            })}
+                            className="pl-7 rounded-xl h-11 text-xs"
+                            placeholder="3.00"
+                          />
+                        </div>
+                        <p className="text-[9px] text-blue-600">
+                          Add this fee to total price
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pricing Example */}
+                <div className="p-4 bg-gray-50 rounded-2xl border">
+                  <p className="text-[10px] font-black uppercase text-gray-700 mb-2">
+                    Pricing Example
+                  </p>
+                  <div className="space-y-1 text-[10px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Template Base Price:</span>
+                      <span className="font-bold">{settings.currencySymbol}{printifySettings.charges.templateBasePrice || 14.99}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">+ Text Only Fee:</span>
+                      <span className="font-bold">{settings.currencySymbol}{printifySettings.charges.editorCharges?.textOnly || 0}</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t">
+                      <span className="text-gray-900 font-black">Customer Pays:</span>
+                      <span className="font-black text-green-600">
+                        {settings.currencySymbol}
+                        {((printifySettings.charges.templateBasePrice || 14.99) + (printifySettings.charges.editorCharges?.textOnly || 0)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Banner */}
+                <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] text-amber-900 font-bold">How It Works</p>
+                    <p className="text-[9px] text-amber-700 mt-1 leading-relaxed">
+                      These charges are automatically calculated and added to the template price when customers use the storefront editor. The total breakdown is shown before checkout.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Editor Type Selection Card */}
             <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
               <CardHeader className="p-5 md:p-6">
