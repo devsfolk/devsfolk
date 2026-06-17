@@ -830,6 +830,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         canvas.on('object:rotating', syncSelection);
         canvas.on('object:modified', syncSelection);
 
+        // ===== BOUNDARY ENFORCEMENT CODE DISABLED FOR TESTING =====
+        // Testing to confirm if boundary enforcement is causing:
+        // - Design disappearing when scaled larger
+        // - Black screen when clicking text
+        // Will re-enable with safer implementation if bugs disappear
+        
+        /*
         // Feature 3: Print Area Boundary Enforcement
         // Constrain objects to stay within canvas (print area) boundaries
         const constrainObjectToBounds = (obj: fabric.Object) => {
@@ -882,6 +889,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             constrainObjectToBounds(e.target);
           }
         });
+        */
+        // ===== END DISABLED CODE =====
       } else {
         canvas.setWidth(width);
         canvas.setHeight(height);
