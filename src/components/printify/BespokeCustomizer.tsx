@@ -724,7 +724,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
-  const [textFont, setTextFont] = useState('Inter');onst [textFont, setTextFont] = useState('Inter');
+  const [textFont, setTextFont] = useState('Inter');
   const [textColor, setTextColor] = useState('#000000');
   const [isUploading, setIsUploading] = useState(false);
   
