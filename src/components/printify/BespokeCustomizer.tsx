@@ -718,25 +718,51 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Available fonts - Issue 2: Expanded from 5 to 20 fonts
   const fontOptions = [
     { name: 'Modern Sans (Inter)', value: 'Inter' },
-    { name: 'Elegant Serif (Playfair)', value: 'Playfair Display' },
+    { name: 'Elegant Serif (Playfair Display)', value: 'Playfair Display' },
     { name: 'Playful Cursive (Pacifico)', value: 'Pacifico' },
     { name: 'Bold Geometric (Montserrat)', value: 'Montserrat' },
     { name: 'Impact Condensed (Oswald)', value: 'Oswald' },
-    { name: 'Classic Times', value: 'Times New Roman' },
-    { name: 'Clean Helvetica', value: 'Helvetica' },
     { name: 'Modern Roboto', value: 'Roboto' },
     { name: 'Stylish Lora', value: 'Lora' },
-    { name: 'Bold Bebas', value: 'Bebas Neue' },
-    { name: 'Handwritten Caveat', value: 'Caveat' },
-    { name: 'Monospace Courier', value: 'Courier New' },
-    { name: 'Rounded Comfortaa', value: 'Comfortaa' },
-    { name: 'Elegant Raleway', value: 'Raleway' },
-    { name: 'Modern Poppins', value: 'Poppins' },
-    { name: 'Classic Georgia', value: 'Georgia' },
-    { name: 'Tech Source Code', value: 'Source Code Pro' },
-    { name: 'Artistic Shadows', value: 'Shadows Into Light' },
+    { name: 'Bold Display (Bebas Neue)', value: 'Bebas Neue' },
+    { name: 'Handwritten (Caveat)', value: 'Caveat' },
+    { name: 'Rounded (Comfortaa)', value: 'Comfortaa' },
+    { name: 'Elegant (Raleway)', value: 'Raleway' },
+    { name: 'Popular (Poppins)', value: 'Poppins' },
+    { name: 'Monospace (Source Code Pro)', value: 'Source Code Pro' },
+    { name: 'Artistic (Shadows Into Light)', value: 'Shadows Into Light' },
     { name: 'Bold Anton', value: 'Anton' },
-    { name: 'Elegant Merriweather', value: 'Merriweather' },
+    { name: 'Classic (Merriweather)', value: 'Merriweather' },
+    { name: 'Script (Dancing Script)', value: 'Dancing Script' },
+    { name: 'Serif (Libre Baskerville)', value: 'Libre Baskerville' },
+    { name: 'Friendly (Quicksand)', value: 'Quicksand' },
+    { name: 'Classic Times', value: 'Times New Roman' },
+  ];
+
+  // Issue 2: Premium curated color palette
+  const colorPalette = [
+    { name: 'Rich Black', hex: '#0a0a0a' },
+    { name: 'Charcoal', hex: '#36454f' },
+    { name: 'Slate Gray', hex: '#708090' },
+    { name: 'Pure White', hex: '#ffffff' },
+    { name: 'Ivory', hex: '#fffff0' },
+    { name: 'Deep Navy', hex: '#000080' },
+    { name: 'Royal Blue', hex: '#4169e1' },
+    { name: 'Sky Blue', hex: '#87ceeb' },
+    { name: 'Teal', hex: '#008080' },
+    { name: 'Forest Green', hex: '#228b22' },
+    { name: 'Sage', hex: '#9caf88' },
+    { name: 'Olive', hex: '#808000' },
+    { name: 'Burgundy', hex: '#800020' },
+    { name: 'Crimson', hex: '#dc143c' },
+    { name: 'Coral', hex: '#ff7f50' },
+    { name: 'Blush Pink', hex: '#ff6fff' },
+    { name: 'Mustard', hex: '#ffdb58' },
+    { name: 'Amber', hex: '#ffbf00' },
+    { name: 'Burnt Orange', hex: '#cc5500' },
+    { name: 'Deep Purple', hex: '#663399' },
+    { name: 'Lavender', hex: '#e6e6fa' },
+    { name: 'Plum', hex: '#8e4585' },
   ];
 
   // Issue 2: Gradient presets for text
@@ -1092,7 +1118,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   };
 
-  // Handle Font styles change - Issue 2 Fix: Apply to selected text, not just first
+  // Handle Font styles change - Issue 3 FIX: Use requestRenderAll and ensure font is loaded
   const handleFontChange = (font: string) => {
     setTextFont(font);
     const canvas = fabricCanvasRef.current;
@@ -1101,12 +1127,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       if (activeObj && activeObj.type === 'i-text') {
         const activeText = activeObj as fabric.IText;
         activeText.set('fontFamily', font);
-        canvas.renderAll();
+        // CRITICAL FIX: Use requestRenderAll() which is safer than renderAll()
+        canvas.requestRenderAll();
       }
     }
   };
 
-  // Handle Text color change - Issue 2 Fix: Apply to selected text, not just first
+  // Handle Text color change - Issue 1 FIX: Use requestRenderAll
   const handleColorChange = (color: string) => {
     setTextColor(color);
     const canvas = fabricCanvasRef.current;
@@ -1115,7 +1142,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       if (activeObj && activeObj.type === 'i-text') {
         const activeText = activeObj as fabric.IText;
         activeText.set('fill', color);
-        canvas.renderAll();
+        // CRITICAL FIX: Use requestRenderAll() which is safer than renderAll()
+        canvas.requestRenderAll();
       }
     }
   };
@@ -1876,36 +1904,56 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
                 {customText.trim() && (
                   <div className="space-y-5 pt-4 border-t animate-in slide-in-from-top-4 duration-300">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Font</Label>
-                        <select
-                          value={textFont}
-                          onChange={(e) => handleFontChange(e.target.value)}
-                          className="w-full h-10 border rounded-xl px-3 text-xs bg-white focus:outline-none border-gray-200"
-                        >
-                          {fontOptions.map((font) => (
-                            <option key={font.value} value={font.value}>
-                              {font.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    {/* Issue 3 FIX + Issue 2: Font selector with preview */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Font</Label>
+                      <select
+                        value={textFont}
+                        onChange={(e) => handleFontChange(e.target.value)}
+                        className="w-full h-10 border rounded-xl px-3 text-xs bg-white focus:outline-none border-gray-200"
+                        style={{ fontFamily: textFont }}
+                      >
+                        {fontOptions.map((font) => (
+                          <option 
+                            key={font.value} 
+                            value={font.value}
+                            style={{ fontFamily: font.value }}
+                          >
+                            {font.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Text Color</Label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="color"
-                            value={textColor === 'gradient' ? '#000000' : textColor}
-                            onChange={(e) => handleColorChange(e.target.value)}
-                            className="w-10 h-10 p-0 rounded-xl border-none cursor-pointer bg-transparent"
-                            disabled={textColor === 'gradient'}
-                          />
-                          <span className="text-xs font-mono font-bold uppercase">
-                            {textColor === 'gradient' ? '✨ GRADIENT' : textColor}
+                    {/* Issue 2: Premium Curated Color Palette */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        Text Color
+                        {textColor !== 'gradient' && (
+                          <span className="ml-2 font-normal normal-case tracking-normal text-gray-500">
+                            — {colorPalette.find(c => c.hex === textColor)?.name || textColor}
                           </span>
-                        </div>
+                        )}
+                      </Label>
+                      <div className="grid grid-cols-6 gap-2">
+                        {colorPalette.map((color) => {
+                          const isActive = textColor === color.hex;
+                          return (
+                            <button
+                              key={color.hex}
+                              title={color.name}
+                              aria-label={color.name}
+                              aria-pressed={isActive}
+                              onClick={() => handleColorChange(color.hex)}
+                              className={`w-full aspect-square rounded-lg border-2 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+                                isActive
+                                  ? 'border-black ring-2 ring-black ring-offset-1 shadow-md scale-110'
+                                  : 'border-gray-200 hover:border-gray-400 hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: color.hex }}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
 
