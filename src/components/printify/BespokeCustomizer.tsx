@@ -231,17 +231,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeTemplate = getTemplateForProduct(activeProduct);
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
 
-  // DEBUG: Log activeTemplate to verify structure
-  useEffect(() => {
-    if (activeTemplate) {
-      console.log('[Template Debug] activeTemplate.id:', activeTemplate.id);
-      console.log('[Template Debug] activeTemplate.title:', activeTemplate.title);
-      console.log('[Template Debug] activeTemplate.variants:', activeTemplate.variants);
-      console.log('[Template Debug] Full activeTemplate keys:', Object.keys(activeTemplate));
-      console.log('[Template Debug] FULL activeTemplate object:', JSON.stringify(activeTemplate));
-    }
-  }, [activeTemplate?.id]);
-
   // Helper: Extract size-specific pricing from variants array (admin saves pricing here)
   const getSizePricingFromVariants = (template: typeof activeTemplate) => {
     if (!template?.variants || !Array.isArray(template.variants)) {
@@ -579,13 +568,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeBaseCostDollars = useMemo(() => {
     // Priority 1: Check for size-specific pricing from variants array (where admin actually saves it)
     const sizePricing = getSizePricingFromVariants(activeTemplate);
-    
-    // DEBUG: Essential price calculation logging
-    console.log('[Price Debug] activeTemplate.id:', activeTemplate?.id, 'title:', activeTemplate?.title);
-    console.log('[Price Debug] activeTemplate.variants:', activeTemplate?.variants);
-    console.log('[Price Debug] selectedSize:', selectedSize);
-    console.log('[Price Debug] getSizePricingFromVariants result:', sizePricing);
-    console.log('[Price Debug] FULL activeTemplate object:', JSON.stringify(activeTemplate));
     
     if (selectedSize && sizePricing.length > 0) {
       const sizePrice = sizePricing.find(sp => sp.size === selectedSize);

@@ -21,7 +21,6 @@ const templateHasCheckoutMetadata = (template?: PrintifyCatalogTemplate) => {
     );
   
   if (isManuallyPublished) {
-    console.log('[templateHasCheckoutMetadata] Template', template.id, 'accepted as manually published');
     return true;
   }
   
@@ -34,22 +33,14 @@ const templateHasCheckoutMetadata = (template?: PrintifyCatalogTemplate) => {
     template.variants.some((variant: any) => getSyncedVariantId(variant) > 0);
   
   if (isAutoSynced) {
-    console.log('[templateHasCheckoutMetadata] Template', template.id, 'accepted as auto-synced');
     return true;
   }
   
-  console.log('[templateHasCheckoutMetadata] Template', template.id, 'REJECTED - providers:', template.providers?.length, 'variants:', template.variants?.length, 'syncStatus:', template.syncStatus);
   return false;
 };
 
 export const usePrintifyCatalog = () => {
   const { printifyCatalog, settings } = useShop();
-
-  console.log('[usePrintifyCatalog] printifyCatalog count:', printifyCatalog.length);
-  const bp440 = printifyCatalog.find(t => t.id === 'bp_440');
-  if (bp440) {
-    console.log('[usePrintifyCatalog] bp_440 found, variants:', bp440.variants);
-  }
 
   return useMemo(() => {
     const enabledTemplates = printifyCatalog.filter((template) => (
@@ -57,12 +48,6 @@ export const usePrintifyCatalog = () => {
     ));
     const providerReadyTemplates = enabledTemplates.filter((template) => template.providers.length > 0);
     const editorReadyTemplates = printifyCatalog.filter((template) => templateHasCheckoutMetadata(template));
-
-    console.log('[usePrintifyCatalog] editorReadyTemplates count:', editorReadyTemplates.length);
-    const bp440InEditor = editorReadyTemplates.find(t => t.id === 'bp_440');
-    if (bp440InEditor) {
-      console.log('[usePrintifyCatalog] bp_440 in editorReadyTemplates, variants:', bp440InEditor.variants);
-    }
 
     return {
       templates: printifyCatalog,
