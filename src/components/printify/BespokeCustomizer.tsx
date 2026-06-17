@@ -504,15 +504,17 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
 
     // Final fallback if no enriched color details are found
-    if (result.length === 0 && activeColorOptions.length > 0) {
-      return activeColorOptions.map((color) => ({
+    // Use uniqueOptionValues directly instead of activeColorOptions to avoid circular dependency
+    const fallbackColors = uniqueOptionValues(activePrintifyVariants.map(getVariantColor));
+    if (result.length === 0 && fallbackColors.length > 0) {
+      return fallbackColors.map((color) => ({
         title: color,
         hex: undefined, // Will be rendered as a text pill instead of a colored circle
       }));
     }
 
     return result;
-  }, [activeTemplate, activePrintifyVariants, activeColorOptions]);
+  }, [activeTemplate, activePrintifyVariants]);
 
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
