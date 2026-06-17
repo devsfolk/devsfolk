@@ -855,16 +855,36 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Optimize and Upload image onto Fabric.js Canvas
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🔵 [IMAGE UPLOAD] Handler triggered');
     const file = e.target.files?.[0];
+    console.log('🔵 [IMAGE UPLOAD] File selected:', file ? `${file.name} (${Math.round(file.size / 1024)}KB)` : 'NO FILE');
     if (!file) return;
+    
     setIsUploading(true);
+    console.log('🔵 [IMAGE UPLOAD] Starting optimization...');
+    
     try {
       const optimized = await optimizeImage(file, 800, 800);
+      console.log('🔵 [IMAGE UPLOAD] Optimization complete. Data URL length:', optimized.length, 'chars');
+      
       const canvas = fabricCanvasRef.current;
+      console.log('🔵 [IMAGE UPLOAD] Canvas ref status:', canvas ? `EXISTS (${canvas.getWidth()}x${canvas.getHeight()})` : '❌ NULL');
+      
       if (canvas) {
+        console.log('🔵 [IMAGE UPLOAD] Loading image into Fabric.js...');
         fabric.Image.fromURL(optimized, (img) => {
+          console.log('🔵 [IMAGE UPLOAD] Fabric.js callback fired. Image object:', img ? 'CREATED' : '❌ NULL');
+          
+          if (!img) {
+            console.error('❌ [IMAGE UPLOAD] Fabric.js failed to create image object');
+            alert('Failed to load image. Please try a different file.');
+            return;
+          }
+
           // Resize to fit print area reasonably
           const scaleFactor = (canvas.width * 0.7) / (img.width || 1);
+          console.log('🔵 [IMAGE UPLOAD] Scale factor:', scaleFactor, `(image: ${img.width}x${img.height})`);
+          
           img.set({
             left: canvas.width / 2,
             top: canvas.height / 2,
@@ -882,21 +902,30 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           // Remove any existing graphic layers to keep it focused
           const oldImages = canvas.getObjects('image');
+          console.log('🔵 [IMAGE UPLOAD] Removing old images:', oldImages.length);
           oldImages.forEach((obj) => canvas.remove(obj));
 
           canvas.add(img);
+          console.log('🔵 [IMAGE UPLOAD] Image added to canvas');
           canvas.setActiveObject(img);
+          console.log('🔵 [IMAGE UPLOAD] Image set as active object');
           canvas.renderAll();
+          console.log('🔵 [IMAGE UPLOAD] Canvas rendered');
 
           setCustomImage(optimized);
           setActiveTab('upload');
+          console.log('✅ [IMAGE UPLOAD] Upload complete!');
         });
+      } else {
+        console.error('❌ [IMAGE UPLOAD] Canvas not initialized. Print area may not have dimensions yet.');
+        alert('Editor not ready. Please wait a moment and try again.');
       }
     } catch (err) {
-      console.error('Failed to upload custom graphic:', err);
+      console.error('❌ [IMAGE UPLOAD] Error during upload:', err);
       alert('Failed to process custom design. Please try another image.');
     } finally {
       setIsUploading(false);
+      console.log('🔵 [IMAGE UPLOAD] Upload state reset (isUploading = false)');
     }
   };
 
