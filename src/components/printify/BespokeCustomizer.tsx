@@ -238,6 +238,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       console.log('[Template Debug] activeTemplate.title:', activeTemplate.title);
       console.log('[Template Debug] activeTemplate.variants:', activeTemplate.variants);
       console.log('[Template Debug] Full activeTemplate keys:', Object.keys(activeTemplate));
+      console.log('[Template Debug] FULL activeTemplate object:', JSON.stringify(activeTemplate));
     }
   }, [activeTemplate?.id]);
 
@@ -580,9 +581,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const sizePricing = getSizePricingFromVariants(activeTemplate);
     
     // DEBUG: Essential price calculation logging
+    console.log('[Price Debug] activeTemplate.id:', activeTemplate?.id, 'title:', activeTemplate?.title);
     console.log('[Price Debug] activeTemplate.variants:', activeTemplate?.variants);
     console.log('[Price Debug] selectedSize:', selectedSize);
     console.log('[Price Debug] getSizePricingFromVariants result:', sizePricing);
+    console.log('[Price Debug] FULL activeTemplate object:', JSON.stringify(activeTemplate));
     
     if (selectedSize && sizePricing.length > 0) {
       const sizePrice = sizePricing.find(sp => sp.size === selectedSize);

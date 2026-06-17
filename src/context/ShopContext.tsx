@@ -865,6 +865,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       reportSyncError('Failed to load Printify catalog from Supabase.', printifyCatalogResult.error.message);
     } else {
       const remoteCatalog = (printifyCatalogResult.data ?? []).map(mapPrintifyCatalogRow);
+      
+      console.log('[ShopContext] Fetched printifyCatalog from Supabase, count:', remoteCatalog.length);
+      if (remoteCatalog.length > 0) {
+        const bp440 = remoteCatalog.find(t => t.id === 'bp_440');
+        console.log('[ShopContext] bp_440 template found?', !!bp440);
+        if (bp440) {
+          console.log('[ShopContext] bp_440.variants:', bp440.variants);
+          console.log('[ShopContext] bp_440 keys:', Object.keys(bp440));
+        }
+      }
+      
       setPrintifyCatalog(remoteCatalog);
       savePrintifyCatalogLocally(remoteCatalog);
     }

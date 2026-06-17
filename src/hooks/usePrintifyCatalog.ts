@@ -17,12 +17,24 @@ const templateHasCheckoutMetadata = (template?: PrintifyCatalogTemplate) => (
 export const usePrintifyCatalog = () => {
   const { printifyCatalog, settings } = useShop();
 
+  console.log('[usePrintifyCatalog] printifyCatalog count:', printifyCatalog.length);
+  const bp440 = printifyCatalog.find(t => t.id === 'bp_440');
+  if (bp440) {
+    console.log('[usePrintifyCatalog] bp_440 found, variants:', bp440.variants);
+  }
+
   return useMemo(() => {
     const enabledTemplates = printifyCatalog.filter((template) => (
       template.isEnabled && (template.syncStatus || 'published') === 'published'
     ));
     const providerReadyTemplates = enabledTemplates.filter((template) => template.providers.length > 0);
     const editorReadyTemplates = printifyCatalog.filter((template) => templateHasCheckoutMetadata(template));
+
+    console.log('[usePrintifyCatalog] editorReadyTemplates count:', editorReadyTemplates.length);
+    const bp440InEditor = editorReadyTemplates.find(t => t.id === 'bp_440');
+    if (bp440InEditor) {
+      console.log('[usePrintifyCatalog] bp_440 in editorReadyTemplates, variants:', bp440InEditor.variants);
+    }
 
     return {
       templates: printifyCatalog,
