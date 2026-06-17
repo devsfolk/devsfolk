@@ -1568,18 +1568,19 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 <div className="space-y-3">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Upload Artwork Layer</Label>
                   
-                  <div className="relative group border-2 border-dashed border-gray-200 hover:border-black rounded-2xl p-8 transition-colors flex flex-col items-center justify-center cursor-pointer">
-                    <Input
+                  <label className="relative group border-2 border-dashed border-gray-200 hover:border-black rounded-2xl p-8 transition-colors flex flex-col items-center justify-center cursor-pointer">
+                    <input
                       type="file"
                       accept="image/*"
                       onChange={handleImageUpload}
                       disabled={isUploading}
-                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      style={{ zIndex: 10 }}
                     />
-                    <Upload className="h-8 w-8 text-gray-400 group-hover:text-black mb-3 transition-colors" />
-                    <span className="text-xs font-black uppercase tracking-wider">{isUploading ? 'Optimizing Image...' : 'Select File'}</span>
-                    <span className="text-[9px] text-gray-400 mt-1 uppercase font-bold tracking-wider opacity-60">Supports JPG, PNG (WebP Auto-compressed)</span>
-                  </div>
+                    <Upload className="h-8 w-8 text-gray-400 group-hover:text-black mb-3 transition-colors pointer-events-none" />
+                    <span className="text-xs font-black uppercase tracking-wider pointer-events-none">{isUploading ? 'Optimizing Image...' : 'Select File'}</span>
+                    <span className="text-[9px] text-gray-400 mt-1 uppercase font-bold tracking-wider opacity-60 pointer-events-none">Supports JPG, PNG (WebP Auto-compressed)</span>
+                  </label>
                 </div>
 
                 {hasSelection && (
