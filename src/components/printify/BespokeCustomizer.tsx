@@ -399,12 +399,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   }, [activeTemplate, activeProduct]);
 
 
-  const activeColorOptions = useMemo(() => (
-    uniqueOptionValues(activePrintifyVariants.map(getVariantColor))
-  ), [activePrintifyVariants]);
-
   // Feature 4: Template Colors Display - Read from admin-published template.colors
   // Collect { title, hex? } pairs for the color selector
+  // This single useMemo replaces both activeColorOptions and activeColorOptionDetails to avoid circular dependencies
   const activeColorOptionDetails = useMemo(() => {
     // Priority 1: Use admin-published template colors from Supabase
     if (activeTemplate?.colors && Array.isArray(activeTemplate.colors) && activeTemplate.colors.length > 0) {
@@ -504,7 +501,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
 
     // Final fallback if no enriched color details are found
-    // Use uniqueOptionValues directly instead of activeColorOptions to avoid circular dependency
     const fallbackColors = uniqueOptionValues(activePrintifyVariants.map(getVariantColor));
     if (result.length === 0 && fallbackColors.length > 0) {
       return fallbackColors.map((color) => ({
@@ -515,6 +511,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     return result;
   }, [activeTemplate, activePrintifyVariants]);
+
+  // Derived array of color title strings for selection logic
+  const activeColorOptions = useMemo(() => (
+    activeColorOptionDetails.map(detail => detail.title)
+  ), [activeColorOptionDetails]);
 
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
