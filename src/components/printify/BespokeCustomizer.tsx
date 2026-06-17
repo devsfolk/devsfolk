@@ -811,7 +811,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               const textObj = activeObj as fabric.IText;
               setCustomText(textObj.text || '');
               setTextFont(textObj.fontFamily || 'Inter');
-              setTextColor(textObj.fill as string || '#000000');
+              
+              // CRITICAL FIX: Check if fill is a gradient object or string
+              // React state can only store strings, not Fabric.js gradient objects
+              if (typeof textObj.fill === 'string') {
+                setTextColor(textObj.fill || '#000000');
+              } else {
+                // If fill is a gradient object, store a placeholder string
+                setTextColor('gradient');
+              }
+              
               setTextIsBold(textObj.fontWeight === 'bold');
               setTextIsItalic(textObj.fontStyle === 'italic');
               setTextIsUnderline(!!textObj.underline);
@@ -1888,11 +1897,14 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                         <div className="flex items-center gap-2">
                           <Input
                             type="color"
-                            value={textColor}
+                            value={textColor === 'gradient' ? '#000000' : textColor}
                             onChange={(e) => handleColorChange(e.target.value)}
                             className="w-10 h-10 p-0 rounded-xl border-none cursor-pointer bg-transparent"
+                            disabled={textColor === 'gradient'}
                           />
-                          <span className="text-xs font-mono font-bold uppercase">{textColor}</span>
+                          <span className="text-xs font-mono font-bold uppercase">
+                            {textColor === 'gradient' ? '✨ GRADIENT' : textColor}
+                          </span>
                         </div>
                       </div>
                     </div>
