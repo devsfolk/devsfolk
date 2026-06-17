@@ -403,8 +403,54 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     uniqueOptionValues(activePrintifyVariants.map(getVariantColor))
   ), [activePrintifyVariants]);
 
-  // Collect { title, hex? } pairs for the color selector — used by the swatch renderer
+  // Feature 4: Template Colors Display - Read from admin-published template.colors
+  // Collect { title, hex? } pairs for the color selector
   const activeColorOptionDetails = useMemo(() => {
+    // Priority 1: Use admin-published template colors from Supabase
+    if (activeTemplate?.colors && Array.isArray(activeTemplate.colors) && activeTemplate.colors.length > 0) {
+      const seen = new Set<string>();
+      const result: Array<{ title: string; hex?: string }> = [];
+
+      for (const color of activeTemplate.colors) {
+        // Handle both string colors and { title, hex } objects
+        const colorTitle = typeof color === 'string' ? color : String(color?.title || color?.name || '').trim();
+        const colorHex = typeof color === 'string' 
+          ? (/^#[0-9a-f]{3,6}$/i.test(color) ? color : undefined)
+          : String(color?.hex || color?.color || '').trim() || undefined;
+
+        if (!colorTitle || seen.has(colorTitle)) {
+          continue;
+        }
+        seen.add(colorTitle);
+
+        result.push({
+          title: colorTitle,
+          hex: colorHex,
+        });
+      }
+
+      if (result.length > 0) {
+        return result;
+      }
+    }
+
+    // Priority 2: Extract colors from template's syncDetails.colorCodes if available
+    if (activeTemplate?.syncDetails?.colorCodes && typeof activeTemplate.syncDetails.colorCodes === 'object') {
+      const colorCodes = activeTemplate.syncDetails.colorCodes;
+      const result: Array<{ title: string; hex?: string }> = [];
+
+      for (const [title, hex] of Object.entries(colorCodes)) {
+        if (title && typeof hex === 'string' && hex.startsWith('#')) {
+          result.push({ title, hex });
+        }
+      }
+
+      if (result.length > 0) {
+        return result;
+      }
+    }
+
+    // Priority 3 (Fallback): Extract from Printify variants (original logic)
     const seen = new Set<string>();
     const result: Array<{ title: string; hex?: string }> = [];
 
@@ -457,7 +503,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       });
     }
 
-    // Fallback if no enriched color details are found
+    // Final fallback if no enriched color details are found
     if (result.length === 0 && activeColorOptions.length > 0) {
       return activeColorOptions.map((color) => ({
         title: color,
@@ -466,7 +512,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
 
     return result;
-  }, [activePrintifyVariants, activeColorOptions]);
+  }, [activeTemplate, activePrintifyVariants, activeColorOptions]);
 
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
