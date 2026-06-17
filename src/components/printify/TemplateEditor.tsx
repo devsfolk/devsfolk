@@ -379,6 +379,12 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         lastSynced: new Date().toISOString(),
       };
 
+      console.log('=== TEMPLATE DATA BEING SAVED ===');
+      console.log('formData.sizes:', formData.sizes);
+      console.log('templateData.variants:', templateData.variants);
+      console.log('Full templateData:', JSON.stringify(templateData, null, 2));
+      console.log('=====================================');
+
       await upsertPrintifyCatalogTemplates([templateData], { replaceVisible: false });
       alert('✓ Template published successfully!');
       onClose();
