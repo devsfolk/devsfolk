@@ -336,15 +336,28 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Extract available views from template print areas
   const availableViews = useMemo(() => {
     const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas || [];
-    if (printAreas.length === 0) return ['front']; // Default to front if no print areas defined
     
-    const positions = printAreas
-      .map((area: any) => area?.position || area?.name)
-      .filter(Boolean)
-      .map((pos: string) => pos.toLowerCase());
+    if (printAreas.length > 0) {
+      const positions = printAreas
+        .map((area: any) => area?.position || area?.name)
+        .filter(Boolean)
+        .map((pos: string) => pos.toLowerCase());
+      
+      const uniquePositions = Array.from(new Set(positions));
+      if (uniquePositions.length > 0) {
+        return uniquePositions;
+      }
+    }
     
-    return Array.from(new Set(positions));
-  }, [activeTemplate]);
+    // Fallback: If no print areas or positions, generate views based on number of images
+    const imageCount = activeProduct?.images?.length || 0;
+    if (imageCount > 1) {
+      const viewNames = ['front', 'back', 'side', 'detail'];
+      return viewNames.slice(0, imageCount);
+    }
+    
+    return ['front']; // Default to front view
+  }, [activeTemplate, activeProduct]);
 
   // Get the print area for the currently selected view
   const activeViewPrintArea = useMemo(() => {
@@ -616,8 +629,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   }, [settings.printifySettings?.charges?.editorCharges, customText, customImage]);
 
   // Calculate customer prices AFTER calculateCustomizedPrice is defined
-  const activeDisplayCustomerPrice = activeProduct ? calculateCustomizedPrice(activeDisplayBasePrice) : 0;
-  const activeOrderCustomerPrice = activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0;
+  const activeDisplayCustomerPrice = useMemo(() => 
+    activeProduct ? calculateCustomizedPrice(activeDisplayBasePrice) : 0,
+    [activeProduct, activeDisplayBasePrice, calculateCustomizedPrice]
+  );
+  
+  const activeOrderCustomerPrice = useMemo(() => 
+    activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0,
+    [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
+  );
 
   const getSelectedColorImage = useMemo(() => {
     if (!activeProduct?.images || activeProduct.images.length === 0) {
@@ -695,13 +715,40 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [aiMockups, setAiMockups] = useState<string[]>([]);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
-  // Available fonts
+  // Available fonts - Issue 2: Expanded from 5 to 20 fonts
   const fontOptions = [
     { name: 'Modern Sans (Inter)', value: 'Inter' },
     { name: 'Elegant Serif (Playfair)', value: 'Playfair Display' },
     { name: 'Playful Cursive (Pacifico)', value: 'Pacifico' },
     { name: 'Bold Geometric (Montserrat)', value: 'Montserrat' },
     { name: 'Impact Condensed (Oswald)', value: 'Oswald' },
+    { name: 'Classic Times', value: 'Times New Roman' },
+    { name: 'Clean Helvetica', value: 'Helvetica' },
+    { name: 'Modern Roboto', value: 'Roboto' },
+    { name: 'Stylish Lora', value: 'Lora' },
+    { name: 'Bold Bebas', value: 'Bebas Neue' },
+    { name: 'Handwritten Caveat', value: 'Caveat' },
+    { name: 'Monospace Courier', value: 'Courier New' },
+    { name: 'Rounded Comfortaa', value: 'Comfortaa' },
+    { name: 'Elegant Raleway', value: 'Raleway' },
+    { name: 'Modern Poppins', value: 'Poppins' },
+    { name: 'Classic Georgia', value: 'Georgia' },
+    { name: 'Tech Source Code', value: 'Source Code Pro' },
+    { name: 'Artistic Shadows', value: 'Shadows Into Light' },
+    { name: 'Bold Anton', value: 'Anton' },
+    { name: 'Elegant Merriweather', value: 'Merriweather' },
+  ];
+
+  // Issue 2: Gradient presets for text
+  const gradientPresets = [
+    { name: 'Sunset', colors: ['#FF512F', '#DD2476'] },
+    { name: 'Ocean', colors: ['#2E3192', '#1BFFFF'] },
+    { name: 'Purple Pink', colors: ['#8E2DE2', '#4A00E0'] },
+    { name: 'Gold', colors: ['#FFD89B', '#19547B'] },
+    { name: 'Fire', colors: ['#F37335', '#FDC830'] },
+    { name: 'Mint', colors: ['#00F260', '#0575E6'] },
+    { name: 'Rose', colors: ['#ED213A', '#93291E'] },
+    { name: 'Sky', colors: ['#56CCF2', '#2F80ED'] },
   ];
 
   // Sync colors & sizes when active Printify metadata shifts
@@ -821,10 +868,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           }
         });
 
-        // Apply boundary constraints during object scaling
-        canvas.on('object:scaling', (e) => {
+        // Issue 1 Fix: Apply boundary constraints AFTER scaling completes, not during
+        canvas.on('object:modified', (e) => {
           if (e.target) {
             constrainObjectToBounds(e.target);
+            canvas.renderAll();
           }
         });
 
@@ -958,66 +1006,128 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   };
 
-  // Add/Modify Custom Text Layer on Fabric Canvas
+  // Issue 2 Fix: Add new text layer (supports multiple independent text layers)
+  const handleAddNewText = () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    
+    const newText = new fabric.IText('New Text', {
+      left: canvas.width / 2,
+      top: canvas.height / 2,
+      originX: 'center',
+      originY: 'center',
+      fontSize: 24,
+      fontFamily: textFont,
+      fill: textColor,
+      fontWeight: 'normal',
+      cornerColor: '#000000',
+      cornerStrokeColor: '#ffffff',
+      borderColor: '#000000',
+      cornerSize: 8,
+      transparentCorners: false,
+      padding: 5,
+    });
+    
+    canvas.add(newText);
+    canvas.setActiveObject(newText);
+    canvas.renderAll();
+    
+    // Update text input to show the new text
+    setCustomText(newText.text || '');
+  };
+
+  // Issue 2 Fix: Modify selected text layer (not just the first one)
   const handleTextChange = (val: string) => {
     setCustomText(val);
     const canvas = fabricCanvasRef.current;
-    if (canvas) {
-      let activeText = canvas.getObjects('i-text')[0] as fabric.IText;
+    if (!canvas) return;
+    
+    // Get the currently selected object if it's text
+    const activeObj = canvas.getActiveObject();
+    if (activeObj && activeObj.type === 'i-text') {
+      const activeText = activeObj as fabric.IText;
+      activeText.set('text', val);
+      canvas.renderAll();
+    } else {
+      // If no text is selected, create a new text layer
       if (val.trim()) {
-        if (!activeText) {
-          activeText = new fabric.IText(val, {
-            left: canvas.width / 2,
-            top: canvas.height * 0.3,
-            originX: 'center',
-            originY: 'center',
-            fontSize: 24,
-            fontFamily: textFont,
-            fill: textColor,
-            fontWeight: 'bold',
-            cornerColor: '#000000',
-            cornerStrokeColor: '#ffffff',
-            borderColor: '#000000',
-            cornerSize: 8,
-            transparentCorners: false,
-            padding: 5,
-          });
-          canvas.add(activeText);
-        } else {
-          activeText.set('text', val);
-        }
-        canvas.setActiveObject(activeText);
-        canvas.renderAll();
-      } else if (activeText) {
-        canvas.remove(activeText);
+        const newText = new fabric.IText(val, {
+          left: canvas.width / 2,
+          top: canvas.height * 0.3,
+          originX: 'center',
+          originY: 'center',
+          fontSize: 24,
+          fontFamily: textFont,
+          fill: textColor,
+          fontWeight: 'bold',
+          cornerColor: '#000000',
+          cornerStrokeColor: '#ffffff',
+          borderColor: '#000000',
+          cornerSize: 8,
+          transparentCorners: false,
+          padding: 5,
+        });
+        canvas.add(newText);
+        canvas.setActiveObject(newText);
         canvas.renderAll();
       }
     }
   };
 
-  // Handle Font styles change
+  // Handle Font styles change - Issue 2 Fix: Apply to selected text, not just first
   const handleFontChange = (font: string) => {
     setTextFont(font);
     const canvas = fabricCanvasRef.current;
     if (canvas) {
-      const activeText = canvas.getObjects('i-text')[0] as fabric.IText;
-      if (activeText) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj && activeObj.type === 'i-text') {
+        const activeText = activeObj as fabric.IText;
         activeText.set('fontFamily', font);
         canvas.renderAll();
       }
     }
   };
 
-  // Handle Text color change
+  // Handle Text color change - Issue 2 Fix: Apply to selected text, not just first
   const handleColorChange = (color: string) => {
     setTextColor(color);
     const canvas = fabricCanvasRef.current;
     if (canvas) {
-      const activeText = canvas.getObjects('i-text')[0] as fabric.IText;
-      if (activeText) {
+      const activeObj = canvas.getActiveObject();
+      if (activeObj && activeObj.type === 'i-text') {
+        const activeText = activeObj as fabric.IText;
         activeText.set('fill', color);
         canvas.renderAll();
       }
+    }
+  };
+
+  // Issue 2: Apply gradient to selected text
+  const handleApplyGradient = (gradient: { name: string; colors: string[] }) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    
+    const activeObj = canvas.getActiveObject();
+    if (activeObj && activeObj.type === 'i-text') {
+      const activeText = activeObj as fabric.IText;
+      
+      // Create a linear gradient (left to right)
+      const gradientFill = new fabric.Gradient({
+        type: 'linear',
+        coords: {
+          x1: 0,
+          y1: 0,
+          x2: activeText.width || 100,
+          y2: 0,
+        },
+        colorStops: [
+          { offset: 0, color: gradient.colors[0] },
+          { offset: 1, color: gradient.colors[1] },
+        ],
+      });
+      
+      activeText.set('fill', gradientFill);
+      canvas.renderAll();
     }
   };
 
@@ -1458,7 +1568,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           </p>
 
           {/* Issue 3 Fix: View/Position Switcher */}
-          {availableViews.length > 1 && (
+          {(availableViews.length > 1 || (activeProduct?.images && activeProduct.images.length > 1)) && (
             <div className="mt-6 flex justify-center gap-2">
               {availableViews.map((view) => (
                 <button
@@ -1714,14 +1824,28 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             {/* Tab: Text overlay options */}
             {activeTab === 'text' && (
               <div className="space-y-6">
+                {/* Issue 2: Add Another Text Button */}
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleAddNewText}
+                    className="flex-1 h-11 rounded-xl text-xs font-black uppercase tracking-wider bg-black text-white hover:bg-neutral-800"
+                  >
+                    <Type className="h-4 w-4 mr-2" />
+                    Add Another Text
+                  </Button>
+                </div>
+
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Add Text Layer</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Edit Selected Text</Label>
                   <Input
                     placeholder="Type customized word..."
                     value={customText}
                     onChange={(e) => handleTextChange(e.target.value)}
                     className="rounded-xl h-11 border-gray-200 text-sm font-medium"
                   />
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                    Select a text layer on canvas to edit, or type to create new
+                  </p>
                 </div>
 
                 {customText.trim() && (
@@ -1753,6 +1877,30 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                           />
                           <span className="text-xs font-mono font-bold uppercase">{textColor}</span>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Issue 2: Gradient Color Presets */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Gradient Presets</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {gradientPresets.map((gradient) => (
+                          <button
+                            key={gradient.name}
+                            onClick={() => handleApplyGradient(gradient)}
+                            className="h-10 rounded-xl border-2 border-gray-200 hover:border-black transition-all relative overflow-hidden group"
+                            style={{
+                              background: `linear-gradient(90deg, ${gradient.colors[0]} 0%, ${gradient.colors[1]} 100%)`,
+                            }}
+                            title={gradient.name}
+                          >
+                            <span className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                              <span className="text-[9px] font-black uppercase tracking-wider text-white drop-shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                {gradient.name}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
