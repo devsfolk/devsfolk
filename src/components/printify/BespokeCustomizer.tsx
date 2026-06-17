@@ -1691,7 +1691,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
               style={{ 
                 mixBlendMode: 'multiply',
-                opacity: 0.3
+                opacity: 1.0
               }}
             />
 
