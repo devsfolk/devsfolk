@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { fabric } from 'fabric';
-import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Copy, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Copy, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -704,6 +704,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedAngle, setSelectedAngle] = useState(0);
   const [selectedScale, setSelectedScale] = useState(1);
   const [hasSelection, setHasSelection] = useState(false);
+
+  // Premium UI: Color/Gradient selector state
+  const [colorGradientTab, setColorGradientTab] = useState<'solid' | 'gradient'>('solid');
+  const [showAllColors, setShowAllColors] = useState(false);
+  const [showAllGradients, setShowAllGradients] = useState(false);
 
   // Text formatting states
   const [textIsBold, setTextIsBold] = useState(false);
@@ -1925,60 +1930,149 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       </select>
                     </div>
 
-                    {/* Issue 2: Premium Curated Color Palette */}
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                        Text Color
-                        {textColor !== 'gradient' && (
-                          <span className="ml-2 font-normal normal-case tracking-normal text-gray-500">
-                            — {colorPalette.find(c => c.hex === textColor)?.name || textColor}
-                          </span>
-                        )}
-                      </Label>
-                      <div className="grid grid-cols-6 gap-2">
-                        {colorPalette.map((color) => {
-                          const isActive = textColor === color.hex;
-                          return (
-                            <button
-                              key={color.hex}
-                              title={color.name}
-                              aria-label={color.name}
-                              aria-pressed={isActive}
-                              onClick={() => handleColorChange(color.hex)}
-                              className={`w-full aspect-square rounded-lg border-2 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
-                                isActive
-                                  ? 'border-black ring-2 ring-black ring-offset-1 shadow-md scale-110'
-                                  : 'border-gray-200 hover:border-gray-400 hover:scale-105'
-                              }`}
-                              style={{ backgroundColor: color.hex }}
-                            />
-                          );
-                        })}
+                    {/* PREMIUM UI: Compact Color & Gradient Selector */}
+                    <div className="space-y-3">
+                      {/* Tabs */}
+                      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+                        <button
+                          onClick={() => setColorGradientTab('solid')}
+                          className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                            colorGradientTab === 'solid'
+                              ? 'bg-white text-black shadow-sm'
+                              : 'text-gray-500 hover:text-black'
+                          }`}
+                        >
+                          Solid Colors
+                        </button>
+                        <button
+                          onClick={() => setColorGradientTab('gradient')}
+                          className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                            colorGradientTab === 'gradient'
+                              ? 'bg-white text-black shadow-sm'
+                              : 'text-gray-500 hover:text-black'
+                          }`}
+                        >
+                          Gradients
+                        </button>
                       </div>
-                    </div>
 
-                    {/* Issue 2: Gradient Color Presets */}
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Gradient Presets</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {gradientPresets.map((gradient) => (
-                          <button
-                            key={gradient.name}
-                            onClick={() => handleApplyGradient(gradient)}
-                            className="h-10 rounded-xl border-2 border-gray-200 hover:border-black transition-all relative overflow-hidden group"
-                            style={{
-                              background: `linear-gradient(90deg, ${gradient.colors[0]} 0%, ${gradient.colors[1]} 100%)`,
-                            }}
-                            title={gradient.name}
-                          >
-                            <span className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                              <span className="text-[9px] font-black uppercase tracking-wider text-white drop-shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                {gradient.name}
-                              </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
+                      {/* Solid Colors Tab */}
+                      {colorGradientTab === 'solid' && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                            {textColor !== 'gradient' && colorPalette.find(c => c.hex === textColor)
+                              ? colorPalette.find(c => c.hex === textColor)?.name
+                              : 'Select Color'}
+                          </Label>
+                          
+                          {/* Compact swatch grid - show first 8 */}
+                          <div className="grid grid-cols-8 gap-2">
+                            {colorPalette.slice(0, showAllColors ? undefined : 8).map((color) => {
+                              const isActive = textColor === color.hex;
+                              return (
+                                <button
+                                  key={color.hex}
+                                  title={color.name}
+                                  aria-label={color.name}
+                                  aria-pressed={isActive}
+                                  onClick={() => handleColorChange(color.hex)}
+                                  className={`relative w-full aspect-square rounded-full border-2 transition-all group ${
+                                    isActive
+                                      ? 'border-black ring-2 ring-black ring-offset-2 scale-110'
+                                      : 'border-gray-300 hover:border-black hover:scale-110'
+                                  }`}
+                                  style={{ backgroundColor: color.hex }}
+                                >
+                                  {isActive && (
+                                    <Check className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow-lg" strokeWidth={3} />
+                                  )}
+                                  {/* Tooltip on hover */}
+                                  <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-black text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                    {color.name}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Show More/Less button */}
+                          {colorPalette.length > 8 && (
+                            <button
+                              onClick={() => setShowAllColors(!showAllColors)}
+                              className="w-full py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 hover:text-black transition-colors flex items-center justify-center gap-1"
+                            >
+                              {showAllColors ? (
+                                <>
+                                  <ChevronUp className="h-3 w-3" />
+                                  Show Less
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-3 w-3" />
+                                  {colorPalette.length - 8} More Colors
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Gradients Tab */}
+                      {colorGradientTab === 'gradient' && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                            {textColor === 'gradient' ? '✨ Gradient Applied' : 'Select Gradient'}
+                          </Label>
+                          
+                          {/* Compact gradient swatches - show first 6 */}
+                          <div className="grid grid-cols-6 gap-2">
+                            {gradientPresets.slice(0, showAllGradients ? undefined : 6).map((gradient) => {
+                              const isActive = textColor === 'gradient';
+                              return (
+                                <button
+                                  key={gradient.name}
+                                  title={gradient.name}
+                                  aria-label={gradient.name}
+                                  onClick={() => handleApplyGradient(gradient)}
+                                  className={`relative w-full aspect-square rounded-full border-2 transition-all overflow-hidden group ${
+                                    isActive
+                                      ? 'border-black ring-2 ring-black ring-offset-2 scale-110'
+                                      : 'border-gray-300 hover:border-black hover:scale-110'
+                                  }`}
+                                  style={{
+                                    background: `linear-gradient(135deg, ${gradient.colors[0]} 0%, ${gradient.colors[1]} 100%)`,
+                                  }}
+                                >
+                                  {/* Tooltip on hover */}
+                                  <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-black text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                    {gradient.name}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Show More/Less button */}
+                          {gradientPresets.length > 6 && (
+                            <button
+                              onClick={() => setShowAllGradients(!showAllGradients)}
+                              className="w-full py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 hover:text-black transition-colors flex items-center justify-center gap-1"
+                            >
+                              {showAllGradients ? (
+                                <>
+                                  <ChevronUp className="h-3 w-3" />
+                                  Show Less
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-3 w-3" />
+                                  {gradientPresets.length - 6} More Gradients
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {hasSelection && (
