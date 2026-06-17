@@ -39,8 +39,37 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   };
 
   const calculateCustomizedPrice = (retailPrice: number) => {
-    const designFee = Math.max(0, Number(settings.printifySettings?.charges?.designFee ?? 0));
-    return Number((retailPrice + designFee).toFixed(2));
+    // Feature 2: Pricing with Design Charges from admin configuration
+    const editorCharges = settings.printifySettings?.charges?.editorCharges || {
+      textOnly: 0,
+      designOnly: 0,
+      textAndDesign: 0,
+      areaMultiplier: {
+        enabled: false,
+        threshold: 50,
+        surcharge: 0,
+      },
+    };
+
+    // Check if customer added text or design
+    const fCanvas = fabricCanvasRef.current;
+    const hasText = !!customText.trim() || (fCanvas && fCanvas.getObjects('i-text').length > 0);
+    const hasDesign = !!customImage || (fCanvas && fCanvas.getObjects('image').length > 0);
+
+    let customizationFee = 0;
+    if (hasText && hasDesign) {
+      customizationFee = Number(editorCharges.textAndDesign ?? 0);
+    } else if (hasDesign) {
+      customizationFee = Number(editorCharges.designOnly ?? 0);
+    } else if (hasText) {
+      customizationFee = Number(editorCharges.textOnly ?? 0);
+    }
+
+    // Area-based surcharge (placeholder - would need actual coverage calculation in production)
+    // For now, area surcharge is not calculated
+    const areaSurcharge = 0;
+
+    return Number((retailPrice + customizationFee + areaSurcharge).toFixed(2));
   };
 
   const templateToEditorProduct = (template: PrintifyCatalogTemplate): Product => {
@@ -1736,19 +1765,96 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           {/* Action Footer */}
           <div className="p-6 border-t bg-gray-50 flex flex-col gap-3">
-            <Button
-              size="lg"
-              onClick={handleAddToCart}
-              className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2"
-              style={{
-                backgroundColor: settings.primaryColor,
-                color: 'var(--primary-foreground)',
-                borderColor: 'var(--primary-border)',
-              }}
-            >
-              <ShoppingBag className="h-5 w-5" />
-              Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
-            </Button>
+            {/* Feature 2: Pricing Breakdown Display */}
+            {activeProduct && (
+              <div className="p-4 bg-white rounded-2xl border border-gray-200 space-y-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-gray-400">Price Breakdown</p>
+                
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Template Base Price</span>
+                    <span className="font-bold">{settings.currencySymbol}{activeDisplayBasePrice.toFixed(2)}</span>
+                  </div>
+
+                  {(() => {
+                    const fCanvas = fabricCanvasRef.current;
+                    const hasText = !!customText.trim() || (fCanvas && fCanvas.getObjects('i-text').length > 0);
+                    const hasDesign = !!customImage || (fCanvas && fCanvas.getObjects('image').length > 0);
+                    const editorCharges = settings.printifySettings?.charges?.editorCharges || {
+                      textOnly: 0,
+                      designOnly: 0,
+                      textAndDesign: 0,
+                    };
+
+                    let customizationFee = 0;
+                    let feeLabel = '';
+
+                    if (hasText && hasDesign) {
+                      customizationFee = Number(editorCharges.textAndDesign ?? 0);
+                      feeLabel = 'Customization Fee (Text + Design)';
+                    } else if (hasDesign) {
+                      customizationFee = Number(editorCharges.designOnly ?? 0);
+                      feeLabel = 'Customization Fee (Design Only)';
+                    } else if (hasText) {
+                      customizationFee = Number(editorCharges.textOnly ?? 0);
+                      feeLabel = 'Customization Fee (Text Only)';
+                    }
+
+                    if (customizationFee > 0) {
+                      return (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">+ {feeLabel}</span>
+                          <span className="font-bold">{settings.currencySymbol}{customizationFee.toFixed(2)}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+                    <span className="font-black uppercase text-sm">Total</span>
+                    <span className="font-black text-green-600 text-lg">
+                      {settings.currencySymbol}{activeDisplayCustomerPrice.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Feature 2 & 5: Add to Cart Button with Validation */}
+            {(() => {
+              const fCanvas = fabricCanvasRef.current;
+              const hasText = !!customText.trim() || (fCanvas && fCanvas.getObjects('i-text').length > 0);
+              const hasDesign = !!customImage || (fCanvas && fCanvas.getObjects('image').length > 0);
+              const hasCustomization = hasText || hasDesign;
+
+              return (
+                <>
+                  {!hasCustomization && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                      <p className="text-xs text-amber-800 font-bold text-center">
+                        ⚠️ Please add a design or text to customize
+                      </p>
+                    </div>
+                  )}
+                  
+                  <Button
+                    size="lg"
+                    onClick={handleAddToCart}
+                    disabled={!hasCustomization}
+                    className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundColor: hasCustomization ? settings.primaryColor : '#9CA3AF',
+                      color: 'var(--primary-foreground)',
+                      borderColor: 'var(--primary-border)',
+                    }}
+                  >
+                    <ShoppingBag className="h-5 w-5" />
+                    Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
+                  </Button>
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
