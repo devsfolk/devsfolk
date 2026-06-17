@@ -119,86 +119,68 @@ export const PricesTab: React.FC<PricesTabProps> = ({
       console.log('Response Keys:', Object.keys(variantsData));
       console.log('Response Type:', typeof variantsData);
       console.log('Is Array?:', Array.isArray(variantsData));
+      
+      // Log nested structure
+      if (variantsData.data) {
+        console.log('Found .data property:', typeof variantsData.data, Array.isArray(variantsData.data));
+      }
+      if (variantsData.variants) {
+        console.log('Found .variants property:', typeof variantsData.variants, Array.isArray(variantsData.variants));
+      }
+      if (variantsData.print_areas) {
+        console.log('Found .print_areas property:', typeof variantsData.print_areas, Array.isArray(variantsData.print_areas));
+      }
+      if (variantsData.printAreas) {
+        console.log('Found .printAreas property:', typeof variantsData.printAreas, Array.isArray(variantsData.printAreas));
+      }
       console.log('============================================');
       
-      // CRITICAL DEBUG: Log full API response structure
-      console.log('===== RAW API RESPONSE =====');
-      console.log('[API Response] Full variantsData:', JSON.stringify(variantsData, null, 2));
-      console.log('[API Response] Keys in response:', Object.keys(variantsData));
-      
       const variants = variantsData.variants || variantsData.data || [];
-      const printAreas = variantsData.print_areas || variantsData.printAreas || [];
 
       console.log('[Fetch Prices] Extracted Variants Count:', variants.length);
-      console.log('[Fetch Prices] Extracted Print Areas Count:', printAreas.length);
       
       if (variants.length > 0) {
         console.log('[Fetch Prices] Sample Variant Structure:', JSON.stringify(variants[0], null, 2));
       }
-      
-      if (printAreas.length > 0) {
-        console.log('[Fetch Prices] Sample Print Area Structure:', JSON.stringify(printAreas[0], null, 2));
-      } else {
-        console.log('[Fetch Prices] Print Areas not found. Checking alternative fields...');
-        console.log('[Fetch Prices] Possible print area fields:', Object.keys(variantsData).filter(k => k.toLowerCase().includes('print') || k.toLowerCase().includes('area')));
-      }
 
-      // Extract unique SIZES and their base costs
-      const sizeMap = new Map<string, { baseCost: number; count: number }>();
+      // FIXED: Extract colors directly from variant.options.color (it's a string, not nested)
       const colorsSet = new Set<string>();
+      variants.forEach((variant: any) => {
+        const colorValue = variant.options?.color;
+        if (colorValue && typeof colorValue === 'string') {
+          colorsSet.add(colorValue.trim());
+        }
+      });
+      const extractedColors = Array.from(colorsSet);
       
-      console.log('[Color Extraction] Starting color extraction from', variants.length, 'variants');
+      console.log('[Color Extraction] Extracted colors:', extractedColors);
+      console.log('[Color Extraction] Total unique colors:', extractedColors.length);
+
+      // FIXED: Extract print areas from first variant's placeholders array
+      const firstVariant = variants[0];
+      const printAreas = Array.isArray(firstVariant?.placeholders)
+        ? firstVariant.placeholders.map((placeholder: any) => ({
+            position: placeholder.position || 'front',
+            width: placeholder.width || 0,
+            height: placeholder.height || 0,
+          }))
+        : [];
       
-      variants.forEach((variant: any, variantIndex: number) => {
+      console.log('[Print Areas Extraction] Extracted print areas:', printAreas);
+      console.log('[Print Areas Extraction] Total print areas:', printAreas.length);
+
+      // Extract unique SIZES - NOTE: This endpoint does NOT return prices
+      // Admin must enter prices manually or prices come from a separate endpoint
+      const sizeMap = new Map<string, { baseCost: number; count: number }>();
+      
+      variants.forEach((variant: any) => {
         let sizeValue = '';
         
-        // Log first 3 variants for debugging
-        if (variantIndex < 3) {
-          console.log(`[Variant ${variantIndex}] Full structure:`, JSON.stringify(variant, null, 2));
-          console.log(`[Variant ${variantIndex}] Has options?`, Array.isArray(variant.options));
-          if (Array.isArray(variant.options)) {
-            console.log(`[Variant ${variantIndex}] Options:`, variant.options);
-          }
-        }
-        
-        if (Array.isArray(variant.options)) {
-          // Extract size
-          const sizeOption = variant.options.find((opt: any) => {
-            const optName = String(opt.name || opt.type || opt.key || opt.label || '').toLowerCase();
-            return optName.includes('size');
-          });
-          if (sizeOption) {
-            sizeValue = String(sizeOption.title || sizeOption.value || sizeOption.name || '').trim();
-          }
-
-          // FIXED: Extract colors with correct field names matching BespokeCustomizer
-          variant.options.forEach((option: any, optIndex: number) => {
-            if (variantIndex < 3) {
-              console.log(`[Variant ${variantIndex}][Option ${optIndex}]`, option);
-            }
-            
-            // Check name, type, key, or label for "color"/"colour"
-            const optionName = String(option.name || option.type || option.key || option.label || '').toLowerCase();
-            const hasColorMetadata = !!option?.hex || (Array.isArray(option?.colors) && option.colors.length > 0);
-            
-            if (optionName.includes('color') || optionName.includes('colour') || hasColorMetadata) {
-              // Extract color value from title, value, or name
-              const colorValue = String(option.title || option.value || option.name || '').trim();
-              if (colorValue && colorValue.toLowerCase() !== optionName) {
-                console.log('[Color Found]', colorValue, 'from variant', variantIndex, 'option:', option);
-                colorsSet.add(colorValue);
-              }
-            }
-          });
-        } else {
-          // Check if color is directly on variant (fallback)
-          if (variantIndex < 3) {
-            console.log(`[Variant ${variantIndex}] No options array. Checking direct fields...`);
-            console.log(`[Variant ${variantIndex}] Available fields:`, Object.keys(variant));
-          }
-        }
-        
-        if (!sizeValue && variant.title) {
+        // FIXED: Extract size from variant.options.size (similar to color)
+        if (variant.options?.size) {
+          sizeValue = String(variant.options.size).trim();
+        } else if (variant.title) {
+          // Fallback: parse from title
           const title = String(variant.title);
           const sizeMatch = title.match(/\b(XXX?L|XX?L|[SML]|[2-5]XL)\b/i);
           if (sizeMatch) {
@@ -207,20 +189,21 @@ export const PricesTab: React.FC<PricesTabProps> = ({
         }
         
         if (sizeValue) {
-          const cost = Number(variant.cost || 0) / 100;
+          // NOTE: variant.cost is NOT available in this endpoint
+          // Using 0 as placeholder - admin must set prices manually
+          const cost = 0; // Prices not available in this endpoint
           
           if (!sizeMap.has(sizeValue)) {
             sizeMap.set(sizeValue, { baseCost: cost, count: 1 });
           } else {
             const existing = sizeMap.get(sizeValue)!;
-            existing.baseCost = ((existing.baseCost * existing.count) + cost) / (existing.count + 1);
+            existing.baseCost = 0; // Keep at 0 since prices not available
             existing.count += 1;
           }
         }
       });
 
-      console.log('[Color Extraction] Final colors extracted:', Array.from(colorsSet));
-      console.log('[Color Extraction] Total unique colors:', colorsSet.size);
+      console.log('[Size Extraction] Extracted sizes:', Array.from(sizeMap.keys()));
 
       const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', 'XXXL', '4XL', '5XL'];
       const extractedSizes = Array.from(sizeMap.entries())
@@ -238,22 +221,20 @@ export const PricesTab: React.FC<PricesTabProps> = ({
           return aIndex - bIndex;
         });
 
-      const extractedColors = Array.from(colorsSet);
-
-      // Update form data with prices, colors, and print areas
+      // Update form data with sizes, colors, and print areas
       setFormData(prev => ({
         ...prev,
         sizes: extractedSizes.length > 0 ? extractedSizes : prev.sizes,
         colors: extractedColors.length > 0 ? extractedColors : prev.colors,
         printAreas: printAreas.length > 0
           ? printAreas.map((pa: any) => ({
-              name: pa.position || pa.name || 'Print Area',
+              name: pa.position || 'Print Area',
               position: pa.position || '',
-              width: pa.width || pa.pixel_width || 0,
-              height: pa.height || pa.pixel_height || 0,
-              x: pa.offset_x || 0,
-              y: pa.offset_y || 0,
-              dpi: pa.dpi || 300,
+              width: pa.width || 0,
+              height: pa.height || 0,
+              x: 0, // Default position - admin can adjust in Print Areas tab
+              y: 0,
+              dpi: 300,
             }))
           : prev.printAreas,
       }));
