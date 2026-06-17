@@ -1780,7 +1780,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                           <span className="flex items-center justify-between gap-2">
                             <span className="block text-[10px] font-black uppercase tracking-tight truncate">{product.name}</span>
                             <span className="text-[10px] font-black shrink-0">
-                              {settings.currencySymbol}{calculateCustomizedPrice(product.price).toFixed(2)}
+                              {/* Show size-aware price for active product, static price for others */}
+                              {activeProduct.id === product.id 
+                                ? `${settings.currencySymbol}${activeDisplayBasePrice.toFixed(2)}`
+                                : `${settings.currencySymbol}${calculateCustomizedPrice(product.price).toFixed(2)}`
+                              }
                             </span>
                           </span>
                           <span className={`block text-[9px] truncate ${activeProduct.id === product.id ? 'text-white/60' : 'text-gray-400'}`}>
