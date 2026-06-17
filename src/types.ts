@@ -58,7 +58,7 @@ export interface DeviceConfig {
   footerStyle: 'simple' | 'detailed';
 }
 
-export type SectionType = 'HERO' | 'FEATURED_PRODUCTS' | 'CATEGORIES' | 'BANNER' | 'TESTIMONIALS' | 'NEWSLETTER' | 'ABOUT' | 'HTML_CONTENT' | 'CATEGORY_SLIDER' | 'SALE_BANNER';
+export type SectionType = 'HERO' | 'FEATURED_PRODUCTS' | 'CATEGORIES' | 'BANNER' | 'TESTIMONIALS' | 'NEWSLETTER' | 'ABOUT' | 'HTML_CONTENT' | 'CATEGORY_SLIDER' | 'SALE_BANNER' | 'CUSTOMIZER';
 
 export interface StoreSection {
   id: string;
@@ -110,10 +110,21 @@ export interface PrintifyPreviewSettings {
 }
 
 export interface PrintifyCharges {
+  templateBasePrice?: number;
   designFee: number;
   editFee: number;
   sizeFees: Record<string, number>;
   placementFees: Record<string, number>;
+  editorCharges?: {
+    textOnly?: number;
+    designOnly?: number;
+    textAndDesign?: number;
+    areaMultiplier?: {
+      enabled: boolean;
+      threshold: number;
+      surcharge: number;
+    };
+  };
 }
 
 export interface PrintifySyncSettings {
@@ -131,6 +142,44 @@ export interface PrintifySettings {
   preview: PrintifyPreviewSettings;
   charges: PrintifyCharges;
   sync: PrintifySyncSettings;
+}
+
+export interface SizePrice {
+  size: string;
+  baseCost: number;
+  sellingPrice: number;
+}
+
+export interface PrintifyCatalogTemplate {
+  id: string;
+  productId?: string;
+  blueprintId: number;
+  printProviderId?: number;
+  title: string;
+  category?: string;
+  brand?: string;
+  model?: string;
+  tags?: string[];
+  productStatus?: string;
+  description: string;
+  images: string[];
+  mockups?: string[];
+  variantImages?: Record<string, string[]>;
+  providers: any[];
+  variants: any[];
+  printAreas: any[];
+  shipping: any[];
+  syncDetails?: any;
+  baseCost?: number;
+  retailPrice?: number;
+  sellingPrice?: number;
+  variantSellingPrices?: Record<string, number>;
+  colors?: string[];
+  sizes?: string[]; // Array of size names for backwards compatibility
+  sizesPricing?: SizePrice[]; // Array of size-specific pricing objects
+  syncStatus?: 'raw' | 'published';
+  isEnabled: boolean;
+  lastSynced: string;
 }
 
 export interface ThemeSettings {
@@ -193,6 +242,8 @@ export interface ProductVariant {
   name: string;
   price: number;
   stock: number;
+  options?: any[];
+  image_url?: string;
 }
 
 export interface Product {
@@ -211,6 +262,9 @@ export interface Product {
   sizes?: string[];
   variants?: ProductVariant[];
   createdAt: number;
+  isPrintify?: boolean;
+  printifyProductId?: string;
+  printifyCatalogId?: string;
 }
 
 export interface Review {
@@ -222,12 +276,38 @@ export interface Review {
   createdAt: number;
 }
 
+export interface PrintifyCustomization {
+  designId?: string;
+  customImageUrl?: string;
+  customText?: string;
+  textColor?: string;
+  fontFamily?: string;
+  textPosition?: { x: number; y: number; rotate: number; scale: number };
+  imagePosition?: { x: number; y: number; rotate: number; scale: number };
+  previewUrl?: string;
+  printifyBlueprintId?: number;
+  printifyPrintProviderId?: number;
+  printifyVariantId?: number;
+  printifyPrintAreas?: any;
+}
+
 export interface OrderItem {
   productId: string;
   variantId?: string;
   name: string;
   price: number;
   quantity: number;
+  image?: string;
+  color?: string;
+  size?: string;
+  customization?: PrintifyCustomization;
+  isPrintify?: boolean;
+  printifyProductId?: string;
+  printifyCatalogId?: string;
+  printifyBlueprintId?: number;
+  printifyPrintProviderId?: number;
+  printifyVariantId?: number;
+  printifyPrintAreas?: any;
 }
 
 export interface Order {
@@ -236,10 +316,25 @@ export interface Order {
   customerEmail: string;
   customerPhone: string;
   customerAddress: string;
+  shippingAddress?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    country?: string;
+    region?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    zip?: string;
+  };
   items: OrderItem[];
   total: number;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'ABANDONED';
   createdAt: number;
   paymentMethod?: string;
   notes?: string;
+  printifyOrderId?: string | null;
+  printifySyncStatus?: 'NOT_REQUIRED' | 'PENDING' | 'SYNCED' | 'FAILED';
+  printifyErrorLog?: string | null;
 }

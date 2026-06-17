@@ -17,6 +17,9 @@ const CategoryPage = lazy(() =>
 const ProductPage = lazy(() =>
   import('@/pages/storefront/ProductPage').then((module) => ({ default: module.ProductPage })),
 );
+const ProductCustomizePage = lazy(() =>
+  import('@/pages/storefront/ProductCustomizePage').then((module) => ({ default: module.ProductCustomizePage })),
+);
 const CartPage = lazy(() => import('@/pages/storefront/CartPage').then((module) => ({ default: module.CartPage })));
 const CheckoutPage = lazy(() =>
   import('@/pages/storefront/CheckoutPage').then((module) => ({ default: module.CheckoutPage })),
@@ -62,6 +65,7 @@ export default function App() {
             <Route path="/categories" element={<StoreLayout><CategoryPage /></StoreLayout>} />
             <Route path="/category/:slug" element={<StoreLayout><CategoryPage /></StoreLayout>} />
             <Route path="/product/:slug" element={<StoreLayout><ProductPage /></StoreLayout>} />
+            <Route path="/product/:slug/customize" element={<StoreLayout><ProductCustomizePage /></StoreLayout>} />
             <Route path="/sales" element={<StoreLayout><SalesPage /></StoreLayout>} />
             <Route path="/cart" element={<StoreLayout><CartPage /></StoreLayout>} />
             <Route path="/checkout" element={<StoreLayout><CheckoutPage /></StoreLayout>} />

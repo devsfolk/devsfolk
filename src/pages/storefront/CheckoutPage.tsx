@@ -60,6 +60,10 @@ export const CheckoutPage: React.FC = () => {
     customerEmail: '',
     customerPhone: '',
     customerAddress: '',
+    shippingCountry: '',
+    shippingRegion: '',
+    shippingCity: '',
+    shippingZip: '',
     notes: '',
   });
 
@@ -208,8 +212,8 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const handleSubmit = (mode: 'WHATSAPP' | 'WEBSITE') => {
-    if (!formData.customerName || !formData.customerAddress) {
-      alert('Please fill in all required fields (Name and Shipping Address).');
+    if (!formData.customerName || !formData.customerAddress || !formData.shippingCountry || !formData.shippingCity || !formData.shippingZip) {
+      alert('Please fill in all required fields (Name, Shipping Address, Country, City, and ZIP/Postal Code).');
       return;
     }
 
@@ -288,8 +292,17 @@ export const CheckoutPage: React.FC = () => {
     }
 
     if (mode === 'WEBSITE' && !paymentMethod) {
-      alert('Please select a payment method');
-      return;
+      // Only require a payment method selection if at least one payment method is enabled
+      const hasAnyPaymentMethod = (
+        settings.paymentSettings?.stripe?.enabled ||
+        settings.paymentSettings?.paypal?.enabled ||
+        settings.paymentSettings?.bankTransfer?.enabled ||
+        settings.paymentSettings?.cod?.enabled
+      );
+      if (hasAnyPaymentMethod) {
+        alert('Please select a payment method');
+        return;
+      }
     }
 
     if (mode === 'WEBSITE' && paymentMethod === 'bank') {
@@ -297,9 +310,35 @@ export const CheckoutPage: React.FC = () => {
         alert('Please transfer the amount and upload your payment screenshot/receipt first.');
         return;
       }
-      placeOrder(formData, mode, JSON.stringify(bankPaymentData));
+      placeOrder({
+        ...formData,
+        shippingAddress: {
+          firstName: formData.customerName.trim().split(/\s+/)[0] || '',
+          lastName: formData.customerName.trim().split(/\s+/).slice(1).join(' ') || formData.customerName.trim().split(/\s+/)[0] || '',
+          email: formData.customerEmail,
+          phone: formData.customerPhone,
+          country: formData.shippingCountry,
+          region: formData.shippingRegion,
+          address1: formData.customerAddress,
+          city: formData.shippingCity,
+          zip: formData.shippingZip,
+        },
+      }, mode, JSON.stringify(bankPaymentData));
     } else {
-      placeOrder(formData, mode, paymentMethod);
+      placeOrder({
+        ...formData,
+        shippingAddress: {
+          firstName: formData.customerName.trim().split(/\s+/)[0] || '',
+          lastName: formData.customerName.trim().split(/\s+/).slice(1).join(' ') || formData.customerName.trim().split(/\s+/)[0] || '',
+          email: formData.customerEmail,
+          phone: formData.customerPhone,
+          country: formData.shippingCountry,
+          region: formData.shippingRegion,
+          address1: formData.customerAddress,
+          city: formData.shippingCity,
+          zip: formData.shippingZip,
+        },
+      }, mode, paymentMethod);
     }
     setIsSuccess(true);
   };
@@ -403,6 +442,51 @@ export const CheckoutPage: React.FC = () => {
                   onChange={handleChange}
                   required
                 />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="shippingCountry">Country *</Label>
+                  <Input
+                    id="shippingCountry"
+                    name="shippingCountry"
+                    placeholder="US"
+                    value={formData.shippingCountry}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shippingRegion">State / Region</Label>
+                  <Input
+                    id="shippingRegion"
+                    name="shippingRegion"
+                    placeholder="CA"
+                    value={formData.shippingRegion}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shippingCity">City *</Label>
+                  <Input
+                    id="shippingCity"
+                    name="shippingCity"
+                    placeholder="Los Angeles"
+                    value={formData.shippingCity}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shippingZip">ZIP / Postal Code *</Label>
+                  <Input
+                    id="shippingZip"
+                    name="shippingZip"
+                    placeholder="90001"
+                    value={formData.shippingZip}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Delivery Note (Optional)</Label>

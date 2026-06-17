@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { ShoppingBag, ChevronRight, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 export const CategoryPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -28,6 +29,7 @@ export const CategoryPage: React.FC = () => {
     let result = slug 
       ? products.filter(p => p.categoryId === category?.id)
       : products;
+    result = result.filter((product) => !isRawPrintifyTemplateProduct(product));
     
     switch (sortBy) {
       case 'price-low':

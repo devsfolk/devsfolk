@@ -6,13 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ShoppingBag, Zap, ShieldCheck, Truck, Mail, ChevronLeft, ChevronRight, MessageCircle, RotateCcw, CreditCard, Gift, BadgeCheck } from 'lucide-react';
+import { BespokeCustomizer } from '@/components/printify/BespokeCustomizer';
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 export const Home: React.FC = () => {
   const { settings, products, categories, addToCart, loading } = useShop();
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const homepageProducts = React.useMemo(() => {
-    const orderedProducts = [...products].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const orderedProducts = products
+      .filter((product) => !isRawPrintifyTemplateProduct(product))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
     const featuredProducts = orderedProducts.filter((product) => product.isFeatured);
     return featuredProducts.length > 0 ? featuredProducts : orderedProducts;
   }, [products]);
@@ -486,6 +490,26 @@ export const Home: React.FC = () => {
           </section>
         );
 
+      case 'CUSTOMIZER':
+        return (
+          <motion.section 
+            key={section.id}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className={`${isDevsFolk && device === 'mobile' ? 'py-6' : 'py-16'} bg-white`}
+            style={devsfolkBgStyle}
+          >
+            <div className="container mx-auto px-4 md:px-6">
+              <div className="text-center mb-8 md:mb-12">
+                <h2 className={`${isDevsFolk && device === 'mobile' ? 'text-lg' : 'text-4xl'} font-black uppercase tracking-tight mb-2`} style={{ fontFamily: settings.fontDisplay }}>{section.title || "Bespoke Designer"}</h2>
+                {section.subtitle && <p className={`${isDevsFolk && device === 'mobile' ? 'text-[10px]' : 'text-gray-500'} max-w-2xl mx-auto uppercase font-bold tracking-widest opacity-60`}>{section.subtitle}</p>}
+              </div>
+              <BespokeCustomizer showHeader={false} />
+            </div>
+          </motion.section>
+        );
+
       default:
         return null;
     }
@@ -508,6 +532,17 @@ export const Home: React.FC = () => {
   return (
     <div className="flex flex-col">
       {settings.sections.sort((a, b) => a.order - b.order).map(renderSection)}
+      {settings.printifySettings?.enabled && !settings.sections.some((section) => section.type === 'CUSTOMIZER') && products.some((product) => product.isPrintify) && (
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="text-center mb-8 md:mb-12">
+              <h2 className="text-4xl font-black uppercase tracking-tight mb-2" style={{ fontFamily: settings.fontDisplay }}>Design Your Own</h2>
+              <p className="text-gray-500 max-w-2xl mx-auto uppercase font-bold tracking-widest opacity-60">Choose a custom product and personalize it in our live editor.</p>
+            </div>
+            <BespokeCustomizer showHeader={false} />
+          </div>
+        </section>
+      )}
       
       {settings.trustFeatures.some((feature) => feature.enabled) && (
         <section className="py-12 bg-gray-50 border-y">

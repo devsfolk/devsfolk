@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink } from '../types';
+import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization, PrintifyCatalogTemplate, StoreSection } from '../types';
 import { TEMPLATES } from '../lib/templates';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 
@@ -22,17 +22,24 @@ interface ShopContextType {
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  upsertPrintifyShopProducts: (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => Promise<{ importedCount: number; updatedCount: number }>;
+  printifyCatalog: PrintifyCatalogTemplate[];
+  upsertPrintifyCatalogTemplates: (templates: PrintifyCatalogTemplate[], options?: { replaceVisible?: boolean }) => Promise<void>;
+  updatePrintifyCatalogTemplate: (id: string, updates: Partial<PrintifyCatalogTemplate>) => Promise<void>;
+  deletePrintifyCatalogTemplate: (id: string) => Promise<void>;
+  clearPrintifyCatalog: () => Promise<void>;
   categories: Category[];
   addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
   orders: Order[];
   updateOrderStatus: (id: string, status: Order['status']) => void;
+  updateOrderPrintifySync: (id: string, updates: Pick<Order, 'printifySyncStatus' | 'printifyOrderId' | 'printifyErrorLog'>) => void;
   refreshOrders: () => Promise<void>;
   cart: CartItem[];
-  addToCart: (product: Product, variant?: ProductVariant, quantity?: number, options?: { color?: string; size?: string }) => void;
-  removeFromCart: (productId: string, variantId?: string) => void;
-  updateCartQuantity: (productId: string, variantId: string | undefined, quantity: number) => void;
+  addToCart: (product: Product, variant?: ProductVariant, quantity?: number, options?: { color?: string; size?: string; customization?: PrintifyCustomization }) => void;
+  removeFromCart: (productId: string, variantId?: string, customization?: PrintifyCustomization) => void;
+  updateCartQuantity: (productId: string, variantId: string | undefined, quantity: number, customization?: PrintifyCustomization) => void;
   clearCart: () => void;
   placeOrder: (customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>, mode: 'WHATSAPP' | 'WEBSITE', paymentMethod?: string) => void;
   cartTotal: number;
@@ -120,7 +127,23 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     providerSettings: { apiKey: '', shopId: '' },
     editor: { selected: 'devsfolk', devsfolkEnabled: true, alternativeEnabled: false },
     preview: { selected: 'devsfolk', devsfolkEnabled: true, aiEnabled: false, aiConfig: { provider: 'gemini', apiKey: '', maxPreviewImages: 2, pipelinePrompt: 'Generate a photorealistic product mockup with soft studio lighting, neutral background, and a slight shadow beneath the product. Show the design clearly on the product surface.' } },
-    charges: { designFee: 0, editFee: 0, sizeFees: {}, placementFees: {} },
+    charges: { 
+      templateBasePrice: 14.99,
+      designFee: 0, 
+      editFee: 0, 
+      sizeFees: {}, 
+      placementFees: {},
+      editorCharges: {
+        textOnly: 5.00,
+        designOnly: 10.00,
+        textAndDesign: 12.00,
+        areaMultiplier: {
+          enabled: false,
+          threshold: 50,
+          surcharge: 3.00,
+        },
+      },
+    },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true },
   },
 };
@@ -136,6 +159,7 @@ const SAMPLE_CATEGORIES: Category[] = [
   { id: 'cat_suncare', name: 'Sun Armor', slug: 'sun-care', description: 'Superior protection for sun-kissed skin.', imageUrl: 'https://images.unsplash.com/photo-1526947425960-985c9991db01?auto=format&fit=crop&q=80&w=800', order: 7, createdAt: Date.now() },
   { id: 'cat_organic', name: 'Pure Organic', slug: 'natural-beauty', description: 'Clean, green beauty powered by nature.', imageUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&q=80&w=800', order: 8, createdAt: Date.now() },
   { id: 'cat_luxury', name: 'Gold Standard', slug: 'luxury-beauty', description: 'The pinnacle of beauty craftsmanship.', imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800', order: 9, createdAt: Date.now() },
+  { id: 'cat_printify', name: 'Custom Merch', slug: 'custom-merch', description: 'Design your own premium custom print-on-demand products.', imageUrl: '/custom-tee-mockup.png', order: 10, createdAt: Date.now() },
 ];
 
 const SAMPLE_PRODUCTS: Product[] = [
@@ -159,7 +183,35 @@ const SAMPLE_PRODUCTS: Product[] = [
   { id: 'p_org_2', categoryId: 'cat_organic', name: 'Vegan Bamboo Cleanser', slug: 'vegan-bamboo-cleanser', description: 'Ultra-gentle daily cleanser powered by fermented bamboo water and green tea.', price: 26, images: ['https://images.unsplash.com/photo-1556229030-5ef73db95d73?auto=format&fit=crop&q=80&w=800'], stock: 95, isFeatured: false, order: 1, createdAt: Date.now() },
   { id: 'p_lux_1', categoryId: 'cat_luxury', name: '24K Gold Face Oil', slug: '24k-gold-face-oil', description: 'Luxurious blend of rare oils infused with genuine 24-karat gold flakes for ultimate radiance.', price: 185, images: ['https://images.unsplash.com/photo-1616683693504-3ee7e1da76b8?auto=format&fit=crop&q=80&w=800', 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800'], stock: 12, isFeatured: true, order: 0, createdAt: Date.now() },
   { id: 'p_lux_2', categoryId: 'cat_luxury', name: 'Imperial Caviar Cream', slug: 'imperial-caviar-cream', description: 'Revitalizing moisturizer that harnesses the power of black caviar to firm and lift.', price: 245, images: ['https://images.unsplash.com/photo-1550524513-3bfc90df48da?auto=format&fit=crop&q=80&w=800'], stock: 8, isFeatured: true, order: 1, createdAt: Date.now() },
+  {
+    id: 'p_printify_tee',
+    categoryId: 'cat_printify',
+    name: 'Custom Unisex Jersey Tee',
+    slug: 'custom-unisex-tee',
+    description: 'This classic unisex jersey short sleeve tee fits like a well-loved favorite. Soft cotton and quality print make users fall in love with it over and over again. Customize it with your own designs or logo overlays!',
+    price: 24.99,
+    images: ['/custom-tee-mockup.png'],
+    stock: 500,
+    colors: ['#FFFFFF', '#111827', '#EF4444', '#3B82F6', '#10B981'],
+    sizes: ['S', 'M', 'L', 'XL', '2XL'],
+    isFeatured: true,
+    order: 0,
+    createdAt: Date.now(),
+    isPrintify: true,
+    printifyProductId: 'printify_tee_123',
+    printifyCatalogId: 'printify_catalog_tee_123'
+  }
 ];
+
+const PRINTIFY_CATEGORY: Category = {
+  id: 'cat_printify',
+  name: 'Custom Merch',
+  slug: 'custom-merch',
+  description: 'Design your own premium custom print-on-demand products.',
+  imageUrl: '/custom-tee-mockup.png',
+  order: 10,
+  createdAt: Date.now(),
+};
 
 const SETTINGS_STORAGE_KEY = 'devsfolk_settings';
 const PRODUCTS_STORAGE_KEY = 'devsfolk_products';
@@ -169,8 +221,41 @@ const PENDING_ORDERS_STORAGE_KEY = 'devsfolk_pending_orders';
 const REVIEWS_STORAGE_KEY = 'devsfolk_reviews';
 const CART_STORAGE_KEY = 'devsfolk_cart';
 const WISHLIST_STORAGE_KEY = 'devsfolk_wishlist';
+const PRINTIFY_CATALOG_STORAGE_KEY = 'devsfolk_printify_catalog';
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
+
+const isMissingSupabaseRelationError = (message = '', relation: string) => (
+  message.includes(relation) &&
+  (message.includes('schema cache') || message.includes('does not exist') || message.includes('relation'))
+);
+
+const compactPrintifyCatalogForStorage = (templates: PrintifyCatalogTemplate[]) => (
+  templates
+    .filter((template) => template.isEnabled || template.providers.length > 0 || template.variants.length > 0)
+    .map((template) => ({
+      ...template,
+      description: template.description?.slice(0, 500) || '',
+      images: template.images.slice(0, 3),
+      providers: template.providers.slice(0, 3),
+      variants: template.variants.slice(0, 25),
+      printAreas: template.printAreas.slice(0, 5),
+      shipping: [],
+    }))
+);
+
+const savePrintifyCatalogLocally = (templates: PrintifyCatalogTemplate[]) => {
+  try {
+    localStorage.setItem(PRINTIFY_CATALOG_STORAGE_KEY, JSON.stringify(compactPrintifyCatalogForStorage(templates)));
+  } catch (error) {
+    console.warn('Printify catalog local cache skipped because browser storage quota is full.', error);
+    try {
+      localStorage.removeItem(PRINTIFY_CATALOG_STORAGE_KEY);
+    } catch {
+      // Safe ignore
+    }
+  }
+};
 
 const readLocalJson = <T,>(key: string, fallback: T): T => {
   const saved = localStorage.getItem(key);
@@ -256,6 +341,27 @@ const applyCssVariables = (updated: ThemeSettings) => {
   document.documentElement.style.setProperty('--font-display', updated.fontDisplay);
 };
 
+const getMergedSections = (raw?: Partial<ThemeSettings> | null): StoreSection[] => {
+  const sections = raw?.sections || DEFAULT_SETTINGS.sections;
+  const printifyEnabled = raw?.printifySettings?.enabled ?? DEFAULT_SETTINGS.printifySettings!.enabled;
+
+  if (!printifyEnabled || sections.some((section) => section.type === 'CUSTOMIZER')) {
+    return sections;
+  }
+
+  return [
+    ...sections,
+    {
+      id: 'printify-customizer',
+      type: 'CUSTOMIZER',
+      title: 'Design Your Own',
+      subtitle: 'Choose a custom product and personalize it in our live editor.',
+      enabled: true,
+      order: Math.max(...sections.map((section) => section.order), 0) + 1,
+    },
+  ];
+};
+
 const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
   ...DEFAULT_SETTINGS,
   ...raw,
@@ -304,7 +410,7 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
     ...DEFAULT_SETTINGS.mobile,
     ...(raw?.mobile || {}),
   },
-  sections: raw?.sections || DEFAULT_SETTINGS.sections,
+  sections: getMergedSections(raw),
   printifySettings: {
     enabled: raw?.printifySettings?.enabled ?? DEFAULT_SETTINGS.printifySettings!.enabled,
     providerSettings: {
@@ -342,6 +448,26 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
   },
 });
 
+const redactPublicSettings = (settings: ThemeSettings): ThemeSettings => ({
+  ...settings,
+  printifySettings: settings.printifySettings
+    ? {
+        ...settings.printifySettings,
+        providerSettings: {
+          ...settings.printifySettings.providerSettings,
+          apiKey: '',
+        },
+        preview: {
+          ...settings.printifySettings.preview,
+          aiConfig: {
+            ...settings.printifySettings.preview.aiConfig,
+            apiKey: '',
+          },
+        },
+      }
+    : settings.printifySettings,
+});
+
 const mapCategoryRow = (row: any): Category => ({
   id: row.id,
   name: row.name,
@@ -352,22 +478,64 @@ const mapCategoryRow = (row: any): Category => ({
   createdAt: row.created_at ?? Date.now(),
 });
 
-const mapProductRow = (row: any): Product => ({
+const mapProductRow = (row: any): Product => {
+  const variants = row.variants || [];
+  const printifyMeta = Array.isArray(variants)
+    ? variants.find((variant: any) => variant?.id === '__printify_meta')
+    : null;
+  const printifyData = printifyMeta?.printify || {};
+
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    price: Number(row.price),
+    discountPrice: row.discount_price == null ? undefined : Number(row.discount_price),
+    images: row.images || [],
+    stock: row.stock ?? 0,
+    isFeatured: Boolean(row.is_featured),
+    order: row.display_order ?? 0,
+    colors: row.colors || [],
+    sizes: row.sizes || [],
+    variants: Array.isArray(variants) ? variants.filter((variant: any) => variant?.id !== '__printify_meta') : [],
+    createdAt: row.created_at ?? Date.now(),
+    isPrintify: Boolean(row.is_printify) || Boolean(printifyData.isPrintify),
+    printifyProductId: row.printify_product_id ?? printifyData.printifyProductId ?? undefined,
+    printifyCatalogId: row.printify_catalog_id ?? printifyData.printifyCatalogId ?? undefined,
+  };
+};
+
+const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => ({
   id: row.id,
-  categoryId: row.category_id,
-  name: row.name,
-  slug: row.slug,
-  description: row.description,
-  price: Number(row.price),
-  discountPrice: row.discount_price == null ? undefined : Number(row.discount_price),
+  productId: row.product_id ?? undefined,
+  blueprintId: Number(row.blueprint_id ?? row.id?.replace('bp_', '') ?? 0),
+  title: row.title,
+  category: row.category ?? undefined,
+  brand: row.brand ?? undefined,
+  model: row.model ?? undefined,
+  tags: row.tags || [],
+  productStatus: row.product_status ?? undefined,
+  description: row.description ?? '',
   images: row.images || [],
-  stock: row.stock ?? 0,
-  isFeatured: Boolean(row.is_featured),
-  order: row.display_order ?? 0,
+  mockups: row.mockups || [],
+  variantImages: row.variant_images || {},
+  providers: row.providers || [],
+  variants: row.variants || [],
+  printAreas: row.print_areas || [],
+  shipping: row.shipping || [],
+  syncDetails: row.sync_details || {},
+  baseCost: row.base_cost == null ? undefined : Number(row.base_cost),
+  retailPrice: row.retail_price == null ? undefined : Number(row.retail_price),
+  sellingPrice: row.selling_price == null ? row.retail_price == null ? undefined : Number(row.retail_price) : Number(row.selling_price),
+  variantSellingPrices: row.variant_selling_prices || {},
   colors: row.colors || [],
   sizes: row.sizes || [],
-  variants: row.variants || [],
-  createdAt: row.created_at ?? Date.now(),
+  syncStatus: row.sync_status || (row.is_enabled ? 'published' : 'raw'),
+  printProviderId: row.print_provider_id == null ? undefined : Number(row.print_provider_id),
+  isEnabled: row.is_enabled ?? row.sync_status === 'published',
+  lastSynced: row.last_synced ?? new Date().toISOString(),
 });
 
 const mapReviewRow = (row: any): Review => ({
@@ -379,18 +547,55 @@ const mapReviewRow = (row: any): Review => ({
   createdAt: row.created_at ?? Date.now(),
 });
 
-const mapOrderRow = (row: any): Order => ({
-  id: row.id,
-  customerName: row.customer_name,
-  customerEmail: row.customer_email,
-  customerPhone: row.customer_phone,
-  customerAddress: row.customer_address,
-  items: row.items || [],
-  total: Number(row.total),
-  status: row.status,
-  createdAt: row.created_at ?? Date.now(),
-  paymentMethod: row.payment_method,
-});
+const orderHasPrintifyItems = (items: any[] = []) => items.some((item) => (
+  item?.isPrintify ||
+  item?.printifyProductId ||
+  item?.printifyCatalogId ||
+  item?.printifyBlueprintId ||
+  item?.customization?.printifyBlueprintId ||
+  item?.customization?.previewUrl ||
+  item?.customization?.customText ||
+  item?.customization?.customImageUrl
+));
+
+const getLegacyPrintifySyncMeta = (items: any[] = []) => {
+  const meta = items.find((item) => item?.productId === '__printify_sync_meta')?.printifySync;
+  return meta && typeof meta === 'object' ? meta : null;
+};
+
+const getLegacyShippingAddressMeta = (items: any[] = []) => {
+  const shippingAddress = items.find((item) => item?.productId === '__shipping_address_meta')?.shippingAddress;
+  return shippingAddress && typeof shippingAddress === 'object' ? shippingAddress : null;
+};
+
+const stripLegacyOrderMeta = (items: any[] = []) => items.filter((item) => (
+  item?.productId !== '__printify_sync_meta' &&
+  item?.productId !== '__shipping_address_meta'
+));
+
+const mapOrderRow = (row: any): Order => {
+  const rawItems = row.items || [];
+  const legacyPrintifySync = getLegacyPrintifySyncMeta(rawItems);
+  const legacyShippingAddress = getLegacyShippingAddressMeta(rawItems);
+  const items = stripLegacyOrderMeta(rawItems);
+
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    customerPhone: row.customer_phone,
+    customerAddress: row.customer_address,
+    shippingAddress: legacyShippingAddress ?? undefined,
+    items,
+    total: Number(row.total),
+    status: row.status,
+    createdAt: row.created_at ?? Date.now(),
+    paymentMethod: row.payment_method,
+    printifyOrderId: row.printify_order_id ?? legacyPrintifySync?.printifyOrderId ?? null,
+    printifySyncStatus: row.printify_sync_status ?? legacyPrintifySync?.printifySyncStatus ?? (orderHasPrintifyItems(items) ? 'PENDING' : undefined),
+    printifyErrorLog: row.printify_error_log ?? legacyPrintifySync?.printifyErrorLog ?? (orderHasPrintifyItems(items) ? 'Queued for Printify fulfillment bridge.' : null),
+  };
+};
 
 const toCategoryRow = (category: Category) => ({
   id: category.id,
@@ -418,7 +623,116 @@ const toProductRow = (product: Product) => ({
   sizes: product.sizes || [],
   variants: product.variants || [],
   created_at: product.createdAt,
+  is_printify: product.isPrintify ?? false,
+  printify_product_id: product.printifyProductId ?? null,
+  printify_catalog_id: product.printifyCatalogId ?? null,
 });
+
+const toLegacyProductRow = (product: Product) => {
+  const variants = (product.variants || []).filter((variant: any) => variant?.id !== '__printify_meta');
+
+  return {
+    id: product.id,
+    category_id: product.categoryId,
+    name: product.name,
+    slug: product.slug,
+    description: product.description,
+    price: product.price,
+    discount_price: product.discountPrice ?? null,
+    images: product.images,
+    stock: product.stock,
+    is_featured: product.isFeatured,
+    display_order: product.order ?? 0,
+    colors: product.colors || [],
+    sizes: product.sizes || [],
+    variants: product.isPrintify
+      ? [
+          ...variants,
+          {
+            id: '__printify_meta',
+            name: 'Printify Metadata',
+            price: product.price,
+            stock: 0,
+            printify: {
+              isPrintify: true,
+              printifyProductId: product.printifyProductId ?? null,
+              printifyCatalogId: product.printifyCatalogId ?? null,
+            },
+          },
+        ]
+      : variants,
+    created_at: product.createdAt,
+  };
+};
+
+const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => ({
+  id: template.id,
+  product_id: template.productId ?? null,
+  blueprint_id: template.blueprintId,
+  title: template.title,
+  category: template.category ?? null,
+  brand: template.brand ?? null,
+  model: template.model ?? null,
+  tags: template.tags || [],
+  product_status: template.productStatus ?? null,
+  description: template.description,
+  images: template.images,
+  mockups: template.mockups || [],
+  variant_images: template.variantImages || {},
+  providers: template.providers,
+  variants: template.variants,
+  print_areas: template.printAreas,
+  shipping: template.shipping,
+  sync_details: template.syncDetails || {},
+  base_cost: template.baseCost ?? null,
+  retail_price: template.retailPrice ?? template.sellingPrice ?? null,
+  selling_price: template.sellingPrice ?? template.retailPrice ?? null,
+  variant_selling_prices: template.variantSellingPrices || {},
+  colors: template.colors || [],
+  sizes: template.sizes || [],
+  sync_status: template.syncStatus || (template.isEnabled ? 'published' : 'raw'),
+  print_provider_id: template.printProviderId ?? null,
+  is_enabled: template.isEnabled,
+  last_synced: template.lastSynced,
+});
+
+const normalizeTemplateImage = (image: any) => {
+  if (!image) return '';
+  if (typeof image === 'string') return image;
+  return image.src || image.url || image.preview_url || '';
+};
+
+const templateToProduct = (template: PrintifyCatalogTemplate): Product => {
+  const images = template.images.map(normalizeTemplateImage).filter(Boolean);
+  const fallbackPrice = Number(template.sellingPrice ?? template.retailPrice ?? template.baseCost ?? 0);
+  const templateVariants = (template.variants || [])
+    .map((variant: any) => ({
+      id: String(variant.id || variant.variant_id || variant.printify_variant_id || ''),
+      name: variant.title || variant.name || variant.options?.title || `Variant ${variant.id || variant.variant_id || ''}`,
+      price: Number(template.variantSellingPrices?.[String(variant.id || variant.variant_id || variant.printify_variant_id || '')] ?? fallbackPrice),
+      stock: variant.is_available === false || variant.is_enabled === false ? 0 : 999,
+      options: variant.options || [],
+      ...(variant.image_url ? { image_url: variant.image_url } : {}),
+    }))
+    .filter((variant) => variant.id);
+
+  return {
+    id: `printify_template_${template.id}`,
+    categoryId: PRINTIFY_CATEGORY.id,
+    name: template.title,
+    slug: `printify-template-${template.blueprintId}`,
+    description: template.description || `${template.brand || 'Printify'} customizable blank template.`,
+    price: fallbackPrice,
+    images: images.length > 0 ? images : ['/custom-tee-mockup.png'],
+    stock: 999,
+    isFeatured: false,
+    variants: templateVariants,
+    createdAt: Date.now(),
+    isPrintify: true,
+    printifyProductId: `template_${template.blueprintId}`,
+    printifyCatalogId: String(template.blueprintId),
+  };
+};
 
 const toReviewRow = (review: Review) => ({
   id: review.id,
@@ -435,10 +749,48 @@ const toOrderRow = (order: Order, paymentMethod?: string) => ({
   customer_email: order.customerEmail,
   customer_phone: order.customerPhone,
   customer_address: order.customerAddress,
-  items: order.items,
+  items: order.shippingAddress
+    ? [
+        ...stripLegacyOrderMeta(order.items),
+        {
+          productId: '__shipping_address_meta',
+          name: 'Shipping Address Metadata',
+          price: 0,
+          quantity: 0,
+          shippingAddress: order.shippingAddress,
+        },
+      ]
+    : order.items,
   total: order.total,
   status: order.status,
-  payment_method: paymentMethod ?? null,
+  payment_method: paymentMethod ?? order.paymentMethod ?? null,
+  created_at: order.createdAt,
+  printify_order_id: order.printifyOrderId ?? null,
+  printify_sync_status: order.printifySyncStatus ?? 'NOT_REQUIRED',
+  printify_error_log: order.printifyErrorLog ?? null,
+});
+
+const toLegacyOrderRow = (order: Order, paymentMethod?: string) => ({
+  id: order.id,
+  customer_name: order.customerName,
+  customer_email: order.customerEmail,
+  customer_phone: order.customerPhone,
+  customer_address: order.customerAddress,
+  items: order.shippingAddress
+    ? [
+        ...stripLegacyOrderMeta(order.items),
+        {
+          productId: '__shipping_address_meta',
+          name: 'Shipping Address Metadata',
+          price: 0,
+          quantity: 0,
+          shippingAddress: order.shippingAddress,
+        },
+      ]
+    : order.items,
+  total: order.total,
+  status: order.status,
+  payment_method: paymentMethod ?? order.paymentMethod ?? null,
   created_at: order.createdAt,
 });
 
@@ -447,6 +799,7 @@ const createId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().to
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<ThemeSettings>(DEFAULT_SETTINGS);
   const [products, setProducts] = useState<Product[]>([]);
+  const [printifyCatalog, setPrintifyCatalog] = useState<PrintifyCatalogTemplate[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -470,11 +823,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const [settingsResult, categoriesResult, productsResult, reviewsResult] = await Promise.all([
+    const [settingsResult, categoriesResult, productsResult, reviewsResult, printifyCatalogResult] = await Promise.all([
       supabase.from('store_settings').select('value').eq('id', 'default').maybeSingle(),
       supabase.from('categories').select('*').order('display_order', { ascending: true }),
       supabase.from('products').select('*').order('display_order', { ascending: true }),
       supabase.from('reviews').select('*').order('created_at', { ascending: false }),
+      supabase.from('printify_catalog').select('*').order('title', { ascending: true }),
     ]);
 
     if (settingsResult.error) {
@@ -505,6 +859,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       const remoteReviews = (reviewsResult.data ?? []).map(mapReviewRow);
       setReviews(remoteReviews);
+    }
+
+    if (printifyCatalogResult.error) {
+      reportSyncError('Failed to load Printify catalog from Supabase.', printifyCatalogResult.error.message);
+    } else {
+      const remoteCatalog = (printifyCatalogResult.data ?? []).map(mapPrintifyCatalogRow);
+      
+      console.log('[ShopContext] Fetched printifyCatalog from Supabase, count:', remoteCatalog.length);
+      if (remoteCatalog.length > 0) {
+        const bp440 = remoteCatalog.find(t => t.id === 'bp_440');
+        console.log('[ShopContext] bp_440 template found?', !!bp440);
+        if (bp440) {
+          console.log('[ShopContext] bp_440.variants:', bp440.variants);
+          console.log('[ShopContext] bp_440 keys:', Object.keys(bp440));
+        }
+      }
+      
+      setPrintifyCatalog(remoteCatalog);
+      savePrintifyCatalogLocally(remoteCatalog);
     }
   };
 
@@ -546,7 +919,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       if (remoteSettingsIsEmpty && rawLocalSettings) {
-        const localSettings = mergeSettings(JSON.parse(rawLocalSettings) as Partial<ThemeSettings>);
+        const localSettings = redactPublicSettings(mergeSettings(JSON.parse(rawLocalSettings) as Partial<ThemeSettings>));
         const { error } = await supabase.from('store_settings').upsert({
           id: 'default',
           value: localSettings,
@@ -630,11 +1003,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let syncedAnyOrders = false;
 
     for (const pendingOrder of pendingOrders) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('orders')
         .insert(toOrderRow(pendingOrder.order, pendingOrder.paymentMethod));
 
       if (error) {
+        if (error.message.includes('printify_order_id') || error.message.includes('printify_sync_status') || error.message.includes('printify_error_log')) {
+          const legacyResult = await supabase
+            .from('orders')
+            .insert(toLegacyOrderRow(pendingOrder.order, pendingOrder.paymentMethod));
+          error = legacyResult.error;
+        }
+
+        if (!error) {
+          syncedAnyOrders = true;
+          continue;
+        }
+
         if (error.code === '23505') {
           syncedAnyOrders = true;
           continue;
@@ -663,14 +1048,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const hasLocalReviews = localStorage.getItem(REVIEWS_STORAGE_KEY) !== null;
 
       const localSettings = mergeSettings(hasLocalSettings ? readLocalJson<Partial<ThemeSettings> | null>(SETTINGS_STORAGE_KEY, null) : null);
-      const localProducts = hasLocalProducts
+      let localProducts = hasLocalProducts
         ? readLocalJson<Product[]>(PRODUCTS_STORAGE_KEY, [])
         : SAMPLE_PRODUCTS;
+
+      // Auto-migrate or ensure custom Printify product exists in the list
+      if (localProducts.length > 0 && !localProducts.some(p => p.isPrintify)) {
+        const samplePrintifyTee = SAMPLE_PRODUCTS.find(p => p.isPrintify);
+        if (samplePrintifyTee) {
+          localProducts = [...localProducts, samplePrintifyTee];
+          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(localProducts));
+        }
+      }
       const localCategories = hasLocalCategories
         ? readLocalJson<Category[]>(CATEGORIES_STORAGE_KEY, [])
         : SAMPLE_CATEGORIES;
       const localOrders = readLocalJson<Order[]>(ORDERS_STORAGE_KEY, []);
       const localReviews = hasLocalReviews ? readLocalJson<Review[]>(REVIEWS_STORAGE_KEY, []) : [];
+      const localPrintifyCatalog = readLocalJson<PrintifyCatalogTemplate[]>(PRINTIFY_CATALOG_STORAGE_KEY, []);
       const localCart = readLocalJson<CartItem[]>(CART_STORAGE_KEY, []);
       const localWishlist = readLocalJson<string[]>(WISHLIST_STORAGE_KEY, []);
 
@@ -678,6 +1073,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Production mode: Bypasses stale local caches. Load fresh from Supabase.
         setSettings(mergeSettings(null));
         setProducts([]);
+        setPrintifyCatalog([]);
         setCategories([]);
         setReviews([]);
         setOrders([]);
@@ -685,6 +1081,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Offline / Local development fallback mode
         setSettings(localSettings);
         setProducts(localProducts);
+        setPrintifyCatalog(localPrintifyCatalog);
         setCategories(localCategories);
         setReviews(localReviews);
         setOrders(localOrders);
@@ -829,6 +1226,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProducts(readLocalJson<Product[]>(PRODUCTS_STORAGE_KEY, SAMPLE_PRODUCTS));
       }
 
+      if (event.key === PRINTIFY_CATALOG_STORAGE_KEY) {
+        setPrintifyCatalog(readLocalJson<PrintifyCatalogTemplate[]>(PRINTIFY_CATALOG_STORAGE_KEY, []));
+      }
+
       if (event.key === CATEGORIES_STORAGE_KEY) {
         setCategories(readLocalJson<Category[]>(CATEGORIES_STORAGE_KEY, SAMPLE_CATEGORIES));
       }
@@ -908,9 +1309,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateSettings = (newSettings: Partial<ThemeSettings>) => {
     const updated = mergeSettings({ ...settings, ...newSettings });
+    const publicSettings = redactPublicSettings(updated);
     setSettings(updated);
     if (!supabase) {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(publicSettings));
     }
     applyCssVariables(updated);
 
@@ -918,7 +1320,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       void (async () => {
         const { error } = await supabase.from('store_settings').upsert({
           id: 'default',
-          value: updated,
+          value: publicSettings,
           updated_at: new Date().toISOString(),
         });
 
@@ -987,22 +1389,319 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     const updated = products.filter((product) => product.id !== id);
     setProducts(updated);
     if (!supabase) {
       localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updated));
+      return;
     }
 
-    if (supabase) {
-      void (async () => {
-        const { error } = await supabase.from('products').delete().eq('id', id);
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) {
+      reportSyncError('Failed to delete product from Supabase.', error.message);
+      throw new Error(`Failed to delete template products: ${error.message}`);
+    }
+    reportSyncSuccess('Product removed from Supabase.');
+  };
+
+  const upsertPrintifyShopProducts = async (productPayloads: Array<Omit<Product, 'id' | 'createdAt'>>) => {
+    if (productPayloads.length === 0) {
+      return { importedCount: 0, updatedCount: 0 };
+    }
+
+    const categoryExists = categories.some((category) => category.id === PRINTIFY_CATEGORY.id);
+    if (!categoryExists) {
+      const updatedCategories = [...categories, PRINTIFY_CATEGORY].sort((a, b) => (a.order || 0) - (b.order || 0));
+      setCategories(updatedCategories);
+
+      if (!supabase) {
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(updatedCategories));
+      } else {
+        const { error } = await supabase.from('categories').upsert(toCategoryRow(PRINTIFY_CATEGORY));
         if (error) {
-          reportSyncError('Failed to delete product from Supabase.', error.message);
+          throw new Error(`Failed to create Printify category: ${error.message}`);
+        }
+      }
+    }
+
+    let importedCount = 0;
+    let updatedCount = 0;
+    const nextProducts = [...products];
+    const rowsToUpsert: Product[] = [];
+
+    productPayloads.forEach((payload) => {
+      const existingIndex = nextProducts.findIndex(
+        (product) =>
+          product.printifyProductId === payload.printifyProductId ||
+          product.slug === payload.slug,
+      );
+
+      if (existingIndex >= 0) {
+        const existingProduct = nextProducts[existingIndex];
+        const updatedProduct: Product = {
+          ...existingProduct,
+          ...payload,
+          id: existingProduct.id,
+          createdAt: existingProduct.createdAt,
+        };
+        nextProducts[existingIndex] = updatedProduct;
+        rowsToUpsert.push(updatedProduct);
+        updatedCount++;
+        return;
+      }
+
+      const newProduct: Product = {
+        ...payload,
+        id: createId('p'),
+        createdAt: Date.now(),
+      };
+      nextProducts.unshift(newProduct);
+      rowsToUpsert.push(newProduct);
+      importedCount++;
+    });
+
+    setProducts(nextProducts);
+
+    if (!supabase) {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(nextProducts));
+    } else {
+      const slugsToUpsert = [...new Set(rowsToUpsert.map((product) => product.slug).filter(Boolean))];
+      if (slugsToUpsert.length > 0) {
+        const { data: existingRows, error: existingRowsError } = await supabase
+          .from('products')
+          .select('id, slug, created_at')
+          .in('slug', slugsToUpsert);
+
+        if (existingRowsError) {
+          throw new Error(`Failed to check existing Printify shop products: ${existingRowsError.message}`);
+        }
+
+        const existingBySlug = new Map((existingRows || []).map((row: any) => [row.slug, row]));
+        rowsToUpsert.forEach((product) => {
+          const existingRow = existingBySlug.get(product.slug);
+          if (existingRow?.id) {
+            product.id = existingRow.id;
+            product.createdAt = existingRow.created_at ?? product.createdAt;
+          }
+        });
+      }
+
+      const { error } = await supabase.from('products').upsert(rowsToUpsert.map(toProductRow), { onConflict: 'id' });
+      if (error) {
+        if (error.message.includes('is_printify') || error.message.includes('printify_product_id') || error.message.includes('printify_catalog_id')) {
+          const legacyResult = await supabase.from('products').upsert(rowsToUpsert.map(toLegacyProductRow), { onConflict: 'id' });
+          if (legacyResult.error) {
+            throw new Error(`Failed to save Printify shop products: ${legacyResult.error.message}`);
+          }
+        } else {
+          throw new Error(`Failed to save Printify shop products: ${error.message}`);
+        }
+      }
+    }
+
+    return { importedCount, updatedCount };
+  };
+
+  const upsertPrintifyCatalogTemplates = async (templates: PrintifyCatalogTemplate[], options?: { replaceVisible?: boolean }) => {
+    if (templates.length === 0) {
+      return;
+    }
+
+    const byId = new Map<string, PrintifyCatalogTemplate>(printifyCatalog.map((template) => [template.id, template]));
+    const visibleTemplateIds = new Set(templates.map((template) => template.id));
+    if (options?.replaceVisible) {
+      byId.forEach((template, id) => {
+        if (!visibleTemplateIds.has(id)) {
+          byId.set(id, { ...template, isEnabled: false });
+        }
+      });
+    }
+    templates.forEach((template) => {
+      const previous = byId.get(template.id);
+      byId.set(template.id, {
+        ...previous,
+        ...template,
+        syncStatus: template.syncStatus || previous?.syncStatus || 'raw',
+        isEnabled: template.syncStatus === 'published' || template.isEnabled === true,
+      });
+    });
+    const updated = Array.from(byId.values()).sort((a, b) => a.title.localeCompare(b.title));
+    const publishedTemplates = updated.filter((template) => (template.syncStatus || (template.isEnabled ? 'published' : 'raw')) === 'published' && template.isEnabled);
+    const selectedTemplateProductIds = new Set(publishedTemplates.map((template) => `printify_template_${template.id}`));
+
+    setPrintifyCatalog(updated);
+    savePrintifyCatalogLocally(updated);
+
+    if (supabase) {
+      let hasCatalogTable = true;
+      const { error } = await supabase.from('printify_catalog').upsert(updated.map(toPrintifyCatalogRow));
+      if (error) {
+        if (isMissingSupabaseRelationError(error.message, 'printify_catalog')) {
+          hasCatalogTable = false;
+        } else {
+          reportSyncError('Failed to save Printify catalog templates to Supabase.', error.message);
           return;
         }
-        reportSyncSuccess('Product removed from Supabase.');
-      })();
+      }
+
+      try {
+        const categoryExists = categories.some((category) => category.id === PRINTIFY_CATEGORY.id);
+        if (!categoryExists) {
+          const { error: categoryError } = await supabase.from('categories').upsert(toCategoryRow(PRINTIFY_CATEGORY));
+          if (categoryError) {
+            reportSyncError('Failed to create Printify category for templates.', categoryError.message);
+            return;
+          }
+          setCategories((currentCategories) => (
+            currentCategories.some((category) => category.id === PRINTIFY_CATEGORY.id)
+              ? currentCategories
+              : [...currentCategories, PRINTIFY_CATEGORY].sort((a, b) => (a.order || 0) - (b.order || 0))
+          ));
+        }
+
+        const mappedProducts = publishedTemplates.map((template) => templateToProduct(template));
+        if (mappedProducts.length > 0) {
+          const { error: productError } = await supabase.from('products').upsert(mappedProducts.map(toProductRow));
+          if (productError) {
+            if (productError.message.includes('is_printify') || productError.message.includes('printify_product_id') || productError.message.includes('printify_catalog_id')) {
+              const legacyResult = await supabase.from('products').upsert(mappedProducts.map(toLegacyProductRow));
+              if (legacyResult.error) {
+                reportSyncError('Failed to publish Printify templates to products table (legacy layout).', legacyResult.error.message);
+                return;
+              }
+            } else {
+              reportSyncError('Failed to publish Printify templates to products table.', productError.message);
+              return;
+            }
+          }
+        }
+
+        setProducts((currentProducts) => {
+          const byProductId = new Map<string, Product>(currentProducts.map((product) => [product.id, product]));
+          if (options?.replaceVisible) {
+            byProductId.forEach((product, id) => {
+              if (
+                (id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+                !selectedTemplateProductIds.has(id)
+              ) {
+                byProductId.delete(id);
+              }
+            });
+          }
+          mappedProducts.forEach((product) => {
+            const existing = byProductId.get(product.id);
+            byProductId.set(product.id, existing ? { ...existing, ...product, createdAt: existing.createdAt } : product);
+          });
+          return Array.from(byProductId.values());
+        });
+
+        if (options?.replaceVisible) {
+          const obsoleteProductIds = products
+            .filter((product) => (
+              (product.id.startsWith('printify_template_') || product.printifyProductId?.startsWith('template_')) &&
+              !selectedTemplateProductIds.has(product.id)
+            ))
+            .map((product) => product.id);
+          if (obsoleteProductIds.length > 0) {
+            await supabase.from('products').delete().in('id', obsoleteProductIds);
+          }
+        }
+
+        if (hasCatalogTable) {
+          reportSyncSuccess('Printify catalog templates saved. Published templates synced to products table.');
+        } else {
+          reportSyncSuccess('Printify templates published through product fallback.');
+        }
+      } catch (prodSyncErr: any) {
+        reportSyncError('Failed to synchronize templates to products table.', prodSyncErr?.message || prodSyncErr);
+      }
+    }
+  };
+
+  const updatePrintifyCatalogTemplate = async (templateId: string, updates: Partial<PrintifyCatalogTemplate>) => {
+    const currentTemplate = printifyCatalog.find((template) => template.id === templateId);
+    if (!currentTemplate) {
+      throw new Error(`Printify template ${templateId} was not found.`);
+    }
+
+    const nextTemplate: PrintifyCatalogTemplate = {
+      ...currentTemplate,
+      ...updates,
+      syncStatus: updates.syncStatus || currentTemplate.syncStatus || (updates.isEnabled ? 'published' : 'raw'),
+      isEnabled: updates.isEnabled ?? (updates.syncStatus === 'published' ? true : currentTemplate.isEnabled),
+      lastSynced: updates.lastSynced || currentTemplate.lastSynced || new Date().toISOString(),
+    };
+
+    await upsertPrintifyCatalogTemplates([nextTemplate], { replaceVisible: false });
+  };
+
+  const deletePrintifyCatalogTemplate = async (templateId: string) => {
+    const updatedCatalog = printifyCatalog.filter((t) => t.id !== templateId);
+    setPrintifyCatalog(updatedCatalog);
+    savePrintifyCatalogLocally(updatedCatalog);
+
+    const template = printifyCatalog.find((t) => t.id === templateId);
+    const blueprintId = template?.blueprintId;
+    
+    const updatedProducts = products.filter((p) => 
+      p.id !== `printify_template_${templateId}` && 
+      !(blueprintId && (p.printifyCatalogId === String(blueprintId) || p.printifyProductId === `template_${blueprintId}`))
+    );
+    setProducts(updatedProducts);
+    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+
+    if (supabase) {
+      const { error: catalogErr } = await supabase.from('printify_catalog').delete().eq('id', templateId);
+      if (catalogErr) {
+        reportSyncError(`Failed to delete template ${templateId} from printify_catalog.`, catalogErr.message);
+      }
+      
+      const obsoleteIds = [
+        `printify_template_${templateId}`,
+        blueprintId ? `printify_template_bp_${blueprintId}` : null
+      ].filter(Boolean) as string[];
+      
+      const { error: prodErr } = await supabase.from('products').delete().in('id', obsoleteIds);
+      if (prodErr) {
+        reportSyncError(`Failed to delete fallback products for template ${templateId}.`, prodErr.message);
+      }
+      
+      if (blueprintId) {
+        const { error: prodErr2 } = await supabase.from('products').delete().eq('printify_catalog_id', String(blueprintId));
+        if (prodErr2) {
+          reportSyncError(`Failed to delete catalog matched products for blueprint ${blueprintId}.`, prodErr2.message);
+        }
+      }
+    }
+  };
+
+  const clearPrintifyCatalog = async () => {
+    setPrintifyCatalog([]);
+    localStorage.removeItem(PRINTIFY_CATALOG_STORAGE_KEY);
+
+    const updatedProducts = products.filter(
+      (p) => !p.id.startsWith('printify_template_') && !p.printifyProductId?.startsWith('template_')
+    );
+    setProducts(updatedProducts);
+    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+
+    if (supabase) {
+      const { error: catalogErr } = await supabase.from('printify_catalog').delete().neq('id', '_none_');
+      if (catalogErr) {
+        reportSyncError('Failed to clear printify_catalog table.', catalogErr.message);
+      }
+
+      const obsoleteProductIds = products
+        .filter((p) => p.id.startsWith('printify_template_') || p.printifyProductId?.startsWith('template_'))
+        .map((p) => p.id);
+      
+      if (obsoleteProductIds.length > 0) {
+        const { error: prodErr } = await supabase.from('products').delete().in('id', obsoleteProductIds);
+        if (prodErr) {
+          reportSyncError('Failed to clear fallback templates from products table.', prodErr.message);
+        }
+      }
     }
   };
 
@@ -1080,16 +1779,78 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateOrderPrintifySync = (id: string, updates: Pick<Order, 'printifySyncStatus' | 'printifyOrderId' | 'printifyErrorLog'>) => {
+    const updated = orders.map((order) => (order.id === id ? { ...order, ...updates } : order));
+    setOrders(updated);
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updated));
+
+    if (supabase) {
+      void (async () => {
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            printify_sync_status: updates.printifySyncStatus,
+            printify_order_id: updates.printifyOrderId ?? null,
+            printify_error_log: updates.printifyErrorLog ?? null,
+          })
+          .eq('id', id);
+        if (error) {
+          console.error('Failed to update Printify order sync fields:', error.message);
+          if (
+            error.message.includes('printify_order_id') ||
+            error.message.includes('printify_sync_status') ||
+            error.message.includes('printify_error_log')
+          ) {
+            const order = updated.find((entry) => entry.id === id);
+            if (order) {
+              const legacyItems = [
+                ...stripLegacyOrderMeta(order.items),
+                ...(order.shippingAddress
+                  ? [{
+                      productId: '__shipping_address_meta',
+                      name: 'Shipping Address Metadata',
+                      price: 0,
+                      quantity: 0,
+                      shippingAddress: order.shippingAddress,
+                    }]
+                  : []),
+                {
+                  productId: '__printify_sync_meta',
+                  name: 'Printify Sync Metadata',
+                  price: 0,
+                  quantity: 0,
+                  printifySync: {
+                    printifySyncStatus: updates.printifySyncStatus,
+                    printifyOrderId: updates.printifyOrderId ?? null,
+                    printifyErrorLog: updates.printifyErrorLog ?? null,
+                  },
+                },
+              ];
+              const { error: legacyError } = await supabase
+                .from('orders')
+                .update({ items: legacyItems })
+                .eq('id', id);
+              if (legacyError) {
+                console.error('Failed to update legacy Printify order sync metadata:', legacyError.message);
+              }
+            }
+          }
+        }
+      })();
+    }
+  };
+
   const cartTotal = useMemo(() => cart.reduce((accumulator, item) => accumulator + item.price * item.quantity, 0), [cart]);
 
-  const addToCart = (product: Product, variant?: ProductVariant, quantity = 1, options?: { color?: string; size?: string }) => {
+  const addToCart = (product: Product, variant?: ProductVariant, quantity = 1, options?: { color?: string; size?: string; customization?: PrintifyCustomization }) => {
     setCart((current) => {
       const existingIndex = current.findIndex(
         (item) =>
           item.productId === product.id &&
           item.variantId === variant?.id &&
           item.color === options?.color &&
-          item.size === options?.size,
+          item.size === options?.size &&
+          JSON.stringify(item.customization || null) === JSON.stringify(options?.customization || null),
       );
 
       const nextCart = [...current];
@@ -1102,36 +1863,65 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         nextCart.push({
           productId: product.id,
           variantId: variant?.id,
-          name: product.name + (variant ? ` - ${variant.name}` : '') + (options?.color ? ` (${options.color})` : '') + (options?.size ? ` - ${options.size}` : ''),
+          name: product.name + (variant ? ` - ${variant.name}` : '') + (options?.color ? ` (${options.color})` : '') + (options?.size ? ` - ${options.size}` : '') + (options?.customization ? ' (Customized)' : ''),
           price: variant?.price || product.discountPrice || product.price,
           quantity,
-          image: product.images[0],
+          image: options?.customization?.previewUrl || product.images[0],
           color: options?.color,
           size: options?.size,
+          customization: options?.customization,
+          isPrintify: product.isPrintify,
+          printifyProductId: product.printifyProductId,
+          printifyCatalogId: product.printifyCatalogId,
+          printifyBlueprintId: options?.customization?.printifyBlueprintId,
+          printifyPrintProviderId: options?.customization?.printifyPrintProviderId,
+          printifyVariantId: options?.customization?.printifyVariantId,
+          printifyPrintAreas: options?.customization?.printifyPrintAreas,
         });
       }
 
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextCart));
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextCart));
+      } catch (storageError) {
+        console.warn('[DevsFolk] Cart could not be persisted to localStorage (storage quota exceeded). Cart changes will be lost on page refresh.', storageError);
+      }
       return nextCart;
     });
   };
 
-  const removeFromCart = (productId: string, variantId?: string) => {
+  const removeFromCart = (productId: string, variantId?: string, customization?: PrintifyCustomization) => {
     setCart((current) => {
-      const updated = current.filter((item) => !(item.productId === productId && item.variantId === variantId));
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      const updated = current.filter(
+        (item) =>
+          !(
+            item.productId === productId &&
+            item.variantId === variantId &&
+            JSON.stringify(item.customization || null) === JSON.stringify(customization || null)
+          ),
+      );
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      } catch (storageError) {
+        console.warn('[DevsFolk] Cart could not be persisted to localStorage (storage quota exceeded). Cart changes will be lost on page refresh.', storageError);
+      }
       return updated;
     });
   };
 
-  const updateCartQuantity = (productId: string, variantId: string | undefined, quantity: number) => {
+  const updateCartQuantity = (productId: string, variantId: string | undefined, quantity: number, customization?: PrintifyCustomization) => {
     setCart((current) => {
       const updated = current.map((item) =>
-        item.productId === productId && item.variantId === variantId
+        item.productId === productId &&
+        item.variantId === variantId &&
+        JSON.stringify(item.customization || null) === JSON.stringify(customization || null)
           ? { ...item, quantity: Math.max(1, quantity) }
           : item,
       );
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updated));
+      } catch (storageError) {
+        console.warn('[DevsFolk] Cart could not be persisted to localStorage (storage quota exceeded). Cart changes will be lost on page refresh.', storageError);
+      }
       return updated;
     });
   };
@@ -1210,6 +2000,41 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdmin(false);
   };
 
+  const triggerAutoFulfillment = async (orderId: string, shopId: string, retries = 3, delay = 2000) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch('/api/printify/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, shopId }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (response.ok) {
+          console.info(`[AutoFulfillment] Order ${orderId} submitted to Printify successfully on attempt ${attempt}.`);
+          return;
+        }
+
+        if (data?.status === 'ALREADY_SYNCED') {
+          console.info(`[AutoFulfillment] Order ${orderId} was already synced.`);
+          return;
+        }
+
+        const errorMsg = data?.error || data?.message || `Status ${response.status}`;
+        console.warn(`[AutoFulfillment] Attempt ${attempt}/${retries} failed for order ${orderId}: ${errorMsg}`);
+      } catch (networkError: any) {
+        console.warn(`[AutoFulfillment] Attempt ${attempt}/${retries} network error for order ${orderId}:`, networkError?.message || networkError);
+      }
+
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delay * Math.pow(2, attempt - 1)));
+      }
+    }
+
+    console.error(`[AutoFulfillment] All ${retries} attempts failed for order ${orderId}. Admin can use Push / Retry in the dashboard.`);
+  };
+
   const placeOrder = (
     customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>,
     mode: 'WHATSAPP' | 'WEBSITE',
@@ -1229,6 +2054,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    const hasPrintifyItems = cart.some((item) => item.isPrintify || item.printifyProductId || item.printifyCatalogId || item.customization);
     const newOrder: Order = {
       id: createId('ord'),
       ...customerData,
@@ -1236,6 +2062,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       total: cartTotal,
       status: initialStatus,
       createdAt: Date.now(),
+      paymentMethod: effectivePaymentMethod,
+      printifyOrderId: null,
+      printifySyncStatus: hasPrintifyItems ? 'PENDING' : 'NOT_REQUIRED',
+      printifyErrorLog: hasPrintifyItems ? 'Queued for Printify fulfillment bridge.' : null,
     };
 
     // Save to local device order history
@@ -1271,7 +2101,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     if (supabase) {
-      void flushPendingOrdersToSupabase();
+      void flushPendingOrdersToSupabase().then(() => {
+        if (hasPrintifyItems) {
+          const shopId = settings.printifySettings?.providerSettings?.shopId || '';
+          if (shopId) {
+            void triggerAutoFulfillment(newOrder.id, shopId);
+          } else {
+            console.warn('[AutoFulfillment] Skipped: no Printify shopId configured.');
+          }
+        }
+      });
       void Promise.all(
         updatedProducts.map((product) => supabase.from('products').update({ stock: product.stock }).eq('id', product.id)),
       );
@@ -1300,12 +2139,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addProduct,
       updateProduct,
       deleteProduct,
+      upsertPrintifyShopProducts,
+      printifyCatalog,
+      upsertPrintifyCatalogTemplates,
+      updatePrintifyCatalogTemplate,
+      deletePrintifyCatalogTemplate,
+      clearPrintifyCatalog,
       categories,
       addCategory,
       updateCategory,
       deleteCategory,
       orders,
       updateOrderStatus,
+      updateOrderPrintifySync,
       refreshOrders: syncOrdersFromSupabase,
       cart,
       addToCart,
@@ -1324,7 +2170,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       logout,
     }),
-    [settings, products, categories, orders, cart, cartTotal, loading, reviews, wishlist, isAdmin],
+    [settings, products, printifyCatalog, categories, orders, cart, cartTotal, loading, reviews, wishlist, isAdmin],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
