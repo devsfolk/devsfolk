@@ -1112,6 +1112,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   };
 
   // Issue 2: Apply gradient to selected text
+  // FIXED: Black screen bug - gradient coordinates must be in object's local space
   const handleApplyGradient = (gradient: { name: string; colors: string[] }) => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
@@ -1120,13 +1121,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     if (activeObj && activeObj.type === 'i-text') {
       const activeText = activeObj as fabric.IText;
       
-      // Create a linear gradient (left to right)
+      // CRITICAL FIX: Fabric.js gradients on text require coordinates in the text's
+      // local coordinate system (relative to text's own dimensions, not canvas)
+      // The gradient will automatically transform with the object
       const gradientFill = new fabric.Gradient({
         type: 'linear',
+        gradientUnits: 'pixels', // Use pixels relative to object, not canvas percentage
         coords: {
           x1: 0,
           y1: 0,
-          x2: activeText.width || 100,
+          x2: activeText.width || 100, // Gradient goes from left to right of text
           y2: 0,
         },
         colorStops: [
@@ -1135,7 +1139,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         ],
       });
       
-      activeText.set('fill', gradientFill);
+      activeText.set({ fill: gradientFill });
+      
+      // Force Fabric.js to recalculate the gradient transform matrix
+      // This ensures the gradient renders correctly in the object's coordinate space
+      activeText.setCoords();
       canvas.renderAll();
     }
   };
