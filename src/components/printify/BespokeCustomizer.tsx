@@ -288,54 +288,33 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     
     let { width, height, top, left } = style;
 
-    // Check if template print_areas contains actual dimensions from Printify API
-    const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas;
-    if (Array.isArray(printAreas) && printAreas.length > 0) {
-      // Support both formats:
-      // Format A (nested): [{ placeholders: [{ position, width, height }] }]
-      // Format B (direct): [{ position, width, height }]
-      const firstArea = printAreas[0];
-      let placeholder: any = null;
+    // Issue 1 Fix: Use activeViewPrintArea instead of searching for "front"
+    if (activeViewPrintArea) {
+      const pWidth = Number(activeViewPrintArea?.width || activeViewPrintArea?.pixel_width || 0);
+      const pHeight = Number(activeViewPrintArea?.height || activeViewPrintArea?.pixel_height || 0);
 
-      if (Array.isArray(firstArea?.placeholders) && firstArea.placeholders.length > 0) {
-        // Format A: nested placeholders array
-        placeholder = firstArea.placeholders.find((p: any) => 
-          String(p?.position || '').toLowerCase() === 'front'
-        ) || firstArea.placeholders[0];
-      } else if (firstArea?.width || firstArea?.height || firstArea?.position) {
-        // Format B: direct placeholder object in the array
-        placeholder = printAreas.find((p: any) => 
-          String(p?.position || '').toLowerCase() === 'front'
-        ) || firstArea;
-      }
-      
-      if (placeholder) {
-        const pWidth = Number(placeholder?.width || placeholder?.pixel_width || 0);
-        const pHeight = Number(placeholder?.height || placeholder?.pixel_height || 0);
+      if (pWidth > 0 && pHeight > 0) {
+        const targetRatio = pWidth / pHeight;
+        const maxRatio = width / height;
 
-        if (pWidth > 0 && pHeight > 0) {
-          const targetRatio = pWidth / pHeight;
-          const maxRatio = width / height;
-
-          if (targetRatio > maxRatio) {
-            // Blueprint print area is wider than max layout bounds - adjust height
-            const originalHeight = height;
-            height = width / targetRatio;
-            top = top + (originalHeight - height) / 2;
-          } else {
-            // Blueprint print area is taller than max layout bounds - adjust width
-            const originalWidth = width;
-            width = height * targetRatio;
-            left = left + (originalWidth - width) / 2;
-          }
+        if (targetRatio > maxRatio) {
+          // Blueprint print area is wider than max layout bounds - adjust height
+          const originalHeight = height;
+          height = width / targetRatio;
+          top = top + (originalHeight - height) / 2;
+        } else {
+          // Blueprint print area is taller than max layout bounds - adjust width
+          const originalWidth = width;
+          width = height * targetRatio;
+          left = left + (originalWidth - width) / 2;
         }
-
-        // Use position offsets from the placeholder if available
-        const posTop = Number(placeholder?.top ?? placeholder?.y ?? placeholder?.offset_y ?? 0);
-        const posLeft = Number(placeholder?.left ?? placeholder?.x ?? placeholder?.offset_x ?? 0);
-        if (posTop > 0 && posTop <= 100) top = posTop;
-        if (posLeft > 0 && posLeft <= 100) left = posLeft;
       }
+
+      // Use position offsets from the placeholder if available
+      const posTop = Number(activeViewPrintArea?.top ?? activeViewPrintArea?.y ?? activeViewPrintArea?.offset_y ?? 0);
+      const posLeft = Number(activeViewPrintArea?.left ?? activeViewPrintArea?.x ?? activeViewPrintArea?.offset_x ?? 0);
+      if (posTop > 0 && posTop <= 100) top = posTop;
+      if (posLeft > 0 && posLeft <= 100) left = posLeft;
     }
     
     return {
@@ -350,6 +329,56 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
+  
+  // Issue 3 Fix: Add view/position state for multi-image support
+  const [selectedView, setSelectedView] = useState<string>('front');
+
+  // Extract available views from template print areas
+  const availableViews = useMemo(() => {
+    const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas || [];
+    if (printAreas.length === 0) return ['front']; // Default to front if no print areas defined
+    
+    const positions = printAreas
+      .map((area: any) => area?.position || area?.name)
+      .filter(Boolean)
+      .map((pos: string) => pos.toLowerCase());
+    
+    return Array.from(new Set(positions));
+  }, [activeTemplate]);
+
+  // Get the print area for the currently selected view
+  const activeViewPrintArea = useMemo(() => {
+    const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas || [];
+    const found = printAreas.find((area: any) => {
+      const position = (area?.position || area?.name || '').toLowerCase();
+      return position === selectedView.toLowerCase();
+    });
+    
+    return found || printAreas[0] || null;
+  }, [activeTemplate, selectedView]);
+
+  // Get the image for the currently selected view
+  const activeViewImage = useMemo(() => {
+    if (!activeProduct?.images || activeProduct.images.length === 0) {
+      return '/custom-tee-mockup.png';
+    }
+
+    // Map view position to image index
+    // If we have multiple images, map them to positions in order
+    const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
+    const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
+      ? viewIndex 
+      : 0;
+    
+    return activeProduct.images[imageIndex] || activeProduct.images[0];
+  }, [activeProduct, selectedView, availableViews]);
+
+  // Ensure selectedView is valid when template changes
+  useEffect(() => {
+    if (!availableViews.includes(selectedView.toLowerCase())) {
+      setSelectedView(availableViews[0] || 'front');
+    }
+  }, [availableViews, selectedView]);
 
   const activePrintifyVariants = useMemo(() => {
     const rawVariants = Array.isArray(activeTemplate?.variants) && activeTemplate.variants.length > 0
@@ -1405,8 +1434,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             
             {/* Layer 2 (Top): Template Image with Alpha Shadow Overlay */}
             <img 
-              src={getSelectedColorImage || '/custom-tee-mockup.png'} 
-              alt="Shirt template" 
+              src={activeViewImage} 
+              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
               style={{ 
                 mixBlendMode: 'multiply',
@@ -1427,6 +1456,25 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           <p className="text-[10px] text-gray-400 mt-4 uppercase font-black tracking-widest flex items-center gap-1.5 opacity-70">
             <HelpCircle className="h-3.5 w-3.5" /> Customize design layers interactively on the selected product.
           </p>
+
+          {/* Issue 3 Fix: View/Position Switcher */}
+          {availableViews.length > 1 && (
+            <div className="mt-6 flex justify-center gap-2">
+              {availableViews.map((view) => (
+                <button
+                  key={view}
+                  onClick={() => setSelectedView(view)}
+                  className={`px-6 py-2.5 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${
+                    selectedView.toLowerCase() === view.toLowerCase()
+                      ? 'bg-black text-white border-black shadow-md'
+                      : 'bg-white text-black border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {view}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right Column: Control Options */}
