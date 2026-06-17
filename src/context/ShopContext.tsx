@@ -864,23 +864,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (printifyCatalogResult.error) {
       reportSyncError('Failed to load Printify catalog from Supabase.', printifyCatalogResult.error.message);
     } else {
-      console.log('=== FETCHED FROM SUPABASE ===');
-      console.log('Raw data from Supabase:', printifyCatalogResult.data);
-      if (printifyCatalogResult.data && printifyCatalogResult.data.length > 0) {
-        console.log('First raw row:', JSON.stringify(printifyCatalogResult.data[0], null, 2));
-        console.log('variants field in first row:', printifyCatalogResult.data[0]?.variants);
-      }
-      console.log('=============================');
-      
       const remoteCatalog = (printifyCatalogResult.data ?? []).map(mapPrintifyCatalogRow);
-      
-      console.log('=== AFTER MAPPING ===');
-      if (remoteCatalog.length > 0) {
-        console.log('First mapped template:', remoteCatalog[0]);
-        console.log('variants field after mapping:', remoteCatalog[0]?.variants);
-      }
-      console.log('=====================');
-      
       setPrintifyCatalog(remoteCatalog);
       savePrintifyCatalogLocally(remoteCatalog);
     }
@@ -1540,15 +1524,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (supabase) {
       let hasCatalogTable = true;
-      const rowsToSave = updated.map(toPrintifyCatalogRow);
-      
-      console.log('=== SAVING TO SUPABASE ===');
-      console.log('Number of templates:', rowsToSave.length);
-      console.log('Sample row (first template):', JSON.stringify(rowsToSave[0], null, 2));
-      console.log('Variants field in first row:', rowsToSave[0]?.variants);
-      console.log('==========================');
-      
-      const { error } = await supabase.from('printify_catalog').upsert(rowsToSave);
+      const { error } = await supabase.from('printify_catalog').upsert(updated.map(toPrintifyCatalogRow));
       if (error) {
         if (isMissingSupabaseRelationError(error.message, 'printify_catalog')) {
           hasCatalogTable = false;

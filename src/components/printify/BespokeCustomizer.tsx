@@ -231,21 +231,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeTemplate = getTemplateForProduct(activeProduct);
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
 
-  // DEBUG: Log full template structure to verify what fields are available
-  useEffect(() => {
-    if (activeTemplate) {
-      console.log('=== FULL TEMPLATE OBJECT ===');
-      console.log('Template ID:', activeTemplate.id);
-      console.log('Template Title:', activeTemplate.title);
-      console.log('Has sizesPricing field?', 'sizesPricing' in activeTemplate, activeTemplate.sizesPricing);
-      console.log('Has sizes field?', 'sizes' in activeTemplate, activeTemplate.sizes);
-      console.log('Has variants field?', 'variants' in activeTemplate, activeTemplate.variants);
-      console.log('Full template keys:', Object.keys(activeTemplate));
-      console.log('Full template object:', activeTemplate);
-      console.log('==============================');
-    }
-  }, [activeTemplate?.id]);
-
   // Helper: Extract size-specific pricing from variants array (admin saves pricing here)
   const getSizePricingFromVariants = (template: typeof activeTemplate) => {
     if (!template?.variants || !Array.isArray(template.variants)) {
@@ -583,15 +568,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeBaseCostDollars = useMemo(() => {
     // Priority 1: Check for size-specific pricing from variants array (where admin actually saves it)
     const sizePricing = getSizePricingFromVariants(activeTemplate);
-    console.log('[Price Calc Debug] Size pricing extracted from variants:', sizePricing);
-    console.log('[Price Calc Debug] Selected size:', selectedSize);
     
     if (selectedSize && sizePricing.length > 0) {
       const sizePrice = sizePricing.find(sp => sp.size === selectedSize);
-      console.log('[Price Calc Debug] Found matching size price:', sizePrice);
       
       if (sizePrice && sizePrice.baseCost > 0) {
-        console.log('[Price Calc] ✓ Using size-specific base cost:', sizePrice.baseCost, 'for size:', selectedSize);
         return sizePrice.baseCost;
       }
     }
@@ -600,7 +581,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     if (selectedSize && activeTemplate?.sizesPricing) {
       const sizePrice = activeTemplate.sizesPricing.find(sp => sp.size === selectedSize);
       if (sizePrice && sizePrice.baseCost > 0) {
-        console.log('[Price Calc] ✓ Using size-specific base cost from sizesPricing:', sizePrice.baseCost, 'for size:', selectedSize);
         return sizePrice.baseCost;
       }
     }
@@ -634,7 +614,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return Math.max(0, Number(charges?.templateBasePrice ?? 14.99));
     }
     
-    console.log('[Price Calc] ✓ Using fallback base cost:', base);
     return base;
   }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
 
@@ -646,7 +625,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       const sizePrice = sizePricing.find(sp => sp.size === selectedSize);
       
       if (sizePrice && sizePrice.sellingPrice > 0) {
-        console.log('[Price Calc] ✓ Using size-specific selling price:', sizePrice.sellingPrice, 'for size:', selectedSize);
         return calculateTemplateRetailPrice(sizePrice.sellingPrice);
       }
     }
@@ -655,7 +633,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     if (selectedSize && activeTemplate?.sizesPricing) {
       const sizePrice = activeTemplate.sizesPricing.find(sp => sp.size === selectedSize);
       if (sizePrice && sizePrice.sellingPrice > 0) {
-        console.log('[Price Calc] ✓ Using size-specific selling price from sizesPricing:', sizePrice.sellingPrice, 'for size:', selectedSize);
         return calculateTemplateRetailPrice(sizePrice.sellingPrice);
       }
     }
