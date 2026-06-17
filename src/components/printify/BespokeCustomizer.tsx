@@ -703,6 +703,58 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         canvas.on('object:scaling', syncSelection);
         canvas.on('object:rotating', syncSelection);
         canvas.on('object:modified', syncSelection);
+
+        // Feature 3: Print Area Boundary Enforcement
+        // Constrain objects to stay within canvas (print area) boundaries
+        const constrainObjectToBounds = (obj: fabric.Object) => {
+          if (!obj || !canvas) return;
+
+          const objBounds = obj.getBoundingRect();
+          const canvasWidth = canvas.getWidth();
+          const canvasHeight = canvas.getHeight();
+
+          // Calculate object boundaries
+          let left = obj.left || 0;
+          let top = obj.top || 0;
+
+          // Check if object exceeds canvas boundaries and adjust position
+          if (objBounds.left < 0) {
+            left -= objBounds.left;
+          }
+          if (objBounds.top < 0) {
+            top -= objBounds.top;
+          }
+          if (objBounds.left + objBounds.width > canvasWidth) {
+            left -= (objBounds.left + objBounds.width) - canvasWidth;
+          }
+          if (objBounds.top + objBounds.height > canvasHeight) {
+            top -= (objBounds.top + objBounds.height) - canvasHeight;
+          }
+
+          obj.set({ left, top });
+          obj.setCoords();
+        };
+
+        // Apply boundary constraints during object movement
+        canvas.on('object:moving', (e) => {
+          if (e.target) {
+            constrainObjectToBounds(e.target);
+          }
+        });
+
+        // Apply boundary constraints during object scaling
+        canvas.on('object:scaling', (e) => {
+          if (e.target) {
+            constrainObjectToBounds(e.target);
+          }
+        });
+
+        // Apply boundary constraints during object rotation
+        canvas.on('object:rotating', (e) => {
+          if (e.target) {
+            constrainObjectToBounds(e.target);
+          }
+        });
       } else {
         canvas.setWidth(width);
         canvas.setHeight(height);
