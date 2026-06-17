@@ -541,6 +541,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Base cost calculation logic to handle cents from Printify variants and dollars from fallback products.
   const activeBaseCostDollars = useMemo(() => {
+    // Priority 1: Check for size-specific pricing from admin-defined template sizes
+    if (selectedSize && activeTemplate?.sizesPricing) {
+      const sizePrice = activeTemplate.sizesPricing.find(sp => sp.size === selectedSize);
+      if (sizePrice && sizePrice.baseCost > 0) {
+        console.log('[Price Calc] Using size-specific base cost:', sizePrice.baseCost, 'for size:', selectedSize);
+        return sizePrice.baseCost;
+      }
+    }
+
+    // Priority 2: Use Printify variant pricing
     const charges = settings.printifySettings?.charges;
     const variantCostCents = Number(
       activePrintifyVariant?.cost ??
@@ -570,13 +580,23 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
     
     return base;
-  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
+  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
 
   const activeDisplayBasePrice = useMemo(() => {
+    // Priority 1: Check for size-specific selling price from admin-defined template sizes
+    if (selectedSize && activeTemplate?.sizesPricing) {
+      const sizePrice = activeTemplate.sizesPricing.find(sp => sp.size === selectedSize);
+      if (sizePrice && sizePrice.sellingPrice > 0) {
+        console.log('[Price Calc] Using size-specific selling price:', sizePrice.sellingPrice, 'for size:', selectedSize);
+        return calculateTemplateRetailPrice(sizePrice.sellingPrice);
+      }
+    }
+
+    // Priority 2: Fall back to variant-specific or template-wide pricing
     const variantId = String(activePrintifyVariant?.id || activePrintifyVariant?.variant_id || activePrintifyVariant?.printify_variant_id || '');
     const manualVariantPrice = variantId ? activeTemplate?.variantSellingPrices?.[variantId] : undefined;
     return calculateTemplateRetailPrice(Number(manualVariantPrice ?? activeTemplate?.sellingPrice ?? activeTemplate?.retailPrice ?? activeProduct?.price ?? activeBaseCostDollars));
-  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges]);
+  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
 
   const activeOrderBasePrice = useMemo(() => {
     return calculateTemplateOrderPrice(activeDisplayBasePrice);

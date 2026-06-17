@@ -144,6 +144,12 @@ export interface PrintifySettings {
   sync: PrintifySyncSettings;
 }
 
+export interface SizePrice {
+  size: string;
+  baseCost: number;
+  sellingPrice: number;
+}
+
 export interface PrintifyCatalogTemplate {
   id: string;
   productId?: string;
@@ -169,7 +175,8 @@ export interface PrintifyCatalogTemplate {
   sellingPrice?: number;
   variantSellingPrices?: Record<string, number>;
   colors?: string[];
-  sizes?: string[];
+  sizes?: string[]; // Array of size names for backwards compatibility
+  sizesPricing?: SizePrice[]; // Array of size-specific pricing objects
   syncStatus?: 'raw' | 'published';
   isEnabled: boolean;
   lastSynced: string;
