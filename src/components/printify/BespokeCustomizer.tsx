@@ -395,7 +395,116 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return found || printAreas[0] || null;
   }, [activeTemplate, selectedView]);
 
-  // Note: activeViewImage was removed - use getSelectedColorImage instead
+  // Helper: Map common color names to hex codes (fallback when Printify doesn't provide hex)
+  const getColorHex = (colorTitle: string): string | undefined => {
+    // First check if template/variant has explicit hex
+    const explicitHex = activeColorOptionDetails.find(c => c.title === colorTitle)?.hex;
+    if (explicitHex) return explicitHex;
+    
+    // Fallback: Common color name → hex mapping
+    const colorName = colorTitle.toLowerCase().trim();
+    const commonColors: Record<string, string> = {
+      // Blacks & Whites
+      'black': '#000000',
+      'white': '#FFFFFF',
+      'off-white': '#F5F5F5',
+      'ivory': '#FFFFF0',
+      
+      // Grays
+      'gray': '#808080',
+      'grey': '#808080',
+      'light gray': '#D3D3D3',
+      'light grey': '#D3D3D3',
+      'dark gray': '#A9A9A9',
+      'dark grey': '#A9A9A9',
+      'charcoal': '#36454F',
+      'heather gray': '#B8B8B8',
+      'heather grey': '#B8B8B8',
+      
+      // Reds
+      'red': '#FF0000',
+      'dark red': '#8B0000',
+      'light red': '#FFB6C1',
+      'maroon': '#800000',
+      'burgundy': '#800020',
+      'crimson': '#DC143C',
+      'cardinal': '#C41E3A',
+      
+      // Blues
+      'blue': '#0000FF',
+      'navy': '#000080',
+      'navy blue': '#000080',
+      'light blue': '#ADD8E6',
+      'sky blue': '#87CEEB',
+      'royal blue': '#4169E1',
+      'dark blue': '#00008B',
+      'teal': '#008080',
+      'turquoise': '#40E0D0',
+      'aqua': '#00FFFF',
+      'cyan': '#00FFFF',
+      
+      // Greens
+      'green': '#008000',
+      'dark green': '#006400',
+      'light green': '#90EE90',
+      'lime': '#00FF00',
+      'olive': '#808000',
+      'forest green': '#228B22',
+      'mint': '#98FF98',
+      'sage': '#9DC183',
+      
+      // Yellows & Oranges
+      'yellow': '#FFFF00',
+      'gold': '#FFD700',
+      'orange': '#FFA500',
+      'dark orange': '#FF8C00',
+      'tangerine': '#F28500',
+      'amber': '#FFBF00',
+      
+      // Purples & Pinks
+      'purple': '#800080',
+      'violet': '#EE82EE',
+      'magenta': '#FF00FF',
+      'pink': '#FFC0CB',
+      'hot pink': '#FF69B4',
+      'rose': '#FF007F',
+      'lavender': '#E6E6FA',
+      'plum': '#DDA0DD',
+      
+      // Browns
+      'brown': '#A52A2A',
+      'tan': '#D2B48C',
+      'beige': '#F5F5DC',
+      'khaki': '#F0E68C',
+      'coffee': '#6F4E37',
+      'chocolate': '#D2691E',
+      'camel': '#C19A6B',
+      
+      // Others
+      'cream': '#FFFDD0',
+      'sand': '#C2B280',
+      'coral': '#FF7F50',
+      'peach': '#FFE5B4',
+      'mint green': '#98FF98',
+      'mustard': '#FFDB58',
+    };
+    
+    // Direct match
+    if (commonColors[colorName]) {
+      return commonColors[colorName];
+    }
+    
+    // Partial match (e.g., "Heather Navy" → "navy")
+    for (const [name, hex] of Object.entries(commonColors)) {
+      if (colorName.includes(name)) {
+        return hex;
+      }
+    }
+    
+    return undefined;
+  };
+
+  // Note: activeViewImage was removed - use getSelectedViewImage instead
   // getSelectedColorImage handles both color AND view selection
 
   // Ensure selectedView is valid when template changes
@@ -1613,17 +1722,50 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
             />
             
-            {/* Layer 2 (Top): CSS Color Overlay using mix-blend-mode */}
-            {selectedColor && activeColorOptionDetails.find(c => c.title === selectedColor)?.hex && (
-              <div 
-                className="absolute inset-0 transition-colors duration-300 pointer-events-none"
-                style={{ 
-                  backgroundColor: activeColorOptionDetails.find(c => c.title === selectedColor)!.hex,
-                  mixBlendMode: 'multiply',
-                  opacity: 0.85
-                }}
-              />
-            )}
+            {/* Layer 2 (Top): CSS Color Overlay with mask clipping */}
+            {/* Only render if a color is selected AND it has a hex value */}
+            {(() => {
+              if (!selectedColor) return null;
+              
+              // Get hex from explicit mapping or fallback to common color names
+              const colorHex = getColorHex(selectedColor);
+              
+              // Debug logging
+              console.log('[BespokeCustomizer] Color overlay check:', {
+                selectedColor,
+                colorHex,
+                baseImage: getSelectedViewImage,
+                willRender: !!colorHex
+              });
+              
+              // Only render overlay if hex exists
+              if (!colorHex) {
+                console.warn('[BespokeCustomizer] No hex found for color:', selectedColor, '- Add to commonColors map');
+                return null;
+              }
+              
+              return (
+                <div 
+                  className="absolute inset-0 transition-colors duration-300 pointer-events-none"
+                  style={{ 
+                    backgroundColor: colorHex,
+                    mixBlendMode: 'multiply',
+                    opacity: 0.85,
+                    // Use CSS mask to clip overlay to product shape (assumes PNG with alpha channel)
+                    // This prevents tinting the background - only the product gets colored
+                    WebkitMaskImage: `url(${getSelectedViewImage})`,
+                    maskImage: `url(${getSelectedViewImage})`,
+                    WebkitMaskSize: 'cover',
+                    maskSize: 'cover',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    maskPosition: 'center',
+                    zIndex: 10
+                  }}
+                />
+              );
+            })()}
 
             {/* Print Area Bounds holding Fabric Canvas */}
             <div 
