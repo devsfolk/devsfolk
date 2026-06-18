@@ -355,7 +355,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedSize, setSelectedSize] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
   
-  // Issue 3 Fix: Add view/position state for multi-image support
+  // Multi-view support: Add view/position state for different angles (front, back, side)
   const [selectedView, setSelectedView] = useState<string>('front');
 
   // Extract available views from template print areas
@@ -709,8 +709,30 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return '/custom-tee-mockup.png';
     }
 
-    // Priority 1: Use the variant-specific image_url mapped during sync (most reliable)
+    // Priority 1: Use variant-specific images from Printify sync with multi-view support
+    // This works for auto-synced Printify templates with per-color mockup images
     if (selectedColor && activePrintifyVariant?.image_url) {
+      // Check if we have multiple images per variant (multiple views: front, back, side, etc.)
+      if (activeTemplate?.variantImages && Object.keys(activeTemplate.variantImages).length > 0) {
+        const variantId = String(
+          activePrintifyVariant.id || 
+          activePrintifyVariant.variant_id || 
+          activePrintifyVariant.printify_variant_id || 
+          ''
+        );
+        const variantImages = activeTemplate.variantImages[variantId];
+        
+        if (variantImages && Array.isArray(variantImages) && variantImages.length > 0) {
+          // Map view to image index within this variant's images
+          const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
+          const imageIndex = viewIndex >= 0 && viewIndex < variantImages.length 
+            ? viewIndex 
+            : 0;
+          return variantImages[imageIndex] || variantImages[0];
+        }
+      }
+      
+      // Single-view variant image (most common case - one mockup per color)
       return activePrintifyVariant.image_url;
     }
 
@@ -725,10 +747,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
 
     if (!selectedColor) {
-      return activeProduct.images[0];
+      // No color selected - use view-based selection
+      const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
+      const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
+        ? viewIndex 
+        : 0;
+      return activeProduct.images[imageIndex] || activeProduct.images[0];
     }
     
-    // Fallback: fuzzy color-to-filename matching (kept as safety net)
+    // Priority 3: Fuzzy color-to-filename matching (kept as safety net)
     const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
     const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
     
@@ -762,8 +789,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     });
     if (anyWordMatch) return anyWordMatch;
     
-    return activeProduct.images[0];
-  }, [activeProduct, selectedColor, activePrintifyVariant, activeTemplate]);
+    // Final fallback: Map view position to image index
+    const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
+    const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
+      ? viewIndex 
+      : 0;
+    return activeProduct.images[imageIndex] || activeProduct.images[0];
+  }, [activeProduct, selectedColor, selectedView, activePrintifyVariant, activeTemplate, availableViews]);
 
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
@@ -861,6 +893,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       setSelectedSize('');
     }
   }, [activeColorOptions, activeSizeOptions]);
+
+  // Ensure selectedView is valid when template/product changes
+  useEffect(() => {
+    if (!availableViews.includes(selectedView.toLowerCase())) {
+      setSelectedView(availableViews[0] || 'front');
+    }
+  }, [availableViews, selectedView]);
 
   // Initialize Fabric.js Canvas — deferred until the print area has real layout dimensions
   useEffect(() => {
