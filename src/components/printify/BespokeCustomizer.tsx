@@ -544,6 +544,82 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return undefined;
   };
 
+  // NEW: Load mockup image as Fabric.js background layer with color filter
+  const loadMockupLayer = React.useCallback(async (
+    canvas: fabric.Canvas,
+    imageUrl: string,
+    colorHex: string | null
+  ) => {
+    try {
+      // Remove existing mockup layer if present
+      if (mockupLayerRef.current) {
+        canvas.remove(mockupLayerRef.current);
+        mockupLayerRef.current = null;
+      }
+
+      // Load image with CORS handling (critical for Printify external URLs)
+      fabric.Image.fromURL(
+        imageUrl,
+        (img) => {
+          if (!img) {
+            console.error('[Mockup Layer] Failed to load image');
+            return;
+          }
+
+          // Configure as non-interactive background layer
+          img.set({
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            hoverCursor: 'default',
+          });
+
+          // Scale to fit canvas while maintaining aspect ratio
+          const scaleX = canvas.width! / (img.width || 1);
+          const scaleY = canvas.height! / (img.height || 1);
+          const scale = Math.min(scaleX, scaleY);
+          
+          img.scale(scale);
+          
+          // Center the mockup
+          img.set({
+            left: (canvas.width! - (img.width! * scale)) / 2,
+            top: (canvas.height! - (img.height! * scale)) / 2,
+          });
+
+          // Apply color filter if color selected (Fabric.js BlendColor with multiply)
+          if (colorHex) {
+            img.filters = [
+              new fabric.Image.filters.BlendColor({
+                color: colorHex,
+                mode: 'multiply',
+                alpha: 0.85,
+              }),
+            ];
+            img.applyFilters();
+          }
+
+          // Add to canvas and send to back (behind all user content)
+          canvas.add(img);
+          canvas.sendToBack(img);
+          
+          // Store reference for future updates
+          mockupLayerRef.current = img;
+          
+          canvas.renderAll();
+        },
+        {
+          crossOrigin: 'anonymous', // CRITICAL: Handle CORS for external Printify URLs
+        }
+      );
+    } catch (error) {
+      console.error('[Mockup Layer] Error loading mockup:', error);
+    }
+  }, []);
+
   // Note: activeViewImage was removed - use getSelectedViewImage instead
   // getSelectedColorImage handles both color AND view selection
 
@@ -553,6 +629,18 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       setSelectedView(availableViews[0] || 'front');
     }
   }, [availableViews, selectedView]);
+
+  // NEW: Load/update mockup background layer when product, color, or view changes
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas || !activeProduct) return;
+
+    const imageUrl = getSelectedViewImage;
+    const colorHex = selectedColor ? getColorHex(selectedColor) : null;
+
+    // Load mockup as Fabric.js background layer with optional color filter
+    loadMockupLayer(canvas, imageUrl, colorHex);
+  }, [activeProduct, selectedColor, selectedView, getSelectedViewImage, loadMockupLayer]);
 
   const activePrintifyVariants = useMemo(() => {
     const rawVariants = Array.isArray(activeTemplate?.variants) && activeTemplate.variants.length > 0
@@ -783,18 +871,22 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return calculateTemplateOrderPrice(activeDisplayBasePrice);
   }, [activeDisplayBasePrice, settings.printifySettings?.charges]);
 
-  // Customizer canvas states - MUST BE DEFINED BEFORE calculateCustomizedPrice
+  // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [textFont, setTextFont] = useState('Inter');
   const [textColor, setTextColor] = useState('#000000');
   const [isUploading, setIsUploading] = useState(false);
   
-  // Refs - MUST BE DEFINED BEFORE calculateCustomizedPrice
+  // Fabric.js refs
+  const mockupContainerRef = useRef<HTMLDivElement>(null);  // NEW: Full mockup container
   const printAreaRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // NEW: Mockup background layer tracking
+  const mockupLayerRef = useRef<fabric.Image | null>(null);
 
   // Feature 2: Pricing with Design Charges - useCallback to avoid circular dependencies
   const calculateCustomizedPrice = React.useCallback((retailPrice: number) => {
@@ -1752,46 +1844,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Canvas Preview area */}
         <div className="lg:col-span-7 flex flex-col items-center">
-          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
+          <div 
+            ref={mockupContainerRef}
+            className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8"
+          >
             
-            {/* CSS-Based Color Overlay System */}
-            {/* Layer 1 (Bottom): Base Template Image (White mockup from Printify sync) */}
-            <img 
-              src={getSelectedViewImage} 
-              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
-              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-            />
+            {/* Fabric.js Canvas (sized to print area, contains mockup background layer + user content) */}
+            {/* Mockup loaded as fabric.Image bottom layer with BlendColor filter for color manipulation */}
             
-            {/* Layer 2 (Top): CSS Color Overlay with Alpha Masking */}
-            {selectedColor && (() => {
-              const colorHex = getColorHex(selectedColor);
-              
-              if (!colorHex) return null;
-              
-              return (
-                <div 
-                  className="absolute inset-0 transition-colors duration-300 pointer-events-none"
-                  style={{ 
-                    backgroundColor: colorHex,
-                    mixBlendMode: 'multiply',
-                    opacity: 0.85,
-                    // CSS mask clips overlay to product shape using image's alpha channel
-                    // This prevents tinting empty background areas
-                    WebkitMaskImage: `url(${getSelectedViewImage})`,
-                    maskImage: `url(${getSelectedViewImage})`,
-                    WebkitMaskSize: 'cover',
-                    maskSize: 'cover',
-                    WebkitMaskRepeat: 'no-repeat',
-                    maskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    maskPosition: 'center',
-                    zIndex: 10
-                  }}
-                />
-              );
-            })()}
-
-            {/* Print Area Bounds holding Fabric Canvas */}
+            {/* Print Area Bounds - Contains Fabric Canvas */}
             <div 
               ref={printAreaRef}
               className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
