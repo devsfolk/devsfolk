@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { BlueprintSearch } from '../BlueprintSearch';
-import { Upload, X, ChevronDown, ChevronUp, Trash2, ImagePlus, Loader2 } from 'lucide-react';
+import { Upload, X, ChevronDown, ChevronUp, Trash2, ImagePlus, Loader2, Star } from 'lucide-react';
 import { TemplateFormData } from '@/hooks/useTemplateForm';
 import { supabase } from '@/lib/supabase';
 
@@ -19,6 +19,7 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({
   setFormData,
   apiKey,
 }) => {
+  const [imageUrl, setImageUrl] = useState('');
   const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
   const [uploadingStates, setUploadingStates] = useState<Record<string, boolean>>({});
 
@@ -28,6 +29,28 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({
       blueprintId,
       title: prev.title || title,
     }));
+  };
+
+  const addImage = () => {
+    if (imageUrl.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, imageUrl.trim()],
+      }));
+      setImageUrl('');
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+      primaryImageIndex: prev.primaryImageIndex >= index ? Math.max(0, prev.primaryImageIndex - 1) : prev.primaryImageIndex,
+    }));
+  };
+
+  const setPrimaryImage = (index: number) => {
+    setFormData(prev => ({ ...prev, primaryImageIndex: index }));
   };
 
   const toggleExpanded = (color: string) => {
@@ -205,6 +228,78 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({
             className="rounded-xl text-xs min-h-[100px]"
           />
         </div>
+      </div>
+
+      {/* General Template Images */}
+      <div className="space-y-3">
+        <div>
+          <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">
+            General Template Images / Mockups
+          </Label>
+          <p className="text-[9px] text-gray-500 mt-1 pl-1">
+            Default product images used globally (applies to all colors unless overridden by color-specific mockups below)
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Input
+            type="url"
+            placeholder="Paste image URL..."
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && addImage()}
+            className="rounded-xl h-11 text-xs flex-1"
+          />
+          <Button
+            type="button"
+            onClick={addImage}
+            className="rounded-xl h-11 px-4 text-[10px] font-black uppercase"
+          >
+            <Upload className="h-3 w-3 mr-2" />
+            Add
+          </Button>
+        </div>
+
+        {formData.images.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {formData.images.map((img, index) => (
+              <div key={index} className="relative group">
+                <div className="aspect-square rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50">
+                  <img
+                    src={img}
+                    alt={`Product ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = '/custom-tee-mockup.png';
+                    }}
+                  />
+                </div>
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPrimaryImage(index)}
+                    className={`p-1.5 rounded-lg ${
+                      formData.primaryImageIndex === index
+                        ? 'bg-yellow-500 text-white'
+                        : 'bg-white/90 text-gray-600 hover:bg-yellow-500 hover:text-white'
+                    } transition-colors`}
+                    title="Set as primary"
+                  >
+                    <Star className="h-3 w-3" fill={formData.primaryImageIndex === index ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    title="Remove"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Color Mockups Management */}
