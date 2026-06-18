@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { fabric } from 'fabric';
@@ -232,7 +232,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
 
   // Helper: Extract size-specific pricing from variants array (admin saves pricing here)
-  const getSizePricingFromVariants = (template: typeof activeTemplate) => {
+  const getSizePricingFromVariants = useCallback((template: typeof activeTemplate) => {
     if (!template?.variants || !Array.isArray(template.variants)) {
       return [];
     }
@@ -254,7 +254,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       
       return { size, baseCost, sellingPrice };
     });
-  };
+  }, []);
 
   useEffect(() => {
     const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];
@@ -689,7 +689,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
     
     return base;
-  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
+  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize, getSizePricingFromVariants]);
 
   const activeDisplayBasePrice = useMemo(() => {
     // Priority 1: Check for size-specific selling price from variants array (where admin actually saves it)
@@ -715,7 +715,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const variantId = String(activePrintifyVariant?.id || activePrintifyVariant?.variant_id || activePrintifyVariant?.printify_variant_id || '');
     const manualVariantPrice = variantId ? activeTemplate?.variantSellingPrices?.[variantId] : undefined;
     return calculateTemplateRetailPrice(Number(manualVariantPrice ?? activeTemplate?.sellingPrice ?? activeTemplate?.retailPrice ?? activeProduct?.price ?? activeBaseCostDollars));
-  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, selectedSize]);
+  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, selectedSize, getSizePricingFromVariants]);
 
   const activeOrderBasePrice = useMemo(() => {
     return calculateTemplateOrderPrice(activeDisplayBasePrice);
