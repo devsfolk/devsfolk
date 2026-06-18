@@ -72,7 +72,33 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     mockupOptions[0]?.value || formData.images[0] || ''
   );
 
-  // Add new print area to current view
+  // Phase 3: Track mockup image natural dimensions for pixel calculation
+  const [mockupDimensions, setMockupDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // Phase 3: Calculate pixel coordinates from percentages dynamically
+  const calculatePixelCoordinates = (
+    percent: number,
+    dimension: number
+  ): number => {
+    return Math.round((percent / 100) * dimension);
+  };
+
+  // Phase 3: Get pixel coordinates for active print area
+  const activeAreaPixels = useMemo(() => {
+    if (!activePrintArea || !mockupDimensions) return null;
+
+    return {
+      x: calculatePixelCoordinates(activePrintArea.x, mockupDimensions.width),
+      y: calculatePixelCoordinates(activePrintArea.y, mockupDimensions.height),
+      width: calculatePixelCoordinates(activePrintArea.width, mockupDimensions.width),
+      height: calculatePixelCoordinates(activePrintArea.height, mockupDimensions.height),
+    };
+  }, [activePrintArea, mockupDimensions]);
+
+  // Phase 3: Add new print area to current view with reference mockup dimensions
   const addPrintArea = () => {
     const viewLabel = availableViews.find((v) => v.value === selectedView)?.label || selectedView;
     const newAreaName = `${viewLabel} Design Area ${viewPrintAreas.length + 1}`;
@@ -88,6 +114,16 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
       width: 50,
       height: 60,
       dpi: 300,
+      // Phase 3: Stamp reference mockup dimensions if available
+      ...(mockupDimensions && {
+        pixelX: calculatePixelCoordinates(25, mockupDimensions.width),
+        pixelY: calculatePixelCoordinates(20, mockupDimensions.height),
+        pixelWidth: calculatePixelCoordinates(50, mockupDimensions.width),
+        pixelHeight: calculatePixelCoordinates(60, mockupDimensions.height),
+        referenceMockupWidth: mockupDimensions.width,
+        referenceMockupHeight: mockupDimensions.height,
+        referenceMockupUrl: selectedMockupUrl,
+      }),
     };
     
     setFormData((prev) => ({
@@ -110,13 +146,33 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     }
   };
 
-  // Update specific print area by ID
+  // Phase 3: Update specific print area by ID + stamp reference mockup dimensions
   const updatePrintArea = (id: string, updates: Partial<PrintArea>) => {
     setFormData((prev) => ({
       ...prev,
-      printAreas: prev.printAreas.map((area) =>
-        area.id === id ? { ...area, ...updates } : area
-      ),
+      printAreas: prev.printAreas.map((area) => {
+        if (area.id !== id) return area;
+
+        // Phase 3: Calculate and store pixel coordinates + reference mockup
+        const updatedArea = { ...area, ...updates };
+        
+        if (mockupDimensions) {
+          return {
+            ...updatedArea,
+            // Store pixel coordinates
+            pixelX: calculatePixelCoordinates(updatedArea.x, mockupDimensions.width),
+            pixelY: calculatePixelCoordinates(updatedArea.y, mockupDimensions.height),
+            pixelWidth: calculatePixelCoordinates(updatedArea.width, mockupDimensions.width),
+            pixelHeight: calculatePixelCoordinates(updatedArea.height, mockupDimensions.height),
+            // Store reference mockup info
+            referenceMockupWidth: mockupDimensions.width,
+            referenceMockupHeight: mockupDimensions.height,
+            referenceMockupUrl: selectedMockupUrl,
+          };
+        }
+
+        return updatedArea;
+      }),
     }));
   };
 
@@ -291,14 +347,23 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
-            {/* Mockup Image */}
+            {/* Phase 3: Mockup Image with dimension tracking */}
             <img
               src={selectedMockupUrl}
               alt={`${selectedView} view mockup`}
               className="absolute inset-0 pointer-events-none"
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              onLoad={(e) => {
+                // Phase 3: Capture natural dimensions for pixel calculation
+                const img = e.currentTarget as HTMLImageElement;
+                setMockupDimensions({
+                  width: img.naturalWidth,
+                  height: img.naturalHeight,
+                });
+              }}
               onError={(e) => {
                 e.currentTarget.src = '/custom-tee-mockup.png';
+                setMockupDimensions(null);
               }}
             />
 
@@ -407,37 +472,90 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
                   </Button>
                 </div>
                 
-                <div className="grid grid-cols-4 gap-2 text-[9px]">
+                {/* Phase 3: Dual Display - Percentages + Pixels */}
+                <div className="space-y-2">
+                  {/* Percentage Coordinates */}
                   <div>
-                    <span className="text-blue-700">X:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.x.toFixed(1)}%</span>
+                    <p className="text-[8px] font-black uppercase text-blue-600 mb-1">
+                      Percentage Coordinates (Responsive)
+                    </p>
+                    <div className="grid grid-cols-4 gap-2 text-[9px]">
+                      <div>
+                        <span className="text-blue-700">X:</span>{' '}
+                        <span className="font-bold text-blue-900">{activePrintArea.x.toFixed(1)}%</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-700">Y:</span>{' '}
+                        <span className="font-bold text-blue-900">{activePrintArea.y.toFixed(1)}%</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-700">W:</span>{' '}
+                        <span className="font-bold text-blue-900">{activePrintArea.width.toFixed(1)}%</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-700">H:</span>{' '}
+                        <span className="font-bold text-blue-900">{activePrintArea.height.toFixed(1)}%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-blue-700">Y:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.y.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">W:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.width.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">H:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.height.toFixed(1)}%</span>
-                  </div>
+
+                  {/* Pixel Coordinates (Calculated) */}
+                  {activeAreaPixels && mockupDimensions && (
+                    <div>
+                      <p className="text-[8px] font-black uppercase text-green-600 mb-1">
+                        Pixel Coordinates (at {mockupDimensions.width}×{mockupDimensions.height} mockup)
+                      </p>
+                      <div className="grid grid-cols-4 gap-2 text-[9px]">
+                        <div>
+                          <span className="text-green-700">X:</span>{' '}
+                          <span className="font-bold text-green-900">{activeAreaPixels.x}px</span>
+                        </div>
+                        <div>
+                          <span className="text-green-700">Y:</span>{' '}
+                          <span className="font-bold text-green-900">{activeAreaPixels.y}px</span>
+                        </div>
+                        <div>
+                          <span className="text-green-700">W:</span>{' '}
+                          <span className="font-bold text-green-900">{activeAreaPixels.width}px</span>
+                        </div>
+                        <div>
+                          <span className="text-green-700">H:</span>{' '}
+                          <span className="font-bold text-green-900">{activeAreaPixels.height}px</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reference Mockup Info */}
+                  {activePrintArea.referenceMockupWidth && (
+                    <div className="pt-1 border-t border-blue-200">
+                      <p className="text-[8px] text-blue-600">
+                        Reference: {activePrintArea.referenceMockupWidth}×{activePrintArea.referenceMockupHeight}px
+                        {activePrintArea.referenceMockupUrl && (
+                          <span className="ml-1 text-blue-500">• Mockup saved</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Save Confirmation */}
+              {/* Phase 3: Save Confirmation with dual-unit display */}
               <div className="flex gap-2">
                 <Button
                   type="button"
                   onClick={() => {
+                    const pixelInfo = activeAreaPixels && mockupDimensions
+                      ? `\nPixels (at ${mockupDimensions.width}×${mockupDimensions.height}): ${activeAreaPixels.x}px, ${activeAreaPixels.y}px | ${activeAreaPixels.width}px × ${activeAreaPixels.height}px`
+                      : '';
+                    
                     alert(
                       `✓ Print area saved!\n\n` +
                       `Name: ${activePrintArea.name}\n` +
                       `View: ${selectedView}\n` +
-                      `Position: ${activePrintArea.x.toFixed(1)}%, ${activePrintArea.y.toFixed(1)}%\n` +
-                      `Size: ${activePrintArea.width.toFixed(1)}% × ${activePrintArea.height.toFixed(1)}%`
+                      `Percentages: ${activePrintArea.x.toFixed(1)}%, ${activePrintArea.y.toFixed(1)}% | ${activePrintArea.width.toFixed(1)}% × ${activePrintArea.height.toFixed(1)}%` +
+                      pixelInfo +
+                      (activePrintArea.referenceMockupUrl ? `\n\nReference mockup saved ✓` : '')
                     );
                   }}
                   className="flex-1 rounded-xl h-11 text-[10px] font-black uppercase bg-green-600 hover:bg-green-700 text-white"
