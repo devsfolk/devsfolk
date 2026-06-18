@@ -715,11 +715,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const variantId = String(activePrintifyVariant?.id || activePrintifyVariant?.variant_id || activePrintifyVariant?.printify_variant_id || '');
     const manualVariantPrice = variantId ? activeTemplate?.variantSellingPrices?.[variantId] : undefined;
     return calculateTemplateRetailPrice(Number(manualVariantPrice ?? activeTemplate?.sellingPrice ?? activeTemplate?.retailPrice ?? activeProduct?.price ?? activeBaseCostDollars));
-  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
+  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, selectedSize]);
 
   const activeOrderBasePrice = useMemo(() => {
     return calculateTemplateOrderPrice(activeDisplayBasePrice);
-  }, [activeDisplayBasePrice, settings.printifySettings?.charges]);
+  }, [activeDisplayBasePrice]);
 
   // Customizer canvas states
   const [customImage, setCustomImage] = useState<string | null>(null);
