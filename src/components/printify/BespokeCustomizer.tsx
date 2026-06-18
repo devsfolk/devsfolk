@@ -397,12 +397,21 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Helper: Map common color names to hex codes (fallback when Printify doesn't provide hex)
   const getColorHex = (colorTitle: string): string | undefined => {
+    console.log('[getColorHex] Called with:', colorTitle);
+    
     // First check if template/variant has explicit hex
     const explicitHex = activeColorOptionDetails.find(c => c.title === colorTitle)?.hex;
-    if (explicitHex) return explicitHex;
+    console.log('[getColorHex] Explicit hex from template:', explicitHex);
+    
+    if (explicitHex) {
+      console.log('[getColorHex] Using explicit hex:', explicitHex);
+      return explicitHex;
+    }
     
     // Fallback: Common color name → hex mapping
     const colorName = colorTitle.toLowerCase().trim();
+    console.log('[getColorHex] Looking up fallback for:', colorName);
+    
     const commonColors: Record<string, string> = {
       // Blacks & Whites
       'black': '#000000',
@@ -491,16 +500,19 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     
     // Direct match
     if (commonColors[colorName]) {
+      console.log('[getColorHex] Direct match found:', commonColors[colorName]);
       return commonColors[colorName];
     }
     
     // Partial match (e.g., "Heather Navy" → "navy")
     for (const [name, hex] of Object.entries(commonColors)) {
       if (colorName.includes(name)) {
+        console.log('[getColorHex] Partial match found:', name, '→', hex);
         return hex;
       }
     }
     
+    console.warn('[getColorHex] NO MATCH FOUND for:', colorTitle, '- returning undefined');
     return undefined;
   };
 
@@ -1722,46 +1734,36 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
             />
             
-            {/* Layer 2 (Top): CSS Color Overlay with mask clipping */}
-            {/* Only render if a color is selected AND it has a hex value */}
-            {(() => {
-              if (!selectedColor) return null;
-              
-              // Get hex from explicit mapping or fallback to common color names
+            {/* Layer 2 (Top): CSS Color Overlay - SIMPLIFIED FOR DEBUGGING */}
+            {selectedColor && (() => {
               const colorHex = getColorHex(selectedColor);
               
-              // Debug logging
-              console.log('[BespokeCustomizer] Color overlay check:', {
+              // CRITICAL DEBUG - Always log
+              console.log('[Color Overlay] RENDER CHECK:', {
                 selectedColor,
                 colorHex,
+                hasColorHex: !!colorHex,
                 baseImage: getSelectedViewImage,
-                willRender: !!colorHex
+                timestamp: new Date().toISOString()
               });
               
-              // Only render overlay if hex exists
               if (!colorHex) {
-                console.warn('[BespokeCustomizer] No hex found for color:', selectedColor, '- Add to commonColors map');
+                console.error('[Color Overlay] NO HEX FOUND - overlay will NOT render!');
                 return null;
               }
               
+              console.log('[Color Overlay] RENDERING OVERLAY with hex:', colorHex);
+              
               return (
                 <div 
+                  data-testid="color-overlay"
                   className="absolute inset-0 transition-colors duration-300 pointer-events-none"
                   style={{ 
                     backgroundColor: colorHex,
                     mixBlendMode: 'multiply',
                     opacity: 0.85,
-                    // Use CSS mask to clip overlay to product shape (assumes PNG with alpha channel)
-                    // This prevents tinting the background - only the product gets colored
-                    WebkitMaskImage: `url(${getSelectedViewImage})`,
-                    maskImage: `url(${getSelectedViewImage})`,
-                    WebkitMaskSize: 'cover',
-                    maskSize: 'cover',
-                    WebkitMaskRepeat: 'no-repeat',
-                    maskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    maskPosition: 'center',
-                    zIndex: 10
+                    zIndex: 10,
+                    border: '2px solid red' // DEBUG: Visual confirmation overlay exists
                   }}
                 />
               );
