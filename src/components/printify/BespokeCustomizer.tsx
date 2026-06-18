@@ -397,6 +397,21 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Get the image for the currently selected view
   const activeViewImage = useMemo(() => {
+    // Priority 1: Check for color-specific mockup from admin dashboard
+    if (selectedColor && activeTemplate?.colorMockups) {
+      const colorData = activeTemplate.colorMockups[selectedColor];
+      if (colorData) {
+        const viewKey = selectedView.toLowerCase() as 'front' | 'back' | 'side';
+        const colorMockupUrl = colorData[viewKey] || colorData.front;
+        
+        if (colorMockupUrl) {
+          console.log(`[BespokeCustomizer] Using color-specific mockup: ${selectedColor} / ${viewKey} → ${colorMockupUrl}`);
+          return colorMockupUrl;
+        }
+      }
+    }
+
+    // Priority 2: Fallback to general product images
     if (!activeProduct?.images || activeProduct.images.length === 0) {
       return '/custom-tee-mockup.png';
     }
@@ -409,7 +424,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       : 0;
     
     return activeProduct.images[imageIndex] || activeProduct.images[0];
-  }, [activeProduct, selectedView, availableViews]);
+  }, [activeProduct, selectedView, availableViews, selectedColor, activeTemplate]);
 
   // Ensure selectedView is valid when template changes
   useEffect(() => {
