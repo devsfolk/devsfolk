@@ -177,6 +177,11 @@ export interface PrintifyCatalogTemplate {
   colors?: string[];
   sizes?: string[]; // Array of size names for backwards compatibility
   sizesPricing?: SizePrice[]; // Array of size-specific pricing objects
+  colorMockups?: Record<string, {
+    front?: string;
+    back?: string;
+    side?: string;
+  }>;
   syncStatus?: 'raw' | 'published';
   isEnabled: boolean;
   lastSynced: string;

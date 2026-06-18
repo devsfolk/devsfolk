@@ -16,12 +16,6 @@ export interface PrintArea {
   dpi?: number;
 }
 
-export interface GeneratorSettings {
-  enableColorization: boolean;
-  maskImageUrl: string;
-  baseImageUrl: string;
-}
-
 export interface TemplateFormData {
   id?: string;
   blueprintId: number | null;
@@ -33,7 +27,11 @@ export interface TemplateFormData {
   newColor: string;
   sizes: SizePrice[];
   printAreas: PrintArea[];
-  generatorSettings: GeneratorSettings;
+  colorMockups: Record<string, {
+    front?: string;
+    back?: string;
+    side?: string;
+  }>;
 }
 
 const getDefaultFormData = (): TemplateFormData => ({
@@ -47,11 +45,7 @@ const getDefaultFormData = (): TemplateFormData => ({
   newColor: '',
   sizes: [],
   printAreas: [],
-  generatorSettings: {
-    enableColorization: false,
-    maskImageUrl: '',
-    baseImageUrl: '',
-  },
+  colorMockups: {},
 });
 
 export const useTemplateForm = (initialData?: Partial<TemplateFormData>) => {

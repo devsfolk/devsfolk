@@ -224,6 +224,7 @@ alter table public.printify_catalog add column if not exists selling_price numer
 alter table public.printify_catalog add column if not exists variant_selling_prices jsonb not null default '{}'::jsonb;
 alter table public.printify_catalog add column if not exists colors jsonb not null default '[]'::jsonb;
 alter table public.printify_catalog add column if not exists sizes jsonb not null default '[]'::jsonb;
+alter table public.printify_catalog add column if not exists color_mockups jsonb not null default '{}'::jsonb;
 alter table public.printify_catalog add column if not exists sync_status text not null default 'raw';
 alter table public.printify_catalog add column if not exists print_provider_id integer;
 alter table public.printify_catalog add column if not exists is_enabled boolean not null default true;

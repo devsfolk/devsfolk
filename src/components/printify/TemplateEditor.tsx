@@ -95,11 +95,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
               dpi: pa.dpi || 300,
             }))
           : [],
-        generatorSettings: {
-          enableColorization: false,
-          maskImageUrl: '',
-          baseImageUrl: '',
-        },
+        colorMockups: editingTemplate.colorMockups || {},
       }
     : undefined;
 
@@ -374,6 +370,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           ...acc,
           [idx + 1]: s.sellingPrice,
         }), {}),
+        colorMockups: formData.colorMockups,
         syncStatus: 'published',
         isEnabled: true,
         lastSynced: new Date().toISOString(),
