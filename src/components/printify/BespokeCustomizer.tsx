@@ -1655,26 +1655,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         <div className="lg:col-span-7 flex flex-col items-center">
           <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
-            {/* Two-Layer Color Masking System */}
-            {/* Layer 1 (Bottom): Solid Color Background */}
-            <div 
-              className="absolute inset-0 transition-colors duration-300"
-              style={{ 
-                backgroundColor: selectedColor && activeColorOptionDetails.find(c => c.title === selectedColor)?.hex 
-                  ? activeColorOptionDetails.find(c => c.title === selectedColor)!.hex 
-                  : '#FFFFFF'
-              }}
-            />
-            
-            {/* Layer 2 (Top): Template Image with Alpha Shadow Overlay */}
+            {/* Template Mockup Image */}
             <img 
               src={activeViewImage} 
               alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
-              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
-              style={{ 
-                mixBlendMode: 'multiply',
-                opacity: 1.0
-              }}
+              className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
             />
 
             {/* Print Area Bounds holding Fabric Canvas */}
