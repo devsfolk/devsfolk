@@ -395,6 +395,259 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return found || printAreas[0] || null;
   }, [activeTemplate, selectedView]);
 
+  // Fabric.js refs - MUST be declared before any functions that use them
+  const mockupContainerRef = useRef<HTMLDivElement>(null);
+  const printAreaRef = useRef<HTMLDivElement>(null);
+  const canvasElRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
+  const mockupLayerRef = useRef<fabric.Image | null>(null);
+
+  // Simple view-based image selection - always use the single synced image per view
+  const getSelectedViewImage = useMemo(() => {
+    if (!activeProduct?.images || activeProduct.images.length === 0) {
+      return '/custom-tee-mockup.png';
+    }
+
+    // Map view position to image index (front/back/side/etc.)
+    // Each view typically has ONE synced image (usually White color from Printify)
+    const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
+    const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
+      ? viewIndex 
+      : 0;
+    
+    return activeProduct.images[imageIndex] || activeProduct.images[0];
+  }, [activeProduct, selectedView, availableViews]);
+
+  // Ensure selectedView is valid when template changes
+  useEffect(() => {
+    if (!availableViews.includes(selectedView.toLowerCase())) {
+      setSelectedView(availableViews[0] || 'front');
+    }
+  }, [availableViews, selectedView]);
+
+  // NEW: Load mockup image as Fabric.js background layer with color filter
+  const loadMockupLayer = React.useCallback(async (
+    canvas: fabric.Canvas,
+    imageUrl: string,
+    colorHex: string | null
+  ) => {
+    try {
+      // Remove existing mockup layer if present
+      if (mockupLayerRef.current) {
+        canvas.remove(mockupLayerRef.current);
+        mockupLayerRef.current = null;
+      }
+
+      // Load image with CORS handling (critical for Printify external URLs)
+      fabric.Image.fromURL(
+        imageUrl,
+        (img) => {
+          if (!img) {
+            console.error('[Mockup Layer] Failed to load image');
+            return;
+          }
+
+          // Configure as non-interactive background layer
+          img.set({
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            hoverCursor: 'default',
+          });
+
+          // Scale to fit canvas while maintaining aspect ratio
+          const scaleX = canvas.width! / (img.width || 1);
+          const scaleY = canvas.height! / (img.height || 1);
+          const scale = Math.min(scaleX, scaleY);
+          
+          img.scale(scale);
+          
+          // Center the mockup
+          img.set({
+            left: (canvas.width! - (img.width! * scale)) / 2,
+            top: (canvas.height! - (img.height! * scale)) / 2,
+          });
+
+          // Apply color filter if color selected (Fabric.js BlendColor with multiply)
+          if (colorHex) {
+            img.filters = [
+              new fabric.Image.filters.BlendColor({
+                color: colorHex,
+                mode: 'multiply',
+                alpha: 0.85,
+              }),
+            ];
+            img.applyFilters();
+          }
+
+          // Add to canvas and send to back (behind all user content)
+          canvas.add(img);
+          canvas.sendToBack(img);
+          
+          // Store reference for future updates
+          mockupLayerRef.current = img;
+          
+          canvas.renderAll();
+        },
+        {
+          crossOrigin: 'anonymous', // CRITICAL: Handle CORS for external Printify URLs
+        }
+      );
+    } catch (error) {
+      console.error('[Mockup Layer] Error loading mockup:', error);
+    }
+  }, []);
+
+  // Note: activeViewImage was removed - use getSelectedViewImage instead
+  // getSelectedColorImage handles both color AND view selection
+
+  // NEW: Load/update mockup background layer when product, color, or view changes
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas || !activeProduct) return;
+
+    const imageUrl = getSelectedViewImage;
+    const colorHex = selectedColor ? getColorHex(selectedColor) : null;
+
+    // Load mockup as Fabric.js background layer with optional color filter
+    loadMockupLayer(canvas, imageUrl, colorHex);
+  }, [activeProduct, selectedColor, selectedView, getSelectedViewImage, loadMockupLayer]);
+
+  const activePrintifyVariants = useMemo(() => {
+    const rawVariants = Array.isArray(activeTemplate?.variants) && activeTemplate.variants.length > 0
+      ? activeTemplate.variants
+      : (Array.isArray(activeProduct?.variants) ? activeProduct.variants : []);
+
+    return rawVariants.filter((variant: any) => 
+      variant?.enabled !== false &&
+      variant?.is_enabled !== false &&
+      variant?.is_available !== false &&
+      variant?.stock !== 0
+    );
+  }, [activeTemplate, activeProduct]);
+
+  // Feature 4: Template Colors Display - Read from admin-published template.colors
+  // Collect { title, hex? } pairs for the color selector
+  // This single useMemo replaces both activeColorOptions and activeColorOptionDetails to avoid circular dependencies
+  const activeColorOptionDetails = useMemo(() => {
+    // Priority 1: Use admin-published template colors from Supabase
+    if (activeTemplate?.colors && Array.isArray(activeTemplate.colors) && activeTemplate.colors.length > 0) {
+      const seen = new Set<string>();
+      const result: Array<{ title: string; hex?: string }> = [];
+
+      for (const color of activeTemplate.colors) {
+        // Handle both string colors and { title, hex } objects
+        const colorTitle = typeof color === 'string' ? color : String(color?.title || color?.name || '').trim();
+        const colorHex = typeof color === 'string' 
+          ? (/^#[0-9a-f]{3,6}$/i.test(color) ? color : undefined)
+          : String(color?.hex || color?.color || '').trim() || undefined;
+
+        if (!colorTitle || seen.has(colorTitle)) {
+          continue;
+        }
+        seen.add(colorTitle);
+
+        result.push({
+          title: colorTitle,
+          hex: colorHex,
+        });
+      }
+
+      if (result.length > 0) {
+        return result;
+      }
+    }
+
+    // Priority 2: Extract colors from template's syncDetails.colorCodes if available
+    if (activeTemplate?.syncDetails?.colorCodes && typeof activeTemplate.syncDetails.colorCodes === 'object') {
+      const colorCodes = activeTemplate.syncDetails.colorCodes;
+      const result: Array<{ title: string; hex?: string }> = [];
+
+      for (const [title, hex] of Object.entries(colorCodes)) {
+        if (title && typeof hex === 'string' && hex.startsWith('#')) {
+          result.push({ title, hex });
+        }
+      }
+
+      if (result.length > 0) {
+        return result;
+      }
+    }
+
+    // Priority 3 (Fallback): Extract from Printify variants (original logic)
+    const seen = new Set<string>();
+    const result: Array<{ title: string; hex?: string }> = [];
+
+    for (const variant of activePrintifyVariants) {
+      const options = Array.isArray(variant?.options) ? variant.options : [];
+      
+      // Find color option - check enriched 'name' field, original 'type' field, or infer from position
+      const colorOpt = options.find((opt: any) => {
+        // If opt is just a number (unenriched), skip it - we'll handle this differently
+        if (typeof opt === 'number') return false;
+        
+        const name = String(opt?.name || opt?.key || opt?.label || '').toLowerCase();
+        const type = String(opt?.type || '').toLowerCase();
+        
+        // Check if this is a color option
+        return name.includes('color') || name.includes('colour') || 
+               type.includes('color') || type.includes('colour') ||
+               !!opt?.hex ||
+               (Array.isArray(opt?.colors) && opt.colors.length > 0);
+      });
+      
+      if (!colorOpt) {
+        continue;
+      }
+      
+      // Extract title from multiple possible fields
+      const title = String(
+        colorOpt?.title || 
+        colorOpt?.value || 
+        colorOpt?.name || 
+        colorOpt?.label || 
+        ''
+      ).trim();
+      
+      if (!title || seen.has(title)) {
+        continue;
+      }
+      seen.add(title);
+      
+      // Extract hex color - check multiple fields
+      const hex = colorOpt?.hex
+        ? String(colorOpt.hex).trim()
+        : colorOpt?.colors && Array.isArray(colorOpt.colors) && colorOpt.colors.length > 0
+        ? String(colorOpt.colors[0]).trim()
+        : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
+      
+      result.push({
+        title,
+        hex,
+      });
+    }
+
+    // Final fallback if no enriched color details are found
+    const fallbackColors = uniqueOptionValues(activePrintifyVariants.map(getVariantColor));
+    if (result.length === 0 && fallbackColors.length > 0) {
+      return fallbackColors.map((color) => ({
+        title: color,
+        hex: undefined, // Will be rendered as a text pill instead of a colored circle
+      }));
+    }
+
+    return result;
+  }, [activeTemplate, activePrintifyVariants]);
+
+  // Derived array of color title strings for selection logic
+  const activeColorOptions = useMemo(() => (
+    activeColorOptionDetails.map(detail => detail.title)
+  ), [activeColorOptionDetails]);
+
   // Helper: Map common color names to hex codes (fallback when Printify doesn't provide hex)
   const getColorHex = (colorTitle: string): string | undefined => {
     // First check if template/variant has explicit hex
@@ -544,236 +797,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return undefined;
   };
 
-  // NEW: Load mockup image as Fabric.js background layer with color filter
-  const loadMockupLayer = React.useCallback(async (
-    canvas: fabric.Canvas,
-    imageUrl: string,
-    colorHex: string | null
-  ) => {
-    try {
-      // Remove existing mockup layer if present
-      if (mockupLayerRef.current) {
-        canvas.remove(mockupLayerRef.current);
-        mockupLayerRef.current = null;
-      }
-
-      // Load image with CORS handling (critical for Printify external URLs)
-      fabric.Image.fromURL(
-        imageUrl,
-        (img) => {
-          if (!img) {
-            console.error('[Mockup Layer] Failed to load image');
-            return;
-          }
-
-          // Configure as non-interactive background layer
-          img.set({
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hasBorders: false,
-            lockMovementX: true,
-            lockMovementY: true,
-            hoverCursor: 'default',
-          });
-
-          // Scale to fit canvas while maintaining aspect ratio
-          const scaleX = canvas.width! / (img.width || 1);
-          const scaleY = canvas.height! / (img.height || 1);
-          const scale = Math.min(scaleX, scaleY);
-          
-          img.scale(scale);
-          
-          // Center the mockup
-          img.set({
-            left: (canvas.width! - (img.width! * scale)) / 2,
-            top: (canvas.height! - (img.height! * scale)) / 2,
-          });
-
-          // Apply color filter if color selected (Fabric.js BlendColor with multiply)
-          if (colorHex) {
-            img.filters = [
-              new fabric.Image.filters.BlendColor({
-                color: colorHex,
-                mode: 'multiply',
-                alpha: 0.85,
-              }),
-            ];
-            img.applyFilters();
-          }
-
-          // Add to canvas and send to back (behind all user content)
-          canvas.add(img);
-          canvas.sendToBack(img);
-          
-          // Store reference for future updates
-          mockupLayerRef.current = img;
-          
-          canvas.renderAll();
-        },
-        {
-          crossOrigin: 'anonymous', // CRITICAL: Handle CORS for external Printify URLs
-        }
-      );
-    } catch (error) {
-      console.error('[Mockup Layer] Error loading mockup:', error);
-    }
-  }, []);
-
-  // Note: activeViewImage was removed - use getSelectedViewImage instead
-  // getSelectedColorImage handles both color AND view selection
-
-  // Ensure selectedView is valid when template changes
-  useEffect(() => {
-    if (!availableViews.includes(selectedView.toLowerCase())) {
-      setSelectedView(availableViews[0] || 'front');
-    }
-  }, [availableViews, selectedView]);
-
-  // NEW: Load/update mockup background layer when product, color, or view changes
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas || !activeProduct) return;
-
-    const imageUrl = getSelectedViewImage;
-    const colorHex = selectedColor ? getColorHex(selectedColor) : null;
-
-    // Load mockup as Fabric.js background layer with optional color filter
-    loadMockupLayer(canvas, imageUrl, colorHex);
-  }, [activeProduct, selectedColor, selectedView, getSelectedViewImage, loadMockupLayer]);
-
-  const activePrintifyVariants = useMemo(() => {
-    const rawVariants = Array.isArray(activeTemplate?.variants) && activeTemplate.variants.length > 0
-      ? activeTemplate.variants
-      : (Array.isArray(activeProduct?.variants) ? activeProduct.variants : []);
-
-    return rawVariants.filter((variant: any) => 
-      variant?.enabled !== false &&
-      variant?.is_enabled !== false &&
-      variant?.is_available !== false &&
-      variant?.stock !== 0
-    );
-  }, [activeTemplate, activeProduct]);
-
-
-  // Feature 4: Template Colors Display - Read from admin-published template.colors
-  // Collect { title, hex? } pairs for the color selector
-  // This single useMemo replaces both activeColorOptions and activeColorOptionDetails to avoid circular dependencies
-  const activeColorOptionDetails = useMemo(() => {
-    // Priority 1: Use admin-published template colors from Supabase
-    if (activeTemplate?.colors && Array.isArray(activeTemplate.colors) && activeTemplate.colors.length > 0) {
-      const seen = new Set<string>();
-      const result: Array<{ title: string; hex?: string }> = [];
-
-      for (const color of activeTemplate.colors) {
-        // Handle both string colors and { title, hex } objects
-        const colorTitle = typeof color === 'string' ? color : String(color?.title || color?.name || '').trim();
-        const colorHex = typeof color === 'string' 
-          ? (/^#[0-9a-f]{3,6}$/i.test(color) ? color : undefined)
-          : String(color?.hex || color?.color || '').trim() || undefined;
-
-        if (!colorTitle || seen.has(colorTitle)) {
-          continue;
-        }
-        seen.add(colorTitle);
-
-        result.push({
-          title: colorTitle,
-          hex: colorHex,
-        });
-      }
-
-      if (result.length > 0) {
-        return result;
-      }
-    }
-
-    // Priority 2: Extract colors from template's syncDetails.colorCodes if available
-    if (activeTemplate?.syncDetails?.colorCodes && typeof activeTemplate.syncDetails.colorCodes === 'object') {
-      const colorCodes = activeTemplate.syncDetails.colorCodes;
-      const result: Array<{ title: string; hex?: string }> = [];
-
-      for (const [title, hex] of Object.entries(colorCodes)) {
-        if (title && typeof hex === 'string' && hex.startsWith('#')) {
-          result.push({ title, hex });
-        }
-      }
-
-      if (result.length > 0) {
-        return result;
-      }
-    }
-
-    // Priority 3 (Fallback): Extract from Printify variants (original logic)
-    const seen = new Set<string>();
-    const result: Array<{ title: string; hex?: string }> = [];
-
-    for (const variant of activePrintifyVariants) {
-      const options = Array.isArray(variant?.options) ? variant.options : [];
-      
-      // Find color option - check enriched 'name' field, original 'type' field, or infer from position
-      const colorOpt = options.find((opt: any) => {
-        // If opt is just a number (unenriched), skip it - we'll handle this differently
-        if (typeof opt === 'number') return false;
-        
-        const name = String(opt?.name || opt?.key || opt?.label || '').toLowerCase();
-        const type = String(opt?.type || '').toLowerCase();
-        
-        // Check if this is a color option
-        return name.includes('color') || name.includes('colour') || 
-               type.includes('color') || type.includes('colour') ||
-               !!opt?.hex ||
-               (Array.isArray(opt?.colors) && opt.colors.length > 0);
-      });
-      
-      if (!colorOpt) {
-        continue;
-      }
-      
-      // Extract title from multiple possible fields
-      const title = String(
-        colorOpt?.title || 
-        colorOpt?.value || 
-        colorOpt?.name || 
-        colorOpt?.label || 
-        ''
-      ).trim();
-      
-      if (!title || seen.has(title)) {
-        continue;
-      }
-      seen.add(title);
-      
-      // Extract hex color - check multiple fields
-      const hex = colorOpt?.hex
-        ? String(colorOpt.hex).trim()
-        : colorOpt?.colors && Array.isArray(colorOpt.colors) && colorOpt.colors.length > 0
-        ? String(colorOpt.colors[0]).trim()
-        : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
-      
-      result.push({
-        title,
-        hex,
-      });
-    }
-
-    // Final fallback if no enriched color details are found
-    const fallbackColors = uniqueOptionValues(activePrintifyVariants.map(getVariantColor));
-    if (result.length === 0 && fallbackColors.length > 0) {
-      return fallbackColors.map((color) => ({
-        title: color,
-        hex: undefined, // Will be rendered as a text pill instead of a colored circle
-      }));
-    }
-
-    return result;
-  }, [activeTemplate, activePrintifyVariants]);
-
-  // Derived array of color title strings for selection logic
-  const activeColorOptions = useMemo(() => (
-    activeColorOptionDetails.map(detail => detail.title)
-  ), [activeColorOptionDetails]);
-
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
   ), [activePrintifyVariants]);
@@ -877,16 +900,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [textFont, setTextFont] = useState('Inter');
   const [textColor, setTextColor] = useState('#000000');
   const [isUploading, setIsUploading] = useState(false);
-  
-  // Fabric.js refs
-  const mockupContainerRef = useRef<HTMLDivElement>(null);  // NEW: Full mockup container
-  const printAreaRef = useRef<HTMLDivElement>(null);
-  const canvasElRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
-  const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
-  
-  // NEW: Mockup background layer tracking
-  const mockupLayerRef = useRef<fabric.Image | null>(null);
 
   // Feature 2: Pricing with Design Charges - useCallback to avoid circular dependencies
   const calculateCustomizedPrice = React.useCallback((retailPrice: number) => {
@@ -931,23 +944,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0,
     [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
   );
-
-  // Simple view-based image selection - always use the single synced image per view
-  // CSS color overlay handles color changes, not image swapping
-  const getSelectedViewImage = useMemo(() => {
-    if (!activeProduct?.images || activeProduct.images.length === 0) {
-      return '/custom-tee-mockup.png';
-    }
-
-    // Map view position to image index (front/back/side/etc.)
-    // Each view typically has ONE synced image (usually White color from Printify)
-    const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
-    const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
-      ? viewIndex 
-      : 0;
-    
-    return activeProduct.images[imageIndex] || activeProduct.images[0];
-  }, [activeProduct, selectedView, availableViews]);
 
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
