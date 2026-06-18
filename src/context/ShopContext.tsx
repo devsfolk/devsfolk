@@ -666,37 +666,46 @@ const toLegacyProductRow = (product: Product) => {
   };
 };
 
-const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => ({
-  id: template.id,
-  product_id: template.productId ?? null,
-  blueprint_id: template.blueprintId,
-  title: template.title,
-  category: template.category ?? null,
-  brand: template.brand ?? null,
-  model: template.model ?? null,
-  tags: template.tags || [],
-  product_status: template.productStatus ?? null,
-  description: template.description,
-  images: template.images,
-  mockups: template.mockups || [],
-  variant_images: template.variantImages || {},
-  providers: template.providers,
-  variants: template.variants,
-  print_areas: template.printAreas,
-  shipping: template.shipping,
-  sync_details: template.syncDetails || {},
-  base_cost: template.baseCost ?? null,
-  retail_price: template.retailPrice ?? template.sellingPrice ?? null,
-  selling_price: template.sellingPrice ?? template.retailPrice ?? null,
-  variant_selling_prices: template.variantSellingPrices || {},
-  colors: template.colors || [],
-  sizes: template.sizes || [],
-  color_mockups: template.colorMockups || {},
-  sync_status: template.syncStatus || (template.isEnabled ? 'published' : 'raw'),
-  print_provider_id: template.printProviderId ?? null,
-  is_enabled: template.isEnabled,
-  last_synced: template.lastSynced,
-});
+const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => {
+  const row = {
+    id: template.id,
+    product_id: template.productId ?? null,
+    blueprint_id: template.blueprintId,
+    title: template.title,
+    category: template.category ?? null,
+    brand: template.brand ?? null,
+    model: template.model ?? null,
+    tags: template.tags || [],
+    product_status: template.productStatus ?? null,
+    description: template.description,
+    images: template.images,
+    mockups: template.mockups || [],
+    variant_images: template.variantImages || {},
+    providers: template.providers,
+    variants: template.variants,
+    print_areas: template.printAreas,
+    shipping: template.shipping,
+    sync_details: template.syncDetails || {},
+    base_cost: template.baseCost ?? null,
+    retail_price: template.retailPrice ?? template.sellingPrice ?? null,
+    selling_price: template.sellingPrice ?? template.retailPrice ?? null,
+    variant_selling_prices: template.variantSellingPrices || {},
+    colors: template.colors || [],
+    sizes: template.sizes || [],
+    color_mockups: template.colorMockups || {},
+    sync_status: template.syncStatus || (template.isEnabled ? 'published' : 'raw'),
+    print_provider_id: template.printProviderId ?? null,
+    is_enabled: template.isEnabled,
+    last_synced: template.lastSynced,
+  };
+  
+  // Log the colorMockups field for debugging
+  if (Object.keys(template.colorMockups || {}).length > 0) {
+    console.log('[toPrintifyCatalogRow] Template with colorMockups:', template.id, template.colorMockups);
+  }
+  
+  return row;
+};
 
 const normalizeTemplateImage = (image: any) => {
   if (!image) return '';
@@ -1537,14 +1546,29 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (supabase) {
       let hasCatalogTable = true;
-      const { error } = await supabase.from('printify_catalog').upsert(updated.map(toPrintifyCatalogRow));
+      
+      // Log the payload being sent to Supabase for debugging
+      const catalogRows = updated.map(toPrintifyCatalogRow);
+      console.log('[Supabase Upsert] Sending payload:', catalogRows.length, 'templates');
+      console.log('[Supabase Upsert] Sample payload:', catalogRows[0]);
+      
+      const { error } = await supabase.from('printify_catalog').upsert(catalogRows);
       if (error) {
+        console.error('[Supabase Upsert Error] Full error object:', error);
+        console.error('[Supabase Upsert Error] Message:', error.message);
+        console.error('[Supabase Upsert Error] Details:', error.details);
+        console.error('[Supabase Upsert Error] Hint:', error.hint);
+        console.error('[Supabase Upsert Error] Code:', error.code);
+        
         if (isMissingSupabaseRelationError(error.message, 'printify_catalog')) {
           hasCatalogTable = false;
         } else {
           reportSyncError('Failed to save Printify catalog templates to Supabase.', error.message);
+          alert(`❌ Database Save Failed!\n\nError: ${error.message}\n\nDetails: ${error.details || 'No details'}\n\nHint: ${error.hint || 'No hint'}\n\nCheck console for full error.`);
           return;
         }
+      } else {
+        console.log('[Supabase Upsert] SUCCESS - Templates saved to database');
       }
 
       try {
