@@ -507,37 +507,99 @@ const mapProductRow = (row: any): Product => {
   };
 };
 
-const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => ({
-  id: row.id,
-  productId: row.product_id ?? undefined,
-  blueprintId: Number(row.blueprint_id ?? row.id?.replace('bp_', '') ?? 0),
-  title: row.title,
-  category: row.category ?? undefined,
-  brand: row.brand ?? undefined,
-  model: row.model ?? undefined,
-  tags: row.tags || [],
-  productStatus: row.product_status ?? undefined,
-  description: row.description ?? '',
-  images: row.images || [],
-  mockups: row.mockups || [],
-  variantImages: row.variant_images || {},
-  providers: row.providers || [],
-  variants: row.variants || [],
-  printAreas: row.print_areas || [],
-  shipping: row.shipping || [],
-  syncDetails: row.sync_details || {},
-  baseCost: row.base_cost == null ? undefined : Number(row.base_cost),
-  retailPrice: row.retail_price == null ? undefined : Number(row.retail_price),
-  sellingPrice: row.selling_price == null ? row.retail_price == null ? undefined : Number(row.retail_price) : Number(row.selling_price),
-  variantSellingPrices: row.variant_selling_prices || {},
-  colors: row.colors || [],
-  sizes: row.sizes || [],
-  colorMockups: row.color_mockups || {},
-  syncStatus: row.sync_status || (row.is_enabled ? 'published' : 'raw'),
-  printProviderId: row.print_provider_id == null ? undefined : Number(row.print_provider_id),
-  isEnabled: row.is_enabled ?? row.sync_status === 'published',
-  lastSynced: row.last_synced ?? new Date().toISOString(),
-});
+// Migrate legacy print area format to new enhanced format (Phase 1: backwards compatibility)
+const migratePrintArea = (area: any): any => {
+  // Already has the new structure (has id or view field)
+  if (area?.id || area?.view) {
+    return {
+      ...area,
+      // Ensure backwards compat: if position exists but view doesn't, copy position to view
+      view: area.view || area.position?.toLowerCase(),
+      position: area.position || area.view, // Keep position for legacy support
+    };
+  }
+
+  // Legacy format - needs migration
+  const position = area?.position || 'front';
+  return {
+    ...area,
+    id: area.id || `pa_${position}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    view: position.toLowerCase(), // Map position to view
+    position, // Keep original position field
+    name: area.name || `${position.charAt(0).toUpperCase() + position.slice(1)} Area`,
+    x: area.x ?? 25,
+    y: area.y ?? 20,
+    width: area.width ?? 50,
+    height: area.height ?? 60,
+    dpi: area.dpi ?? 300,
+    // New optional fields (will be undefined for legacy)
+    pixelX: area.pixelX,
+    pixelY: area.pixelY,
+    pixelWidth: area.pixelWidth,
+    pixelHeight: area.pixelHeight,
+    referenceMockupWidth: area.referenceMockupWidth,
+    referenceMockupHeight: area.referenceMockupHeight,
+    referenceMockupUrl: area.referenceMockupUrl,
+  };
+};
+
+/**
+ * Print Area Coordinate Conversion Utilities (Phase 1 Foundation)
+ * 
+ * RESPONSIVE SCALING STRATEGY:
+ * - Admin defines print areas using percentages on their screen
+ * - Percentages are stored as primary coordinates (responsive by nature)
+ * - Pixel coordinates are calculated dynamically at runtime based on actual mockup dimensions
+ * - This ensures print areas scale correctly across desktop admin, tablet, and mobile customer views
+ * 
+ * CONVERSION FLOW:
+ * 1. Admin sets print area: 25% x, 20% y, 50% width, 60% height
+ * 2. Store in database: { x: 25, y: 20, width: 50, height: 60, referenceMockupWidth: 1000, referenceMockupHeight: 1000 }
+ * 3. Customer views on mobile: Calculate pixels based on actual mockup image size on their screen
+ * 4. Fabric.js canvas: Use calculated pixel boundaries for strict object constraint
+ * 
+ * FUTURE (Phase 5): Implement convertPercentToPixels() and convertPixelToPercent() functions
+ * that use actual mockup dimensions at runtime for bulletproof responsive scaling.
+ */
+
+const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => {
+  const rawPrintAreas = row.print_areas || [];
+  const migratedPrintAreas = Array.isArray(rawPrintAreas) 
+    ? rawPrintAreas.map(migratePrintArea) 
+    : [];
+
+  return {
+    id: row.id,
+    productId: row.product_id ?? undefined,
+    blueprintId: Number(row.blueprint_id ?? row.id?.replace('bp_', '') ?? 0),
+    title: row.title,
+    category: row.category ?? undefined,
+    brand: row.brand ?? undefined,
+    model: row.model ?? undefined,
+    tags: row.tags || [],
+    productStatus: row.product_status ?? undefined,
+    description: row.description ?? '',
+    images: row.images || [],
+    mockups: row.mockups || [],
+    variantImages: row.variant_images || {},
+    providers: row.providers || [],
+    variants: row.variants || [],
+    printAreas: migratedPrintAreas,
+    shipping: row.shipping || [],
+    syncDetails: row.sync_details || {},
+    baseCost: row.base_cost == null ? undefined : Number(row.base_cost),
+    retailPrice: row.retail_price == null ? undefined : Number(row.retail_price),
+    sellingPrice: row.selling_price == null ? row.retail_price == null ? undefined : Number(row.retail_price) : Number(row.selling_price),
+    variantSellingPrices: row.variant_selling_prices || {},
+    colors: row.colors || [],
+    sizes: row.sizes || [],
+    colorMockups: row.color_mockups || {},
+    syncStatus: row.sync_status || (row.is_enabled ? 'published' : 'raw'),
+    printProviderId: row.print_provider_id == null ? undefined : Number(row.print_provider_id),
+    isEnabled: row.is_enabled ?? row.sync_status === 'published',
+    lastSynced: row.last_synced ?? new Date().toISOString(),
+  };
+};
 
 const mapReviewRow = (row: any): Review => ({
   id: row.id,
