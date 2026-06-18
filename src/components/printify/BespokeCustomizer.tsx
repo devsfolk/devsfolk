@@ -691,98 +691,22 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
   );
 
-  const getSelectedColorImage = useMemo(() => {
+  // Simple view-based image selection - always use the single synced image per view
+  // CSS color overlay handles color changes, not image swapping
+  const getSelectedViewImage = useMemo(() => {
     if (!activeProduct?.images || activeProduct.images.length === 0) {
       return '/custom-tee-mockup.png';
     }
 
-    // Priority 1: Use variant-specific images from Printify sync with multi-view support
-    // This works for auto-synced Printify templates with per-color mockup images
-    if (selectedColor && activePrintifyVariant?.image_url) {
-      // Check if we have multiple images per variant (multiple views: front, back, side, etc.)
-      if (activeTemplate?.variantImages && Object.keys(activeTemplate.variantImages).length > 0) {
-        const variantId = String(
-          activePrintifyVariant.id || 
-          activePrintifyVariant.variant_id || 
-          activePrintifyVariant.printify_variant_id || 
-          ''
-        );
-        const variantImages = activeTemplate.variantImages[variantId];
-        
-        if (variantImages && Array.isArray(variantImages) && variantImages.length > 0) {
-          // Map view to image index within this variant's images
-          const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
-          const imageIndex = viewIndex >= 0 && viewIndex < variantImages.length 
-            ? viewIndex 
-            : 0;
-          return variantImages[imageIndex] || variantImages[0];
-        }
-      }
-      
-      // Single-view variant image (most common case - one mockup per color)
-      return activePrintifyVariant.image_url;
-    }
-
-    // Priority 2: Check catalog template variants for image_url matching the selected color
-    if (selectedColor && activeTemplate?.variants) {
-      const matchingVariant = activeTemplate.variants.find((v: any) => {
-        if (!v?.image_url) return false;
-        const vColor = getVariantColor(v);
-        return vColor && vColor === selectedColor;
-      });
-      if (matchingVariant?.image_url) return matchingVariant.image_url;
-    }
-
-    if (!selectedColor) {
-      // No color selected - use view-based selection
-      const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
-      const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
-        ? viewIndex 
-        : 0;
-      return activeProduct.images[imageIndex] || activeProduct.images[0];
-    }
-    
-    // Priority 3: Fuzzy color-to-filename matching (kept as safety net)
-    const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
-    
-    // First, look for an image that contains the exact color name (ignoring non-alphanumeric chars)
-    const exactMatch = activeProduct.images.find(img => {
-      const imgLower = img.toLowerCase();
-      return imgLower.includes(colorLower) || 
-             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '-')) ||
-             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '_'));
-    });
-    if (exactMatch) return exactMatch;
-    
-    // If not found, look for an image containing ALL the words in the color name
-    const allWordsMatch = activeProduct.images.find(img => {
-      const imgLower = img.toLowerCase();
-      return colorWords.every(word => imgLower.includes(word));
-    });
-    if (allWordsMatch) return allWordsMatch;
-
-    // If not found, look for an image containing the FIRST word of the color name (if it's not generic)
-    const primaryWord = colorWords[0];
-    if (primaryWord && primaryWord.length > 2 && primaryWord !== 'light' && primaryWord !== 'dark' && primaryWord !== 'unisex') {
-      const firstWordMatch = activeProduct.images.find(img => img.toLowerCase().includes(primaryWord));
-      if (firstWordMatch) return firstWordMatch;
-    }
-    
-    // If not found, check if there is an image that matches any word
-    const anyWordMatch = activeProduct.images.find(img => {
-      const imgLower = img.toLowerCase();
-      return colorWords.some(word => word.length > 2 && imgLower.includes(word));
-    });
-    if (anyWordMatch) return anyWordMatch;
-    
-    // Final fallback: Map view position to image index
+    // Map view position to image index (front/back/side/etc.)
+    // Each view typically has ONE synced image (usually White color from Printify)
     const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
     const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
       ? viewIndex 
       : 0;
+    
     return activeProduct.images[imageIndex] || activeProduct.images[0];
-  }, [activeProduct, selectedColor, selectedView, activePrintifyVariant, activeTemplate, availableViews]);
+  }, [activeProduct, selectedView, availableViews]);
 
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
@@ -1502,7 +1426,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         // Load base mockup
         const baseImg = new Image();
         baseImg.crossOrigin = 'anonymous';
-        baseImg.src = getSelectedColorImage || '/custom-tee-mockup.png';
+        baseImg.src = getSelectedViewImage || '/custom-tee-mockup.png';
         baseImg.onload = () => {
           try {
             ctx.drawImage(baseImg, 0, 0, 600, 600);
@@ -1681,27 +1605,25 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         <div className="lg:col-span-7 flex flex-col items-center">
           <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
-            {/* Two-Layer Color Masking System */}
-            {/* Layer 1 (Bottom): Solid Color Background */}
-            <div 
-              className="absolute inset-0 transition-colors duration-300"
-              style={{ 
-                backgroundColor: selectedColor && activeColorOptionDetails.find(c => c.title === selectedColor)?.hex 
-                  ? activeColorOptionDetails.find(c => c.title === selectedColor)!.hex 
-                  : '#FFFFFF'
-              }}
+            {/* CSS-Based Color Overlay System (Fast, No Image Generation) */}
+            {/* Layer 1 (Bottom): Base Template Image (typically White from Printify sync) */}
+            <img 
+              src={getSelectedViewImage} 
+              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
+              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
             />
             
-            {/* Layer 2 (Top): Template Image with Alpha Shadow Overlay */}
-            <img 
-              src={getSelectedColorImage} 
-              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
-              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
-              style={{ 
-                mixBlendMode: 'multiply',
-                opacity: 1.0
-              }}
-            />
+            {/* Layer 2 (Top): CSS Color Overlay using mix-blend-mode */}
+            {selectedColor && activeColorOptionDetails.find(c => c.title === selectedColor)?.hex && (
+              <div 
+                className="absolute inset-0 transition-colors duration-300 pointer-events-none"
+                style={{ 
+                  backgroundColor: activeColorOptionDetails.find(c => c.title === selectedColor)!.hex,
+                  mixBlendMode: 'multiply',
+                  opacity: 0.85
+                }}
+              />
+            )}
 
             {/* Print Area Bounds holding Fabric Canvas */}
             <div 
