@@ -734,12 +734,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Calculate customer prices (without customization fees for now)
-  const activeDisplayCustomerPrice = useMemo(() => activeDisplayBasePrice, [activeDisplayBasePrice]);
-  const activeOrderCustomerPrice = useMemo(() => activeOrderBasePrice, [activeOrderBasePrice]);
-
-
-
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
   const [selectedScale, setSelectedScale] = useState(1);
@@ -1530,7 +1524,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           return;
         }
 
-        addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
+        addToCart({ ...activeProduct, price: activeOrderBasePrice }, undefined, 1, {
           color: selectedColor,
           size: selectedSize,
           customization: {
@@ -1571,7 +1565,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
       };
 
-      addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
+      addToCart({ ...activeProduct, price: activeOrderBasePrice }, undefined, 1, {
         color: selectedColor,
         size: selectedSize,
         customization,
@@ -2357,7 +2351,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
                     <span className="font-black uppercase text-sm">Total</span>
                     <span className="font-black text-green-600 text-lg">
-                      {settings.currencySymbol}{activeDisplayCustomerPrice.toFixed(2)}
+                      {settings.currencySymbol}{activeDisplayBasePrice.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -2393,7 +2387,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                     }}
                   >
                     <ShoppingBag className="h-5 w-5" />
-                    Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
+                    Add Customized to Cart — {settings.currencySymbol}{activeOrderBasePrice.toFixed(2)}
                   </Button>
                 </>
               );
