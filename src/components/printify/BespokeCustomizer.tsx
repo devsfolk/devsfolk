@@ -734,6 +734,50 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Feature 2: Pricing with Design Charges - useCallback to avoid circular dependencies
+  const calculateCustomizedPrice = useCallback((retailPrice: number) => {
+    const editorCharges = settings.printifySettings?.charges?.editorCharges || {
+      textOnly: 0,
+      designOnly: 0,
+      textAndDesign: 0,
+      areaMultiplier: {
+        enabled: false,
+        threshold: 50,
+        surcharge: 0,
+      },
+    };
+
+    // Check if customer added text or design
+    const fCanvas = fabricCanvasRef.current;
+    const hasText = !!customText.trim() || (fCanvas && fCanvas.getObjects('i-text').length > 0);
+    const hasDesign = !!customImage || (fCanvas && fCanvas.getObjects('image').length > 0);
+
+    let customizationFee = 0;
+    if (hasText && hasDesign) {
+      customizationFee = Number(editorCharges.textAndDesign ?? 0);
+    } else if (hasDesign) {
+      customizationFee = Number(editorCharges.designOnly ?? 0);
+    } else if (hasText) {
+      customizationFee = Number(editorCharges.textOnly ?? 0);
+    }
+
+    // Area-based surcharge (placeholder - would need actual coverage calculation in production)
+    const areaSurcharge = 0;
+
+    return Number((retailPrice + customizationFee + areaSurcharge).toFixed(2));
+  }, [settings.printifySettings?.charges?.editorCharges, customText, customImage]);
+
+  // Calculate customer prices AFTER calculateCustomizedPrice is defined
+  const activeDisplayCustomerPrice = useMemo(() => 
+    activeProduct ? calculateCustomizedPrice(activeDisplayBasePrice) : 0,
+    [activeProduct, activeDisplayBasePrice, calculateCustomizedPrice]
+  );
+  
+  const activeOrderCustomerPrice = useMemo(() => 
+    activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0,
+    [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
+  );
+
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
   const [selectedScale, setSelectedScale] = useState(1);
