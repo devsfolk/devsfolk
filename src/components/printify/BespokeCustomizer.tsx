@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { fabric } from 'fabric';
@@ -232,7 +232,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activePrintifyProvider = getPrimaryPrintifyProvider(activeTemplate);
 
   // Helper: Extract size-specific pricing from variants array (admin saves pricing here)
-  const getSizePricingFromVariants = useCallback((template: typeof activeTemplate) => {
+  const getSizePricingFromVariants = (template: typeof activeTemplate) => {
     if (!template?.variants || !Array.isArray(template.variants)) {
       return [];
     }
@@ -254,7 +254,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       
       return { size, baseCost, sellingPrice };
     });
-  }, []);
+  };
 
   useEffect(() => {
     const nextActiveProduct = customProducts.find((p) => p.slug === productSlug) || customProducts[0];
@@ -395,95 +395,21 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return found || printAreas[0] || null;
   }, [activeTemplate, selectedView]);
 
-  // Get the image for the currently selected view AND selected color
-  // Combines color-aware variant image selection with multi-view support
+  // Get the image for the currently selected view
   const activeViewImage = useMemo(() => {
     if (!activeProduct?.images || activeProduct.images.length === 0) {
       return '/custom-tee-mockup.png';
     }
 
-    // PRIORITY 1: Use variant-specific image from Printify sync (color-aware, highest quality)
-    // This works for auto-synced Printify templates with per-color mockup images
-    if (selectedColor && activePrintifyVariant?.image_url) {
-      // Check if we have multiple images per variant (multiple views: front, back, side, etc.)
-      if (activeTemplate?.variantImages && Object.keys(activeTemplate.variantImages).length > 0) {
-        const variantId = String(
-          activePrintifyVariant.id || 
-          activePrintifyVariant.variant_id || 
-          activePrintifyVariant.printify_variant_id || 
-          ''
-        );
-        const variantImages = activeTemplate.variantImages[variantId];
-        
-        if (variantImages && Array.isArray(variantImages) && variantImages.length > 0) {
-          // Map view to image index within this variant's images
-          const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
-          const imageIndex = viewIndex >= 0 && viewIndex < variantImages.length 
-            ? viewIndex 
-            : 0;
-          return variantImages[imageIndex] || variantImages[0];
-        }
-      }
-      
-      // Single-view variant image (most common case - one mockup per color)
-      // This is the typical Printify behavior: one main mockup image per color variant
-      return activePrintifyVariant.image_url;
-    }
-
-    // PRIORITY 2: Check catalog template variants for image_url matching the selected color
-    // Fallback for when activePrintifyVariant doesn't have image_url but template variants do
-    if (selectedColor && activeTemplate?.variants) {
-      const matchingVariant = activeTemplate.variants.find((v: any) => {
-        if (!v?.image_url) return false;
-        const vColor = getVariantColor(v);
-        return vColor && vColor === selectedColor;
-      });
-      if (matchingVariant?.image_url) return matchingVariant.image_url;
-    }
-
-    // PRIORITY 3: Fuzzy color-to-filename matching for manually-uploaded images
-    // This helps when admin uploads images with color names in filenames (e.g., "shirt-navy.jpg")
-    if (selectedColor) {
-      const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
-      
-      // Exact color name match in filename
-      const exactMatch = activeProduct.images.find(img => {
-        const imgLower = img.toLowerCase();
-        return imgLower.includes(colorLower) || 
-               imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '-')) ||
-               imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '_'));
-      });
-      if (exactMatch) return exactMatch;
-      
-      // All color words must be in filename
-      const allWordsMatch = activeProduct.images.find(img => {
-        const imgLower = img.toLowerCase();
-        return colorWords.every(word => imgLower.includes(word));
-      });
-      if (allWordsMatch) return allWordsMatch;
-
-      // Primary color word match (e.g., "Navy" from "Navy Blue")
-      const primaryWord = colorWords[0];
-      if (primaryWord && primaryWord.length > 2 && 
-          !['light', 'dark', 'unisex'].includes(primaryWord)) {
-        const firstWordMatch = activeProduct.images.find(img => 
-          img.toLowerCase().includes(primaryWord)
-        );
-        if (firstWordMatch) return firstWordMatch;
-      }
-    }
-
-    // FINAL FALLBACK: Map view position to image index (no color awareness)
-    // This handles manually-published templates without per-color images
-    // Shows the uploaded images as-is, cycling through them by view position
+    // Map view position to image index
+    // If we have multiple images, map them to positions in order
     const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
     const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
       ? viewIndex 
       : 0;
     
     return activeProduct.images[imageIndex] || activeProduct.images[0];
-  }, [activeProduct, activeTemplate, selectedView, selectedColor, activePrintifyVariant, availableViews]);
+  }, [activeProduct, selectedView, availableViews]);
 
   // Ensure selectedView is valid when template changes
   useEffect(() => {
@@ -689,7 +615,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
     
     return base;
-  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize, getSizePricingFromVariants]);
+  }, [activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
 
   const activeDisplayBasePrice = useMemo(() => {
     // Priority 1: Check for size-specific selling price from variants array (where admin actually saves it)
@@ -715,27 +641,27 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const variantId = String(activePrintifyVariant?.id || activePrintifyVariant?.variant_id || activePrintifyVariant?.printify_variant_id || '');
     const manualVariantPrice = variantId ? activeTemplate?.variantSellingPrices?.[variantId] : undefined;
     return calculateTemplateRetailPrice(Number(manualVariantPrice ?? activeTemplate?.sellingPrice ?? activeTemplate?.retailPrice ?? activeProduct?.price ?? activeBaseCostDollars));
-  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, selectedSize, getSizePricingFromVariants]);
+  }, [activeBaseCostDollars, activePrintifyVariant, activeProduct, activeTemplate, settings.printifySettings?.charges, selectedSize]);
 
   const activeOrderBasePrice = useMemo(() => {
     return calculateTemplateOrderPrice(activeDisplayBasePrice);
-  }, [activeDisplayBasePrice]);
+  }, [activeDisplayBasePrice, settings.printifySettings?.charges]);
 
-  // Customizer canvas states
+  // Customizer canvas states - MUST BE DEFINED BEFORE calculateCustomizedPrice
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [textFont, setTextFont] = useState('Inter');
   const [textColor, setTextColor] = useState('#000000');
   const [isUploading, setIsUploading] = useState(false);
   
-  // Refs
+  // Refs - MUST BE DEFINED BEFORE calculateCustomizedPrice
   const printAreaRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Feature 2: Pricing with Design Charges - useCallback to avoid circular dependencies
-  const calculateCustomizedPrice = useCallback((retailPrice: number) => {
+  const calculateCustomizedPrice = React.useCallback((retailPrice: number) => {
     const editorCharges = settings.printifySettings?.charges?.editorCharges || {
       textOnly: 0,
       designOnly: 0,
@@ -777,6 +703,67 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0,
     [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
   );
+
+  const getSelectedColorImage = useMemo(() => {
+    if (!activeProduct?.images || activeProduct.images.length === 0) {
+      return '/custom-tee-mockup.png';
+    }
+
+    // Priority 1: Use the variant-specific image_url mapped during sync (most reliable)
+    if (selectedColor && activePrintifyVariant?.image_url) {
+      return activePrintifyVariant.image_url;
+    }
+
+    // Priority 2: Check catalog template variants for image_url matching the selected color
+    if (selectedColor && activeTemplate?.variants) {
+      const matchingVariant = activeTemplate.variants.find((v: any) => {
+        if (!v?.image_url) return false;
+        const vColor = getVariantColor(v);
+        return vColor && vColor === selectedColor;
+      });
+      if (matchingVariant?.image_url) return matchingVariant.image_url;
+    }
+
+    if (!selectedColor) {
+      return activeProduct.images[0];
+    }
+    
+    // Fallback: fuzzy color-to-filename matching (kept as safety net)
+    const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
+    
+    // First, look for an image that contains the exact color name (ignoring non-alphanumeric chars)
+    const exactMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return imgLower.includes(colorLower) || 
+             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '-')) ||
+             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '_'));
+    });
+    if (exactMatch) return exactMatch;
+    
+    // If not found, look for an image containing ALL the words in the color name
+    const allWordsMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return colorWords.every(word => imgLower.includes(word));
+    });
+    if (allWordsMatch) return allWordsMatch;
+
+    // If not found, look for an image containing the FIRST word of the color name (if it's not generic)
+    const primaryWord = colorWords[0];
+    if (primaryWord && primaryWord.length > 2 && primaryWord !== 'light' && primaryWord !== 'dark' && primaryWord !== 'unisex') {
+      const firstWordMatch = activeProduct.images.find(img => img.toLowerCase().includes(primaryWord));
+      if (firstWordMatch) return firstWordMatch;
+    }
+    
+    // If not found, check if there is an image that matches any word
+    const anyWordMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return colorWords.some(word => word.length > 2 && imgLower.includes(word));
+    });
+    if (anyWordMatch) return anyWordMatch;
+    
+    return activeProduct.images[0];
+  }, [activeProduct, selectedColor, activePrintifyVariant, activeTemplate]);
 
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
@@ -1489,7 +1476,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         // Load base mockup
         const baseImg = new Image();
         baseImg.crossOrigin = 'anonymous';
-        baseImg.src = activeViewImage || '/custom-tee-mockup.png';
+        baseImg.src = getSelectedColorImage || '/custom-tee-mockup.png';
         baseImg.onload = () => {
           try {
             ctx.drawImage(baseImg, 0, 0, 600, 600);
@@ -1568,7 +1555,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           return;
         }
 
-        addToCart({ ...activeProduct, price: activeOrderBasePrice }, undefined, 1, {
+        addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
           color: selectedColor,
           size: selectedSize,
           customization: {
@@ -1609,7 +1596,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
       };
 
-      addToCart({ ...activeProduct, price: activeOrderBasePrice }, undefined, 1, {
+      addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
         color: selectedColor,
         size: selectedSize,
         customization,
@@ -2395,7 +2382,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
                     <span className="font-black uppercase text-sm">Total</span>
                     <span className="font-black text-green-600 text-lg">
-                      {settings.currencySymbol}{activeDisplayBasePrice.toFixed(2)}
+                      {settings.currencySymbol}{activeDisplayCustomerPrice.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -2431,7 +2418,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                     }}
                   >
                     <ShoppingBag className="h-5 w-5" />
-                    Add Customized to Cart — {settings.currencySymbol}{activeOrderBasePrice.toFixed(2)}
+                    Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
                   </Button>
                 </>
               );
