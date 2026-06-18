@@ -355,7 +355,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedSize, setSelectedSize] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
   
-  // Multi-view support: Add view/position state for different angles (front, back, side)
+  // Issue 3 Fix: Add view/position state for multi-image support
   const [selectedView, setSelectedView] = useState<string>('front');
 
   // Extract available views from template print areas
@@ -395,22 +395,14 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return found || printAreas[0] || null;
   }, [activeTemplate, selectedView]);
 
-  // Fabric.js refs - MUST be declared before any functions that use them
-  const mockupContainerRef = useRef<HTMLDivElement>(null);
-  const printAreaRef = useRef<HTMLDivElement>(null);
-  const canvasElRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
-  const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
-  const mockupLayerRef = useRef<fabric.Image | null>(null);
-
-  // Simple view-based image selection - always use the single synced image per view
-  const getSelectedViewImage = useMemo(() => {
+  // Get the image for the currently selected view
+  const activeViewImage = useMemo(() => {
     if (!activeProduct?.images || activeProduct.images.length === 0) {
       return '/custom-tee-mockup.png';
     }
 
-    // Map view position to image index (front/back/side/etc.)
-    // Each view typically has ONE synced image (usually White color from Printify)
+    // Map view position to image index
+    // If we have multiple images, map them to positions in order
     const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
     const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
       ? viewIndex 
@@ -426,97 +418,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   }, [availableViews, selectedView]);
 
-  // NEW: Load mockup image as Fabric.js background layer with color filter
-  const loadMockupLayer = React.useCallback(async (
-    canvas: fabric.Canvas,
-    imageUrl: string,
-    colorHex: string | null
-  ) => {
-    try {
-      // Remove existing mockup layer if present
-      if (mockupLayerRef.current) {
-        canvas.remove(mockupLayerRef.current);
-        mockupLayerRef.current = null;
-      }
-
-      // Load image with CORS handling (critical for Printify external URLs)
-      fabric.Image.fromURL(
-        imageUrl,
-        (img) => {
-          if (!img) {
-            console.error('[Mockup Layer] Failed to load image');
-            return;
-          }
-
-          // Configure as non-interactive background layer
-          img.set({
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hasBorders: false,
-            lockMovementX: true,
-            lockMovementY: true,
-            hoverCursor: 'default',
-          });
-
-          // Scale to fit canvas while maintaining aspect ratio
-          const scaleX = canvas.width! / (img.width || 1);
-          const scaleY = canvas.height! / (img.height || 1);
-          const scale = Math.min(scaleX, scaleY);
-          
-          img.scale(scale);
-          
-          // Center the mockup
-          img.set({
-            left: (canvas.width! - (img.width! * scale)) / 2,
-            top: (canvas.height! - (img.height! * scale)) / 2,
-          });
-
-          // Apply color filter if color selected (Fabric.js BlendColor with multiply)
-          if (colorHex) {
-            img.filters = [
-              new fabric.Image.filters.BlendColor({
-                color: colorHex,
-                mode: 'multiply',
-                alpha: 0.85,
-              }),
-            ];
-            img.applyFilters();
-          }
-
-          // Add to canvas and send to back (behind all user content)
-          canvas.add(img);
-          canvas.sendToBack(img);
-          
-          // Store reference for future updates
-          mockupLayerRef.current = img;
-          
-          canvas.renderAll();
-        },
-        {
-          crossOrigin: 'anonymous', // CRITICAL: Handle CORS for external Printify URLs
-        }
-      );
-    } catch (error) {
-      console.error('[Mockup Layer] Error loading mockup:', error);
-    }
-  }, []);
-
-  // Note: activeViewImage was removed - use getSelectedViewImage instead
-  // getSelectedColorImage handles both color AND view selection
-
-  // NEW: Load/update mockup background layer when product, color, or view changes
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas || !activeProduct) return;
-
-    const imageUrl = getSelectedViewImage;
-    const colorHex = selectedColor ? getColorHex(selectedColor) : null;
-
-    // Load mockup as Fabric.js background layer with optional color filter
-    loadMockupLayer(canvas, imageUrl, colorHex);
-  }, [activeProduct, selectedColor, selectedView, getSelectedViewImage, loadMockupLayer]);
-
   const activePrintifyVariants = useMemo(() => {
     const rawVariants = Array.isArray(activeTemplate?.variants) && activeTemplate.variants.length > 0
       ? activeTemplate.variants
@@ -529,6 +430,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       variant?.stock !== 0
     );
   }, [activeTemplate, activeProduct]);
+
 
   // Feature 4: Template Colors Display - Read from admin-published template.colors
   // Collect { title, hex? } pairs for the color selector
@@ -648,155 +550,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     activeColorOptionDetails.map(detail => detail.title)
   ), [activeColorOptionDetails]);
 
-  // Helper: Map common color names to hex codes (fallback when Printify doesn't provide hex)
-  const getColorHex = (colorTitle: string): string | undefined => {
-    // First check if template/variant has explicit hex
-    const explicitHex = activeColorOptionDetails.find(c => c.title === colorTitle)?.hex;
-    if (explicitHex) return explicitHex;
-    
-    // Fallback: Common color name → hex mapping (expanded for apparel industry)
-    const colorName = colorTitle.toLowerCase().trim();
-    const commonColors: Record<string, string> = {
-      // Blacks & Whites
-      'black': '#000000',
-      'white': '#FFFFFF',
-      'off-white': '#F5F5F5',
-      'ivory': '#FFFFF0',
-      'natural': '#F5F5DC',
-      
-      // Grays
-      'gray': '#808080',
-      'grey': '#808080',
-      'light gray': '#D3D3D3',
-      'light grey': '#D3D3D3',
-      'dark gray': '#A9A9A9',
-      'dark grey': '#A9A9A9',
-      'charcoal': '#36454F',
-      'heather gray': '#B8B8B8',
-      'heather grey': '#B8B8B8',
-      'ash': '#B2BEB5',
-      'slate': '#708090',
-      'graphite': '#383838',
-      'silver': '#C0C0C0',
-      
-      // Reds
-      'red': '#FF0000',
-      'dark red': '#8B0000',
-      'light red': '#FFB6C1',
-      'maroon': '#800000',
-      'burgundy': '#800020',
-      'crimson': '#DC143C',
-      'cardinal': '#C41E3A',
-      'cherry': '#DE3163',
-      'scarlet': '#FF2400',
-      'brick': '#9C2542',
-      
-      // Blues
-      'blue': '#0000FF',
-      'navy': '#000080',
-      'navy blue': '#000080',
-      'light blue': '#ADD8E6',
-      'sky blue': '#87CEEB',
-      'royal blue': '#4169E1',
-      'dark blue': '#00008B',
-      'teal': '#008080',
-      'turquoise': '#40E0D0',
-      'aqua': '#00FFFF',
-      'cyan': '#00FFFF',
-      'cobalt': '#0047AB',
-      'sapphire': '#0F52BA',
-      'carolina blue': '#4B9CD3',
-      
-      // Greens
-      'green': '#008000',
-      'dark green': '#006400',
-      'light green': '#90EE90',
-      'lime': '#00FF00',
-      'olive': '#808000',
-      'forest green': '#228B22',
-      'forest': '#228B22',
-      'mint': '#98FF98',
-      'sage': '#9DC183',
-      'kelly green': '#4CBB17',
-      'emerald': '#50C878',
-      'army': '#4B5320',
-      'military green': '#4B5320',
-      'hunter': '#355E3B',
-      'pine': '#01796F',
-      
-      // Yellows & Oranges
-      'yellow': '#FFFF00',
-      'gold': '#FFD700',
-      'orange': '#FFA500',
-      'dark orange': '#FF8C00',
-      'tangerine': '#F28500',
-      'amber': '#FFBF00',
-      'lemon': '#FFF700',
-      'canary': '#FFFF99',
-      'sunflower': '#FFDA03',
-      
-      // Purples & Pinks
-      'purple': '#800080',
-      'violet': '#EE82EE',
-      'magenta': '#FF00FF',
-      'pink': '#FFC0CB',
-      'hot pink': '#FF69B4',
-      'rose': '#FF007F',
-      'lavender': '#E6E6FA',
-      'plum': '#DDA0DD',
-      'lilac': '#C8A2C8',
-      'orchid': '#DA70D6',
-      'fuchsia': '#FF00FF',
-      'mauve': '#E0B0FF',
-      
-      // Browns & Tans
-      'brown': '#A52A2A',
-      'tan': '#D2B48C',
-      'beige': '#F5F5DC',
-      'khaki': '#F0E68C',
-      'coffee': '#6F4E37',
-      'chocolate': '#D2691E',
-      'camel': '#C19A6B',
-      'sand': '#C2B280',
-      'taupe': '#483C32',
-      'coyote': '#81613C',
-      'desert': '#EDC9AF',
-      
-      // Specialty & Heather Blends
-      'cream': '#FFFDD0',
-      'coral': '#FF7F50',
-      'peach': '#FFE5B4',
-      'mint green': '#98FF98',
-      'mustard': '#FFDB58',
-      'rust': '#B7410E',
-      'copper': '#B87333',
-      'bronze': '#CD7F32',
-      'brass': '#B5A642',
-      
-      // Heather variants (muted versions)
-      'heather': '#9FA0A3',
-      'athletic heather': '#9FA0A3',
-      'sport grey': '#9FA0A3',
-      'oxford': '#8C92AC',
-    };
-    
-    // Direct match
-    if (commonColors[colorName]) {
-      return commonColors[colorName];
-    }
-    
-    // Partial match (e.g., "Heather Navy" → "navy", "Heather Forest" → "forest")
-    for (const [name, hex] of Object.entries(commonColors)) {
-      if (colorName.includes(name)) {
-        return hex;
-      }
-    }
-    
-    // Fallback for unmapped colors - log warning for future addition
-    console.warn(`[getColorHex] Unmapped color "${colorTitle}" - Add to dictionary if commonly used`);
-    return undefined;
-  };
-
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
   ), [activePrintifyVariants]);
@@ -894,12 +647,18 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return calculateTemplateOrderPrice(activeDisplayBasePrice);
   }, [activeDisplayBasePrice, settings.printifySettings?.charges]);
 
-  // Customizer canvas states
+  // Customizer canvas states - MUST BE DEFINED BEFORE calculateCustomizedPrice
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [textFont, setTextFont] = useState('Inter');
   const [textColor, setTextColor] = useState('#000000');
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Refs - MUST BE DEFINED BEFORE calculateCustomizedPrice
+  const printAreaRef = useRef<HTMLDivElement>(null);
+  const canvasElRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Feature 2: Pricing with Design Charges - useCallback to avoid circular dependencies
   const calculateCustomizedPrice = React.useCallback((retailPrice: number) => {
@@ -944,6 +703,67 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0,
     [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
   );
+
+  const getSelectedColorImage = useMemo(() => {
+    if (!activeProduct?.images || activeProduct.images.length === 0) {
+      return '/custom-tee-mockup.png';
+    }
+
+    // Priority 1: Use the variant-specific image_url mapped during sync (most reliable)
+    if (selectedColor && activePrintifyVariant?.image_url) {
+      return activePrintifyVariant.image_url;
+    }
+
+    // Priority 2: Check catalog template variants for image_url matching the selected color
+    if (selectedColor && activeTemplate?.variants) {
+      const matchingVariant = activeTemplate.variants.find((v: any) => {
+        if (!v?.image_url) return false;
+        const vColor = getVariantColor(v);
+        return vColor && vColor === selectedColor;
+      });
+      if (matchingVariant?.image_url) return matchingVariant.image_url;
+    }
+
+    if (!selectedColor) {
+      return activeProduct.images[0];
+    }
+    
+    // Fallback: fuzzy color-to-filename matching (kept as safety net)
+    const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
+    
+    // First, look for an image that contains the exact color name (ignoring non-alphanumeric chars)
+    const exactMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return imgLower.includes(colorLower) || 
+             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '-')) ||
+             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '_'));
+    });
+    if (exactMatch) return exactMatch;
+    
+    // If not found, look for an image containing ALL the words in the color name
+    const allWordsMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return colorWords.every(word => imgLower.includes(word));
+    });
+    if (allWordsMatch) return allWordsMatch;
+
+    // If not found, look for an image containing the FIRST word of the color name (if it's not generic)
+    const primaryWord = colorWords[0];
+    if (primaryWord && primaryWord.length > 2 && primaryWord !== 'light' && primaryWord !== 'dark' && primaryWord !== 'unisex') {
+      const firstWordMatch = activeProduct.images.find(img => img.toLowerCase().includes(primaryWord));
+      if (firstWordMatch) return firstWordMatch;
+    }
+    
+    // If not found, check if there is an image that matches any word
+    const anyWordMatch = activeProduct.images.find(img => {
+      const imgLower = img.toLowerCase();
+      return colorWords.some(word => word.length > 2 && imgLower.includes(word));
+    });
+    if (anyWordMatch) return anyWordMatch;
+    
+    return activeProduct.images[0];
+  }, [activeProduct, selectedColor, activePrintifyVariant, activeTemplate]);
 
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
@@ -1041,13 +861,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       setSelectedSize('');
     }
   }, [activeColorOptions, activeSizeOptions]);
-
-  // Ensure selectedView is valid when template/product changes
-  useEffect(() => {
-    if (!availableViews.includes(selectedView.toLowerCase())) {
-      setSelectedView(availableViews[0] || 'front');
-    }
-  }, [availableViews, selectedView]);
 
   // Initialize Fabric.js Canvas — deferred until the print area has real layout dimensions
   useEffect(() => {
@@ -1663,7 +1476,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         // Load base mockup
         const baseImg = new Image();
         baseImg.crossOrigin = 'anonymous';
-        baseImg.src = getSelectedViewImage || '/custom-tee-mockup.png';
+        baseImg.src = getSelectedColorImage || '/custom-tee-mockup.png';
         baseImg.onload = () => {
           try {
             ctx.drawImage(baseImg, 0, 0, 600, 600);
@@ -1840,15 +1653,31 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Canvas Preview area */}
         <div className="lg:col-span-7 flex flex-col items-center">
-          <div 
-            ref={mockupContainerRef}
-            className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8"
-          >
+          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
-            {/* Fabric.js Canvas (sized to print area, contains mockup background layer + user content) */}
-            {/* Mockup loaded as fabric.Image bottom layer with BlendColor filter for color manipulation */}
+            {/* Two-Layer Color Masking System */}
+            {/* Layer 1 (Bottom): Solid Color Background */}
+            <div 
+              className="absolute inset-0 transition-colors duration-300"
+              style={{ 
+                backgroundColor: selectedColor && activeColorOptionDetails.find(c => c.title === selectedColor)?.hex 
+                  ? activeColorOptionDetails.find(c => c.title === selectedColor)!.hex 
+                  : '#FFFFFF'
+              }}
+            />
             
-            {/* Print Area Bounds - Contains Fabric Canvas */}
+            {/* Layer 2 (Top): Template Image with Alpha Shadow Overlay */}
+            <img 
+              src={activeViewImage} 
+              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
+              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
+              style={{ 
+                mixBlendMode: 'multiply',
+                opacity: 1.0
+              }}
+            />
+
+            {/* Print Area Bounds holding Fabric Canvas */}
             <div 
               ref={printAreaRef}
               className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
