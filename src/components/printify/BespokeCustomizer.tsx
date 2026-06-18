@@ -395,21 +395,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return found || printAreas[0] || null;
   }, [activeTemplate, selectedView]);
 
-  // Get the image for the currently selected view
-  const activeViewImage = useMemo(() => {
-    if (!activeProduct?.images || activeProduct.images.length === 0) {
-      return '/custom-tee-mockup.png';
-    }
-
-    // Map view position to image index
-    // If we have multiple images, map them to positions in order
-    const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
-    const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
-      ? viewIndex 
-      : 0;
-    
-    return activeProduct.images[imageIndex] || activeProduct.images[0];
-  }, [activeProduct, selectedView, availableViews]);
+  // Note: activeViewImage was removed - use getSelectedColorImage instead
+  // getSelectedColorImage handles both color AND view selection
 
   // Ensure selectedView is valid when template changes
   useEffect(() => {
@@ -1707,7 +1694,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             
             {/* Layer 2 (Top): Template Image with Alpha Shadow Overlay */}
             <img 
-              src={activeViewImage} 
+              src={getSelectedColorImage} 
               alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-opacity duration-300"
               style={{ 
