@@ -397,27 +397,19 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Helper: Map common color names to hex codes (fallback when Printify doesn't provide hex)
   const getColorHex = (colorTitle: string): string | undefined => {
-    console.log('[getColorHex] Called with:', colorTitle);
-    
     // First check if template/variant has explicit hex
     const explicitHex = activeColorOptionDetails.find(c => c.title === colorTitle)?.hex;
-    console.log('[getColorHex] Explicit hex from template:', explicitHex);
+    if (explicitHex) return explicitHex;
     
-    if (explicitHex) {
-      console.log('[getColorHex] Using explicit hex:', explicitHex);
-      return explicitHex;
-    }
-    
-    // Fallback: Common color name → hex mapping
+    // Fallback: Common color name → hex mapping (expanded for apparel industry)
     const colorName = colorTitle.toLowerCase().trim();
-    console.log('[getColorHex] Looking up fallback for:', colorName);
-    
     const commonColors: Record<string, string> = {
       // Blacks & Whites
       'black': '#000000',
       'white': '#FFFFFF',
       'off-white': '#F5F5F5',
       'ivory': '#FFFFF0',
+      'natural': '#F5F5DC',
       
       // Grays
       'gray': '#808080',
@@ -429,6 +421,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'charcoal': '#36454F',
       'heather gray': '#B8B8B8',
       'heather grey': '#B8B8B8',
+      'ash': '#B2BEB5',
+      'slate': '#708090',
+      'graphite': '#383838',
+      'silver': '#C0C0C0',
       
       // Reds
       'red': '#FF0000',
@@ -438,6 +434,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'burgundy': '#800020',
       'crimson': '#DC143C',
       'cardinal': '#C41E3A',
+      'cherry': '#DE3163',
+      'scarlet': '#FF2400',
+      'brick': '#9C2542',
       
       // Blues
       'blue': '#0000FF',
@@ -451,6 +450,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'turquoise': '#40E0D0',
       'aqua': '#00FFFF',
       'cyan': '#00FFFF',
+      'cobalt': '#0047AB',
+      'sapphire': '#0F52BA',
+      'carolina blue': '#4B9CD3',
       
       // Greens
       'green': '#008000',
@@ -459,8 +461,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'lime': '#00FF00',
       'olive': '#808000',
       'forest green': '#228B22',
+      'forest': '#228B22',
       'mint': '#98FF98',
       'sage': '#9DC183',
+      'kelly green': '#4CBB17',
+      'emerald': '#50C878',
+      'army': '#4B5320',
+      'military green': '#4B5320',
+      'hunter': '#355E3B',
+      'pine': '#01796F',
       
       // Yellows & Oranges
       'yellow': '#FFFF00',
@@ -469,6 +478,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'dark orange': '#FF8C00',
       'tangerine': '#F28500',
       'amber': '#FFBF00',
+      'lemon': '#FFF700',
+      'canary': '#FFFF99',
+      'sunflower': '#FFDA03',
       
       // Purples & Pinks
       'purple': '#800080',
@@ -479,8 +491,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'rose': '#FF007F',
       'lavender': '#E6E6FA',
       'plum': '#DDA0DD',
+      'lilac': '#C8A2C8',
+      'orchid': '#DA70D6',
+      'fuchsia': '#FF00FF',
+      'mauve': '#E0B0FF',
       
-      // Browns
+      // Browns & Tans
       'brown': '#A52A2A',
       'tan': '#D2B48C',
       'beige': '#F5F5DC',
@@ -488,31 +504,43 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       'coffee': '#6F4E37',
       'chocolate': '#D2691E',
       'camel': '#C19A6B',
-      
-      // Others
-      'cream': '#FFFDD0',
       'sand': '#C2B280',
+      'taupe': '#483C32',
+      'coyote': '#81613C',
+      'desert': '#EDC9AF',
+      
+      // Specialty & Heather Blends
+      'cream': '#FFFDD0',
       'coral': '#FF7F50',
       'peach': '#FFE5B4',
       'mint green': '#98FF98',
       'mustard': '#FFDB58',
+      'rust': '#B7410E',
+      'copper': '#B87333',
+      'bronze': '#CD7F32',
+      'brass': '#B5A642',
+      
+      // Heather variants (muted versions)
+      'heather': '#9FA0A3',
+      'athletic heather': '#9FA0A3',
+      'sport grey': '#9FA0A3',
+      'oxford': '#8C92AC',
     };
     
     // Direct match
     if (commonColors[colorName]) {
-      console.log('[getColorHex] Direct match found:', commonColors[colorName]);
       return commonColors[colorName];
     }
     
-    // Partial match (e.g., "Heather Navy" → "navy")
+    // Partial match (e.g., "Heather Navy" → "navy", "Heather Forest" → "forest")
     for (const [name, hex] of Object.entries(commonColors)) {
       if (colorName.includes(name)) {
-        console.log('[getColorHex] Partial match found:', name, '→', hex);
         return hex;
       }
     }
     
-    console.warn('[getColorHex] NO MATCH FOUND for:', colorTitle, '- returning undefined');
+    // Fallback for unmapped colors - log warning for future addition
+    console.warn(`[getColorHex] Unmapped color "${colorTitle}" - Add to dictionary if commonly used`);
     return undefined;
   };
 
@@ -1726,44 +1754,38 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         <div className="lg:col-span-7 flex flex-col items-center">
           <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
-            {/* CSS-Based Color Overlay System (Fast, No Image Generation) */}
-            {/* Layer 1 (Bottom): Base Template Image (typically White from Printify sync) */}
+            {/* CSS-Based Color Overlay System */}
+            {/* Layer 1 (Bottom): Base Template Image (White mockup from Printify sync) */}
             <img 
               src={getSelectedViewImage} 
               alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
             />
             
-            {/* Layer 2 (Top): CSS Color Overlay - SIMPLIFIED FOR DEBUGGING */}
+            {/* Layer 2 (Top): CSS Color Overlay with Alpha Masking */}
             {selectedColor && (() => {
               const colorHex = getColorHex(selectedColor);
               
-              // CRITICAL DEBUG - Always log
-              console.log('[Color Overlay] RENDER CHECK:', {
-                selectedColor,
-                colorHex,
-                hasColorHex: !!colorHex,
-                baseImage: getSelectedViewImage,
-                timestamp: new Date().toISOString()
-              });
-              
-              if (!colorHex) {
-                console.error('[Color Overlay] NO HEX FOUND - overlay will NOT render!');
-                return null;
-              }
-              
-              console.log('[Color Overlay] RENDERING OVERLAY with hex:', colorHex);
+              if (!colorHex) return null;
               
               return (
                 <div 
-                  data-testid="color-overlay"
                   className="absolute inset-0 transition-colors duration-300 pointer-events-none"
                   style={{ 
                     backgroundColor: colorHex,
                     mixBlendMode: 'multiply',
                     opacity: 0.85,
-                    zIndex: 10,
-                    border: '2px solid red' // DEBUG: Visual confirmation overlay exists
+                    // CSS mask clips overlay to product shape using image's alpha channel
+                    // This prevents tinting empty background areas
+                    WebkitMaskImage: `url(${getSelectedViewImage})`,
+                    maskImage: `url(${getSelectedViewImage})`,
+                    WebkitMaskSize: 'cover',
+                    maskSize: 'cover',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    maskPosition: 'center',
+                    zIndex: 10
                   }}
                 />
               );
