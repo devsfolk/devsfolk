@@ -353,18 +353,18 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   };
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-200px)] min-h-[700px]">
-      {/* LEFT SIDE: VISUAL CANVAS (65%) */}
+    <div className="flex gap-6 h-full">
+      {/* LEFT SIDE: VISUAL CANVAS (65%) - HARD HEIGHT CONSTRAINT */}
       <div className="w-[65%] flex flex-col gap-3">
-        {/* Canvas Container - OPTIMIZED HEIGHT */}
+        {/* Canvas Container - FIXED: Hard-constrained to prevent overflow */}
         <div
           data-canvas-container
-          className="flex-1 relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden shadow-lg"
+          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden shadow-lg max-h-[calc(100vh-280px)] min-h-[500px]"
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          {/* Mockup Image */}
+          {/* Mockup Image - FIXED: object-contain with full width/height */}
           {selectedMockupUrl ? (
             <img
               src={selectedMockupUrl}

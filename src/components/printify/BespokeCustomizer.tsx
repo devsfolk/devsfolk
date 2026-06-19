@@ -1021,47 +1021,62 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         };
 
         /**
-         * PRECISION FIX: Smooth object containment with proper Fabric.js coordinate handling
+         * CRITICAL FIX: Proper Fabric.js coordinate handling with origin points
          * 
-         * Fixes erratic drag behavior by using delta-based position adjustments
-         * instead of direct position overrides
+         * The bug: Fabric.js objects have configurable origin points (originX, originY).
+         * By default, many objects use 'center' origin, meaning obj.left/obj.top refer
+         * to the CENTER of the object, not top-left corner.
+         * 
+         * When we constrain, we must:
+         * 1. Get the actual bounding box (accounts for origin, scale, rotation)
+         * 2. Calculate how much the OBJECT CENTER needs to move (not the bounds)
+         * 3. Apply the delta to the object's center position
          */
         const constrainObjectToBounds = (obj: fabric.Object) => {
           if (!obj || !canvas) return;
 
           const boundaries = calculateCanvasBoundaries();
           
-          // Use absolute bounding rect for accurate positioning
-          const objBounds = obj.getBoundingRect(true);
+          // Get actual bounding rectangle (top-left corner + dimensions)
+          // This accounts for rotation, scale, and gives us absolute position
+          const objBounds = obj.getBoundingRect();
 
-          // Calculate required position adjustments
+          // Calculate how much the bounding box exceeds boundaries
+          let leftOverflow = boundaries.minX - objBounds.left;
+          let topOverflow = boundaries.minY - objBounds.top;
+          let rightOverflow = (objBounds.left + objBounds.width) - boundaries.maxX;
+          let bottomOverflow = (objBounds.top + objBounds.height) - boundaries.maxY;
+
+          // Calculate required adjustment to object's center position
           let deltaX = 0;
           let deltaY = 0;
 
-          // Check boundaries and calculate deltas
-          if (objBounds.left < boundaries.minX) {
-            deltaX = boundaries.minX - objBounds.left;
-          } else if (objBounds.left + objBounds.width > boundaries.maxX) {
-            deltaX = boundaries.maxX - (objBounds.left + objBounds.width);
-          }
-          
-          if (objBounds.top < boundaries.minY) {
-            deltaY = boundaries.minY - objBounds.top;
-          } else if (objBounds.top + objBounds.height > boundaries.maxY) {
-            deltaY = boundaries.maxY - (objBounds.top + objBounds.height);
+          if (leftOverflow > 0) {
+            // Object extends past left boundary
+            deltaX = leftOverflow;
+          } else if (rightOverflow > 0) {
+            // Object extends past right boundary
+            deltaX = -rightOverflow;
           }
 
-          // Apply adjustments if needed
+          if (topOverflow > 0) {
+            // Object extends past top boundary
+            deltaY = topOverflow;
+          } else if (bottomOverflow > 0) {
+            // Object extends past bottom boundary
+            deltaY = -bottomOverflow;
+          }
+
+          // Apply adjustment if needed
           if (deltaX !== 0 || deltaY !== 0) {
-            const currentLeft = obj.left || 0;
-            const currentTop = obj.top || 0;
-            
+            // CRITICAL: Add delta to current position (works with any origin point)
             obj.set({
-              left: currentLeft + deltaX,
-              top: currentTop + deltaY,
+              left: (obj.left || 0) + deltaX,
+              top: (obj.top || 0) + deltaY,
             });
             
-            obj.setCoords(); // Update Fabric.js internal coordinates
+            // Update Fabric.js internal coordinate cache
+            obj.setCoords();
           }
         };
 
