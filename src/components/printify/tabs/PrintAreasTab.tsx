@@ -31,6 +31,29 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     setActivePrintAreaId(null);
   }, [selectedView]);
   
+  // CRITICAL: Ensure all print areas have unique IDs (fix legacy data)
+  React.useEffect(() => {
+    const hasInvalidIds = formData.printAreas.some(area => !area.id || area.id.length < 5);
+    
+    if (hasInvalidIds) {
+      console.warn('[PrintAreasTab] Detected legacy areas with missing/invalid IDs - normalizing...');
+      
+      setFormData(prev => ({
+        ...prev,
+        printAreas: prev.printAreas.map(area => {
+          // If area has no ID or ID is too short (legacy format like 'front'), generate new one
+          if (!area.id || area.id.length < 5) {
+            const view = area.view || area.position || 'unknown';
+            const newId = `pa_${view}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+            console.log(`[PrintAreasTab] Migrating area "${area.name}" from ID "${area.id}" to "${newId}"`);
+            return { ...area, id: newId };
+          }
+          return area;
+        }),
+      }));
+    }
+  }, [formData.printAreas, setFormData]);
+  
   // Animation frame ref for smooth updates
   const rafRef = useRef<number | null>(null);
   
@@ -440,7 +463,10 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
                   cursor: dragging ? 'grabbing' : 'grab',
                 }}
                 onMouseDown={(e) => handleMouseDown(e, area.id!, 'drag')}
-                onClick={() => setActivePrintAreaId(area.id!)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePrintAreaId(area.id!);
+                }}
               >
                 {/* Corner Resize Handles (Premium Style) */}
                 {isActive && (
