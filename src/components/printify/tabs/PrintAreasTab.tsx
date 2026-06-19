@@ -182,8 +182,14 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
       printAreas: prev.printAreas.map((area) => {
         if (area.id !== id) return area;
 
-        // Phase 3: Calculate and store pixel coordinates + reference mockup
-        const updatedArea = { ...area, ...updates };
+        // CRITICAL: Preserve view/position during updates to prevent state leakage
+        const updatedArea = { 
+          ...area, 
+          ...updates,
+          // Explicitly preserve view binding (never allow it to be lost)
+          view: area.view || selectedView,
+          position: area.position || selectedView,
+        };
         
         if (mockupDimensions) {
           return {
