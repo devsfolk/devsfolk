@@ -25,14 +25,11 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   const [resizing, setResizing] = useState<string | null>(null);
   const [aspectRatioLocked, setAspectRatioLocked] = useState(false);
   
-  // CRITICAL FIX: Reset active print area when view changes to prevent state leakage
+  // CRITICAL FIX: Reset active print area ONLY when view changes (not when areas are modified)
   React.useEffect(() => {
-    // When view changes, select the first print area in that view (or null if none)
-    const firstAreaInView = formData.printAreas.find(
-      (area) => (area.view || area.position)?.toLowerCase() === selectedView.toLowerCase()
-    );
-    setActivePrintAreaId(firstAreaInView?.id || null);
-  }, [selectedView, formData.printAreas]);
+    // When view changes, reset to null to force clean slate for new view
+    setActivePrintAreaId(null);
+  }, [selectedView]);
   
   // Animation frame ref for smooth updates
   const rafRef = useRef<number | null>(null);
