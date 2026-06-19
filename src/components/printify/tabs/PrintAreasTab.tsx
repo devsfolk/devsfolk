@@ -177,6 +177,13 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
 
   // Phase 3: Update specific print area by ID + stamp reference mockup dimensions
   const updatePrintArea = (id: string, updates: Partial<PrintArea>) => {
+    console.log('[updatePrintArea BEFORE]', { 
+      id, 
+      updates,
+      selectedView,
+      existingArea: formData.printAreas.find(a => a.id === id)
+    });
+    
     setFormData((prev) => ({
       ...prev,
       printAreas: prev.printAreas.map((area) => {
@@ -190,6 +197,12 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
           view: area.view || selectedView,
           position: area.position || selectedView,
         };
+        
+        console.log('[updatePrintArea AFTER]', {
+          originalView: area.view,
+          updatedAreaView: updatedArea.view,
+          finalObject: updatedArea
+        });
         
         if (mockupDimensions) {
           return {
@@ -419,6 +432,16 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
           {/* Print Area Boxes */}
           {viewPrintAreas.map((area) => {
             const isActive = activePrintAreaId === area.id;
+            
+            // DEBUG: Log every area being rendered
+            console.log('[PrintAreasTab RENDER]', {
+              areaId: area.id,
+              areaName: area.name,
+              areaView: area.view,
+              areaPosition: area.position,
+              selectedView: selectedView,
+              shouldRender: (area.view || area.position)?.toLowerCase() === selectedView.toLowerCase()
+            });
             
             return (
               <div
