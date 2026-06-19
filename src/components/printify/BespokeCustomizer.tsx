@@ -1002,66 +1002,67 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           const canvasWidth = canvas.getWidth();
           const canvasHeight = canvas.getHeight();
 
-          // Phase 5: Calculate boundaries from percentage coordinates
-          // Print area percentages are already responsive - just apply to current canvas
+          // PRECISION FIX: Use Math.floor for consistent pixel alignment
           const boundaries = {
-            minX: (activeViewPrintArea.x / 100) * canvasWidth,
-            minY: (activeViewPrintArea.y / 100) * canvasHeight,
-            maxX: ((activeViewPrintArea.x + activeViewPrintArea.width) / 100) * canvasWidth,
-            maxY: ((activeViewPrintArea.y + activeViewPrintArea.height) / 100) * canvasHeight,
+            minX: Math.floor((activeViewPrintArea.x / 100) * canvasWidth),
+            minY: Math.floor((activeViewPrintArea.y / 100) * canvasHeight),
+            maxX: Math.floor(((activeViewPrintArea.x + activeViewPrintArea.width) / 100) * canvasWidth),
+            maxY: Math.floor(((activeViewPrintArea.y + activeViewPrintArea.height) / 100) * canvasHeight),
           };
 
           console.log('[BespokeCustomizer] Canvas boundaries calculated:', {
             canvasSize: `${canvasWidth}×${canvasHeight}`,
             printArea: `${activeViewPrintArea.x}%, ${activeViewPrintArea.y}%, ${activeViewPrintArea.width}%, ${activeViewPrintArea.height}%`,
-            boundaries: `(${Math.round(boundaries.minX)},${Math.round(boundaries.minY)}) to (${Math.round(boundaries.maxX)},${Math.round(boundaries.maxY)})`,
+            boundaries: `(${boundaries.minX},${boundaries.minY}) to (${boundaries.maxX},${boundaries.maxY})`,
+            exactSize: `${boundaries.maxX - boundaries.minX}×${boundaries.maxY - boundaries.minY}`,
           });
 
           return boundaries;
         };
 
         /**
-         * Phase 5: Hard Containment Lock Function
+         * PRECISION FIX: Smooth object containment with proper Fabric.js coordinate handling
          * 
-         * Prevents objects from escaping print area boundaries by:
-         * 1. Getting object's bounding rectangle (accounts for rotation/scaling)
-         * 2. Checking if any edge exceeds boundaries
-         * 3. Adjusting object position to lock at boundary edge
-         * 4. Using setCoords() to update Fabric.js internal coordinates
+         * Fixes erratic drag behavior by using delta-based position adjustments
+         * instead of direct position overrides
          */
         const constrainObjectToBounds = (obj: fabric.Object) => {
           if (!obj || !canvas) return;
 
           const boundaries = calculateCanvasBoundaries();
-          const objBounds = obj.getBoundingRect(); // Gets rotated/scaled bounding box
+          
+          // Use absolute bounding rect for accurate positioning
+          const objBounds = obj.getBoundingRect(true);
 
-          let left = obj.left || 0;
-          let top = obj.top || 0;
+          // Calculate required position adjustments
+          let deltaX = 0;
+          let deltaY = 0;
 
-          // Phase 5: Hard lock at boundaries (no escape allowed)
-          // Check left edge
+          // Check boundaries and calculate deltas
           if (objBounds.left < boundaries.minX) {
-            left += (boundaries.minX - objBounds.left);
+            deltaX = boundaries.minX - objBounds.left;
+          } else if (objBounds.left + objBounds.width > boundaries.maxX) {
+            deltaX = boundaries.maxX - (objBounds.left + objBounds.width);
           }
           
-          // Check top edge
           if (objBounds.top < boundaries.minY) {
-            top += (boundaries.minY - objBounds.top);
-          }
-          
-          // Check right edge
-          if (objBounds.left + objBounds.width > boundaries.maxX) {
-            left -= (objBounds.left + objBounds.width - boundaries.maxX);
-          }
-          
-          // Check bottom edge
-          if (objBounds.top + objBounds.height > boundaries.maxY) {
-            top -= (objBounds.top + objBounds.height - boundaries.maxY);
+            deltaY = boundaries.minY - objBounds.top;
+          } else if (objBounds.top + objBounds.height > boundaries.maxY) {
+            deltaY = boundaries.maxY - (objBounds.top + objBounds.height);
           }
 
-          // Apply constrained position
-          obj.set({ left, top });
-          obj.setCoords(); // Update Fabric.js internal coordinates
+          // Apply adjustments if needed
+          if (deltaX !== 0 || deltaY !== 0) {
+            const currentLeft = obj.left || 0;
+            const currentTop = obj.top || 0;
+            
+            obj.set({
+              left: currentLeft + deltaX,
+              top: currentTop + deltaY,
+            });
+            
+            obj.setCoords(); // Update Fabric.js internal coordinates
+          }
         };
 
         // Phase 5: Attach boundary enforcement to Fabric.js events

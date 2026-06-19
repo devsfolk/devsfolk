@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,9 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState<string | null>(null);
   const [aspectRatioLocked, setAspectRatioLocked] = useState(false);
+  
+  // Animation frame ref for smooth updates
+  const rafRef = useRef<number | null>(null);
   
   // FIXED: Store starting dimensions and container size to prevent jitter
   const [dragStartPos, setDragStartPos] = useState({ 
@@ -234,112 +237,126 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!activePrintArea || (!dragging && !resizing)) return;
 
-    // Use saved container dimensions - prevents recalculation jitter
-    const deltaXPixels = e.clientX - dragStartPos.mouseX;
-    const deltaYPixels = e.clientY - dragStartPos.mouseY;
-    
-    // Convert pixel delta to percentage using STARTING container dimensions
-    const deltaXPercent = (deltaXPixels / dragStartPos.containerWidth) * 100;
-    const deltaYPercent = (deltaYPixels / dragStartPos.containerHeight) * 100;
-
-    if (dragging) {
-      // Calculate new position from starting position
-      let newX = dragStartPos.areaX + deltaXPercent;
-      let newY = dragStartPos.areaY + deltaYPercent;
-      
-      // Constrain within bounds
-      newX = Math.max(0, Math.min(100 - activePrintArea.width, newX));
-      newY = Math.max(0, Math.min(100 - activePrintArea.height, newY));
-      
-      updatePrintArea(activePrintArea.id!, {
-        x: Math.round(newX * 10) / 10,
-        y: Math.round(newY * 10) / 10,
-      });
-    } else if (resizing) {
-      let newWidth = dragStartPos.areaWidth;
-      let newHeight = dragStartPos.areaHeight;
-      let newX = dragStartPos.areaX;
-      let newY = dragStartPos.areaY;
-
-      // Calculate aspect ratio from starting dimensions
-      const startAspectRatio = dragStartPos.areaWidth / dragStartPos.areaHeight;
-
-      // Resize from corners - calculate from starting dimensions
-      if (resizing === 'se') {
-        // Southeast: expand right and down
-        newWidth = dragStartPos.areaWidth + deltaXPercent;
-        newHeight = dragStartPos.areaHeight + deltaYPercent;
-        
-        if (aspectRatioLocked) {
-          const avgScale = (deltaXPercent / dragStartPos.areaWidth + deltaYPercent / dragStartPos.areaHeight) / 2;
-          newWidth = dragStartPos.areaWidth * (1 + avgScale);
-          newHeight = dragStartPos.areaHeight * (1 + avgScale);
-        }
-      } else if (resizing === 'sw') {
-        // Southwest: expand left and down
-        newX = dragStartPos.areaX + deltaXPercent;
-        newWidth = dragStartPos.areaWidth - deltaXPercent;
-        newHeight = dragStartPos.areaHeight + deltaYPercent;
-        
-        if (aspectRatioLocked) {
-          const avgScale = (-deltaXPercent / dragStartPos.areaWidth + deltaYPercent / dragStartPos.areaHeight) / 2;
-          newWidth = dragStartPos.areaWidth * (1 + avgScale);
-          newHeight = dragStartPos.areaHeight * (1 + avgScale);
-          newX = dragStartPos.areaX + dragStartPos.areaWidth - newWidth;
-        }
-      } else if (resizing === 'ne') {
-        // Northeast: expand right and up
-        newWidth = dragStartPos.areaWidth + deltaXPercent;
-        newY = dragStartPos.areaY + deltaYPercent;
-        newHeight = dragStartPos.areaHeight - deltaYPercent;
-        
-        if (aspectRatioLocked) {
-          const avgScale = (deltaXPercent / dragStartPos.areaWidth - deltaYPercent / dragStartPos.areaHeight) / 2;
-          newWidth = dragStartPos.areaWidth * (1 + avgScale);
-          newHeight = dragStartPos.areaHeight * (1 + avgScale);
-          newY = dragStartPos.areaY + dragStartPos.areaHeight - newHeight;
-        }
-      } else if (resizing === 'nw') {
-        // Northwest: expand left and up
-        newX = dragStartPos.areaX + deltaXPercent;
-        newWidth = dragStartPos.areaWidth - deltaXPercent;
-        newY = dragStartPos.areaY + deltaYPercent;
-        newHeight = dragStartPos.areaHeight - deltaYPercent;
-        
-        if (aspectRatioLocked) {
-          const avgScale = (-deltaXPercent / dragStartPos.areaWidth - deltaYPercent / dragStartPos.areaHeight) / 2;
-          newWidth = dragStartPos.areaWidth * (1 + avgScale);
-          newHeight = dragStartPos.areaHeight * (1 + avgScale);
-          newX = dragStartPos.areaX + dragStartPos.areaWidth - newWidth;
-          newY = dragStartPos.areaY + dragStartPos.areaHeight - newHeight;
-        }
-      }
-
-      // Constrain to minimum and bounds
-      newWidth = Math.max(10, Math.min(100 - newX, newWidth));
-      newHeight = Math.max(10, Math.min(100 - newY, newHeight));
-      newX = Math.max(0, Math.min(100 - newWidth, newX));
-      newY = Math.max(0, Math.min(100 - newHeight, newY));
-
-      updatePrintArea(activePrintArea.id!, {
-        x: Math.round(newX * 10) / 10,
-        y: Math.round(newY * 10) / 10,
-        width: Math.round(newWidth * 10) / 10,
-        height: Math.round(newHeight * 10) / 10,
-      });
+    // Cancel any pending animation frame
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
     }
+
+    // Use requestAnimationFrame for smooth, zero-lag updates
+    rafRef.current = requestAnimationFrame(() => {
+      // Use saved container dimensions - prevents recalculation jitter
+      const deltaXPixels = e.clientX - dragStartPos.mouseX;
+      const deltaYPixels = e.clientY - dragStartPos.mouseY;
+      
+      // Convert pixel delta to percentage using STARTING container dimensions
+      const deltaXPercent = (deltaXPixels / dragStartPos.containerWidth) * 100;
+      const deltaYPercent = (deltaYPixels / dragStartPos.containerHeight) * 100;
+
+      if (dragging) {
+        // Calculate new position from starting position
+        let newX = dragStartPos.areaX + deltaXPercent;
+        let newY = dragStartPos.areaY + deltaYPercent;
+        
+        // Constrain within bounds
+        newX = Math.max(0, Math.min(100 - activePrintArea.width, newX));
+        newY = Math.max(0, Math.min(100 - activePrintArea.height, newY));
+        
+        updatePrintArea(activePrintArea.id!, {
+          x: Math.round(newX * 10) / 10,
+          y: Math.round(newY * 10) / 10,
+        });
+      } else if (resizing) {
+        let newWidth = dragStartPos.areaWidth;
+        let newHeight = dragStartPos.areaHeight;
+        let newX = dragStartPos.areaX;
+        let newY = dragStartPos.areaY;
+
+        // Calculate aspect ratio from starting dimensions
+        const startAspectRatio = dragStartPos.areaWidth / dragStartPos.areaHeight;
+
+        // Resize from corners - calculate from starting dimensions
+        if (resizing === 'se') {
+          // Southeast: expand right and down
+          newWidth = dragStartPos.areaWidth + deltaXPercent;
+          newHeight = dragStartPos.areaHeight + deltaYPercent;
+          
+          if (aspectRatioLocked) {
+            const avgScale = (deltaXPercent / dragStartPos.areaWidth + deltaYPercent / dragStartPos.areaHeight) / 2;
+            newWidth = dragStartPos.areaWidth * (1 + avgScale);
+            newHeight = dragStartPos.areaHeight * (1 + avgScale);
+          }
+        } else if (resizing === 'sw') {
+          // Southwest: expand left and down
+          newX = dragStartPos.areaX + deltaXPercent;
+          newWidth = dragStartPos.areaWidth - deltaXPercent;
+          newHeight = dragStartPos.areaHeight + deltaYPercent;
+          
+          if (aspectRatioLocked) {
+            const avgScale = (-deltaXPercent / dragStartPos.areaWidth + deltaYPercent / dragStartPos.areaHeight) / 2;
+            newWidth = dragStartPos.areaWidth * (1 + avgScale);
+            newHeight = dragStartPos.areaHeight * (1 + avgScale);
+            newX = dragStartPos.areaX + dragStartPos.areaWidth - newWidth;
+          }
+        } else if (resizing === 'ne') {
+          // Northeast: expand right and up
+          newWidth = dragStartPos.areaWidth + deltaXPercent;
+          newY = dragStartPos.areaY + deltaYPercent;
+          newHeight = dragStartPos.areaHeight - deltaYPercent;
+          
+          if (aspectRatioLocked) {
+            const avgScale = (deltaXPercent / dragStartPos.areaWidth - deltaYPercent / dragStartPos.areaHeight) / 2;
+            newWidth = dragStartPos.areaWidth * (1 + avgScale);
+            newHeight = dragStartPos.areaHeight * (1 + avgScale);
+            newY = dragStartPos.areaY + dragStartPos.areaHeight - newHeight;
+          }
+        } else if (resizing === 'nw') {
+          // Northwest: expand left and up
+          newX = dragStartPos.areaX + deltaXPercent;
+          newWidth = dragStartPos.areaWidth - deltaXPercent;
+          newY = dragStartPos.areaY + deltaYPercent;
+          newHeight = dragStartPos.areaHeight - deltaYPercent;
+          
+          if (aspectRatioLocked) {
+            const avgScale = (-deltaXPercent / dragStartPos.areaWidth - deltaYPercent / dragStartPos.areaHeight) / 2;
+            newWidth = dragStartPos.areaWidth * (1 + avgScale);
+            newHeight = dragStartPos.areaHeight * (1 + avgScale);
+            newX = dragStartPos.areaX + dragStartPos.areaWidth - newWidth;
+            newY = dragStartPos.areaY + dragStartPos.areaHeight - newHeight;
+          }
+        }
+
+        // Constrain to minimum and bounds
+        newWidth = Math.max(10, Math.min(100 - newX, newWidth));
+        newHeight = Math.max(10, Math.min(100 - newY, newHeight));
+        newX = Math.max(0, Math.min(100 - newWidth, newX));
+        newY = Math.max(0, Math.min(100 - newHeight, newY));
+
+        updatePrintArea(activePrintArea.id!, {
+          x: Math.round(newX * 10) / 10,
+          y: Math.round(newY * 10) / 10,
+          width: Math.round(newWidth * 10) / 10,
+          height: Math.round(newHeight * 10) / 10,
+        });
+      }
+    });
   };
 
   const handleMouseUp = () => {
+    // Cancel any pending animation frame
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    
     setDragging(false);
     setResizing(null);
   };
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-220px)] min-h-[600px]">
+    <div className="flex gap-6 h-[calc(100vh-200px)] min-h-[700px]">
       {/* LEFT SIDE: VISUAL CANVAS (65%) */}
       <div className="w-[65%] flex flex-col gap-3">
-        {/* Canvas Container */}
+        {/* Canvas Container - OPTIMIZED HEIGHT */}
         <div
           data-canvas-container
           className="flex-1 relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden shadow-lg"
@@ -521,185 +538,39 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
           </p>
         </div>
 
-        {/* Active Print Area Card */}
+        {/* Active Print Area Card - SIMPLIFIED */}
         {activePrintArea && (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 shadow-sm">
             <Label className="text-[8px] font-black uppercase text-blue-600 mb-2 block">
               Active Print Area
             </Label>
             
-            {/* Name Input */}
+            {/* Name Input - ONLY FIELD KEPT */}
             <Input
               type="text"
               value={activePrintArea.name}
               onChange={(e) => updatePrintArea(activePrintArea.id!, { name: e.target.value })}
-              className="text-xs font-bold h-9 mb-3 border-blue-300 bg-white"
+              className="text-xs font-bold h-9 border-blue-300 bg-white"
               placeholder="Print area name"
             />
-
-            {/* Coordinates Table */}
-            <div className="space-y-2">
-              <div>
-                <p className="text-[8px] font-black uppercase text-blue-600 mb-1">
-                  Percentage (Responsive)
-                </p>
-                <div className="grid grid-cols-4 gap-2 text-[9px] bg-white rounded-lg p-2 border border-blue-200">
-                  <div>
-                    <span className="text-blue-700">X:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.x.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">Y:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.y.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">W:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.width.toFixed(1)}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">H:</span>{' '}
-                    <span className="font-bold text-blue-900">{activePrintArea.height.toFixed(1)}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {activeAreaPixels && mockupDimensions && (
-                <div>
-                  <p className="text-[8px] font-black uppercase text-green-600 mb-1">
-                    Pixel (at {mockupDimensions.width}×{mockupDimensions.height})
-                  </p>
-                  <div className="grid grid-cols-4 gap-2 text-[9px] bg-white rounded-lg p-2 border border-green-200">
-                    <div>
-                      <span className="text-green-700">X:</span>{' '}
-                      <span className="font-bold text-green-900">{activeAreaPixels.x}px</span>
-                    </div>
-                    <div>
-                      <span className="text-green-700">Y:</span>{' '}
-                      <span className="font-bold text-green-900">{activeAreaPixels.y}px</span>
-                    </div>
-                    <div>
-                      <span className="text-green-700">W:</span>{' '}
-                      <span className="font-bold text-green-900">{activeAreaPixels.width}px</span>
-                    </div>
-                    <div>
-                      <span className="text-green-700">H:</span>{' '}
-                      <span className="font-bold text-green-900">{activeAreaPixels.height}px</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )}
 
-        {/* Fine-Tune Adjustments */}
+        {/* Aspect Ratio Lock - ONLY CONTROL KEPT */}
         {activePrintArea && (
           <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm">
-            <Label className="text-[8px] font-black uppercase text-gray-500 mb-3 block">
-              Fine-Tune Adjustments
-            </Label>
-            
-            <div className="space-y-3">
-              {/* Position Inputs */}
-              <div>
-                <Label className="text-[8px] font-bold uppercase text-gray-600 mb-1 block">
-                  Position
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Input
-                      type="number"
-                      value={activePrintArea.x.toFixed(1)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          updatePrintArea(activePrintArea.id!, { x: Math.max(0, Math.min(100 - activePrintArea.width, val)) });
-                        }
-                      }}
-                      step={0.1}
-                      min={0}
-                      max={100}
-                      className="h-9 text-xs"
-                      placeholder="X %"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="number"
-                      value={activePrintArea.y.toFixed(1)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          updatePrintArea(activePrintArea.id!, { y: Math.max(0, Math.min(100 - activePrintArea.height, val)) });
-                        }
-                      }}
-                      step={0.1}
-                      min={0}
-                      max={100}
-                      className="h-9 text-xs"
-                      placeholder="Y %"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Size Inputs */}
-              <div>
-                <Label className="text-[8px] font-bold uppercase text-gray-600 mb-1 block">
-                  Size
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Input
-                      type="number"
-                      value={activePrintArea.width.toFixed(1)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          updatePrintArea(activePrintArea.id!, { width: Math.max(10, Math.min(100 - activePrintArea.x, val)) });
-                        }
-                      }}
-                      step={0.1}
-                      min={10}
-                      max={100}
-                      className="h-9 text-xs"
-                      placeholder="W %"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="number"
-                      value={activePrintArea.height.toFixed(1)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          updatePrintArea(activePrintArea.id!, { height: Math.max(10, Math.min(100 - activePrintArea.y, val)) });
-                        }
-                      }}
-                      step={0.1}
-                      min={10}
-                      max={100}
-                      className="h-9 text-xs"
-                      placeholder="H %"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Aspect Ratio Lock */}
-              <button
-                type="button"
-                onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
-                className={`w-full flex items-center justify-center gap-2 h-9 rounded-lg text-[9px] font-bold uppercase transition-colors ${
-                  aspectRatioLocked
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {aspectRatioLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                {aspectRatioLocked ? 'Aspect Locked' : 'Lock Aspect Ratio'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
+              className={`w-full flex items-center justify-center gap-2 h-11 rounded-lg text-[10px] font-bold uppercase transition-colors ${
+                aspectRatioLocked
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {aspectRatioLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+              {aspectRatioLocked ? 'Aspect Locked' : 'Lock Aspect Ratio'}
+            </button>
           </div>
         )}
 
