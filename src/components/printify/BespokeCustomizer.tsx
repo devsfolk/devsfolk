@@ -384,15 +384,29 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return ['front']; // Default to front view
   }, [activeTemplate, activeProduct]);
 
-  // Get the print area for the currently selected view
+  // Phase 5: Get the print area for the currently selected view (NEW SCHEMA)
   const activeViewPrintArea = useMemo(() => {
     const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas || [];
+    
+    // Phase 5: Priority lookup - check for new view field first, fallback to position
     const found = printAreas.find((area: any) => {
-      const position = (area?.position || area?.name || '').toLowerCase();
-      return position === selectedView.toLowerCase();
+      const areaView = (area?.view || area?.position || '').toLowerCase();
+      return areaView === selectedView.toLowerCase();
     });
     
-    return found || printAreas[0] || null;
+    // Phase 5: Validate print area has required data
+    if (found) {
+      console.log('[BespokeCustomizer] Active print area for view:', selectedView, found);
+      return found;
+    }
+    
+    // Fallback to first print area if no match
+    const fallback = printAreas[0] || null;
+    if (fallback) {
+      console.warn('[BespokeCustomizer] No print area found for view:', selectedView, '- using fallback:', fallback);
+    }
+    
+    return fallback;
   }, [activeTemplate, selectedView]);
 
   // Get the image for the currently selected view
@@ -950,52 +964,107 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         canvas.on('object:rotating', syncSelection);
         canvas.on('object:modified', syncSelection);
 
-        // ===== BOUNDARY ENFORCEMENT CODE DISABLED FOR TESTING =====
-        // Testing to confirm if boundary enforcement is causing:
-        // - Design disappearing when scaled larger
-        // - Black screen when clicking text
-        // Will re-enable with safer implementation if bugs disappear
+        // ===== PHASE 5: STRICT BOUNDARY ENFORCEMENT (NEW IMPLEMENTATION) =====
+        /**
+         * Phase 5: Hard Containment Lock
+         * 
+         * Dynamically calculates boundary pixels based on:
+         * 1. Admin-defined print area percentages (from Phase 1-3)
+         * 2. Customer's current responsive viewport mockup image
+         * 3. Actual canvas dimensions at runtime
+         * 
+         * Strategy:
+         * - Print area percentages are relative to mockup image
+         * - Canvas may be smaller/larger than mockup (responsive)
+         * - Scale print area percentages to actual canvas dimensions
+         * - Enforce strict pixel boundaries using Fabric.js object constraints
+         */
         
-        /*
-        // Feature 3: Print Area Boundary Enforcement
-        // Constrain objects to stay within canvas (print area) boundaries
-        const constrainObjectToBounds = (obj: fabric.Object) => {
-          if (!obj || !canvas) return;
+        const calculateCanvasBoundaries = () => {
+          if (!activeViewPrintArea || !canvas) {
+            // No print area defined - allow full canvas (backwards compat)
+            return {
+              minX: 0,
+              minY: 0,
+              maxX: canvas?.getWidth() || 0,
+              maxY: canvas?.getHeight() || 0,
+            };
+          }
 
-          const objBounds = obj.getBoundingRect();
           const canvasWidth = canvas.getWidth();
           const canvasHeight = canvas.getHeight();
 
-          // Calculate object boundaries
+          // Phase 5: Calculate boundaries from percentage coordinates
+          // Print area percentages are already responsive - just apply to current canvas
+          const boundaries = {
+            minX: (activeViewPrintArea.x / 100) * canvasWidth,
+            minY: (activeViewPrintArea.y / 100) * canvasHeight,
+            maxX: ((activeViewPrintArea.x + activeViewPrintArea.width) / 100) * canvasWidth,
+            maxY: ((activeViewPrintArea.y + activeViewPrintArea.height) / 100) * canvasHeight,
+          };
+
+          console.log('[BespokeCustomizer] Canvas boundaries calculated:', {
+            canvasSize: `${canvasWidth}×${canvasHeight}`,
+            printArea: `${activeViewPrintArea.x}%, ${activeViewPrintArea.y}%, ${activeViewPrintArea.width}%, ${activeViewPrintArea.height}%`,
+            boundaries: `(${Math.round(boundaries.minX)},${Math.round(boundaries.minY)}) to (${Math.round(boundaries.maxX)},${Math.round(boundaries.maxY)})`,
+          });
+
+          return boundaries;
+        };
+
+        /**
+         * Phase 5: Hard Containment Lock Function
+         * 
+         * Prevents objects from escaping print area boundaries by:
+         * 1. Getting object's bounding rectangle (accounts for rotation/scaling)
+         * 2. Checking if any edge exceeds boundaries
+         * 3. Adjusting object position to lock at boundary edge
+         * 4. Using setCoords() to update Fabric.js internal coordinates
+         */
+        const constrainObjectToBounds = (obj: fabric.Object) => {
+          if (!obj || !canvas) return;
+
+          const boundaries = calculateCanvasBoundaries();
+          const objBounds = obj.getBoundingRect(); // Gets rotated/scaled bounding box
+
           let left = obj.left || 0;
           let top = obj.top || 0;
 
-          // Check if object exceeds canvas boundaries and adjust position
-          if (objBounds.left < 0) {
-            left -= objBounds.left;
+          // Phase 5: Hard lock at boundaries (no escape allowed)
+          // Check left edge
+          if (objBounds.left < boundaries.minX) {
+            left += (boundaries.minX - objBounds.left);
           }
-          if (objBounds.top < 0) {
-            top -= objBounds.top;
+          
+          // Check top edge
+          if (objBounds.top < boundaries.minY) {
+            top += (boundaries.minY - objBounds.top);
           }
-          if (objBounds.left + objBounds.width > canvasWidth) {
-            left -= (objBounds.left + objBounds.width) - canvasWidth;
+          
+          // Check right edge
+          if (objBounds.left + objBounds.width > boundaries.maxX) {
+            left -= (objBounds.left + objBounds.width - boundaries.maxX);
           }
-          if (objBounds.top + objBounds.height > canvasHeight) {
-            top -= (objBounds.top + objBounds.height) - canvasHeight;
+          
+          // Check bottom edge
+          if (objBounds.top + objBounds.height > boundaries.maxY) {
+            top -= (objBounds.top + objBounds.height - boundaries.maxY);
           }
 
+          // Apply constrained position
           obj.set({ left, top });
-          obj.setCoords();
+          obj.setCoords(); // Update Fabric.js internal coordinates
         };
 
-        // Apply boundary constraints during object movement
+        // Phase 5: Attach boundary enforcement to Fabric.js events
+        // These fire during drag, scale, rotate operations
         canvas.on('object:moving', (e) => {
           if (e.target) {
             constrainObjectToBounds(e.target);
           }
         });
 
-        // Issue 1 Fix: Apply boundary constraints AFTER scaling completes, not during
+        // Phase 5: Enforce boundaries AFTER scaling/rotating completes
         canvas.on('object:modified', (e) => {
           if (e.target) {
             constrainObjectToBounds(e.target);
@@ -1003,14 +1072,21 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           }
         });
 
-        // Apply boundary constraints during object rotation
+        // Phase 5: Enforce during rotation (prevents escape while rotating)
         canvas.on('object:rotating', (e) => {
           if (e.target) {
             constrainObjectToBounds(e.target);
           }
         });
-        */
-        // ===== END DISABLED CODE =====
+
+        // Phase 5: Enforce during scaling (prevents escape while scaling)
+        canvas.on('object:scaling', (e) => {
+          if (e.target) {
+            constrainObjectToBounds(e.target);
+          }
+        });
+
+        // ===== END PHASE 5 BOUNDARY ENFORCEMENT =====
       } else {
         canvas.setWidth(width);
         canvas.setHeight(height);
