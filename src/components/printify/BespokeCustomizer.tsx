@@ -358,31 +358,21 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Issue 3 Fix: Add view/position state for multi-image support
   const [selectedView, setSelectedView] = useState<string>('front');
 
-  // Extract available views from template print areas
+  // FIXED: availableViews should ALWAYS return image-based views, NOT print area positions
   const availableViews = useMemo(() => {
-    const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas || [];
-    
-    if (printAreas.length > 0) {
-      const positions = printAreas
-        .map((area: any) => area?.position || area?.name)
-        .filter(Boolean)
-        .map((pos: string) => pos.toLowerCase());
-      
-      const uniquePositions = Array.from(new Set(positions));
-      if (uniquePositions.length > 0) {
-        return uniquePositions;
-      }
-    }
-    
-    // Fallback: If no print areas or positions, generate views based on number of images
     const imageCount = activeProduct?.images?.length || 0;
-    if (imageCount > 1) {
-      const viewNames = ['front', 'back', 'side', 'detail'];
-      return viewNames.slice(0, imageCount);
+    
+    // Map image count to standard views
+    if (imageCount >= 4) {
+      return ['front', 'back', 'left', 'right'];
+    } else if (imageCount === 3) {
+      return ['front', 'back', 'side'];
+    } else if (imageCount === 2) {
+      return ['front', 'back'];
     }
     
-    return ['front']; // Default to front view
-  }, [activeTemplate, activeProduct]);
+    return ['front']; // Single image default
+  }, [activeProduct]);
 
   // Phase 5: Get the print area for the currently selected view (NEW SCHEMA)
   const activeViewPrintArea = useMemo(() => {
@@ -409,14 +399,25 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return fallback;
   }, [activeTemplate, selectedView]);
 
-  // Get the image for the currently selected view
+  // FIXED: Get the image for the currently selected view - direct index mapping
   const activeViewImage = useMemo(() => {
     // Priority 1: Check for color-specific mockup from admin dashboard
     if (selectedColor && activeTemplate?.colorMockups) {
       const colorData = activeTemplate.colorMockups[selectedColor];
       if (colorData) {
-        const viewKey = selectedView.toLowerCase() as 'front' | 'back' | 'side';
-        const colorMockupUrl = colorData[viewKey] || colorData.front;
+        // Map view to colorMockups keys
+        const viewKey = selectedView.toLowerCase();
+        let colorMockupUrl = colorData[viewKey as 'front' | 'back' | 'side' | 'left' | 'right'];
+        
+        // Fallback mapping: left/right → side
+        if (!colorMockupUrl && (viewKey === 'left' || viewKey === 'right')) {
+          colorMockupUrl = colorData.side;
+        }
+        
+        // Final fallback: use front
+        if (!colorMockupUrl) {
+          colorMockupUrl = colorData.front;
+        }
         
         if (colorMockupUrl) {
           console.log(`[BespokeCustomizer] Using color-specific mockup: ${selectedColor} / ${viewKey} → ${colorMockupUrl}`);
@@ -425,20 +426,27 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       }
     }
 
-    // Priority 2: Fallback to general product images
+    // Priority 2: Fallback to general product images with DIRECT INDEX MAPPING
     if (!activeProduct?.images || activeProduct.images.length === 0) {
       return '/custom-tee-mockup.png';
     }
 
-    // Map view position to image index
-    // If we have multiple images, map them to positions in order
-    const viewIndex = availableViews.indexOf(selectedView.toLowerCase());
-    const imageIndex = viewIndex >= 0 && viewIndex < activeProduct.images.length 
-      ? viewIndex 
-      : 0;
+    // FIXED: Direct view to index mapping (not dependent on availableViews)
+    const viewIndexMap: Record<string, number> = {
+      'front': 0,
+      'back': 1,
+      'left': 2,
+      'side': 2, // Alias for left
+      'right': 3,
+      'detail': 3, // Alias for right
+    };
     
-    return activeProduct.images[imageIndex] || activeProduct.images[0];
-  }, [activeProduct, selectedView, availableViews, selectedColor, activeTemplate]);
+    const imageIndex = viewIndexMap[selectedView.toLowerCase()] || 0;
+    const imageUrl = activeProduct.images[imageIndex] || activeProduct.images[0];
+    
+    console.log(`[BespokeCustomizer] Using product image: view=${selectedView}, index=${imageIndex}, url=${imageUrl}`);
+    return imageUrl;
+  }, [activeProduct, selectedView, selectedColor, activeTemplate]);
 
   // Ensure selectedView is valid when template changes
   useEffect(() => {

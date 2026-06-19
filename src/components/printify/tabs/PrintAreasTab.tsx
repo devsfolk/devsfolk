@@ -2,9 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Move, Maximize2, Edit2, Save } from 'lucide-react';
+import { Plus, Trash2, Move, Lock, Unlock } from 'lucide-react';
 import { TemplateFormData, PrintArea } from '@/hooks/useTemplateForm';
 
 interface PrintAreasTabProps {
@@ -12,27 +11,38 @@ interface PrintAreasTabProps {
   setFormData: React.Dispatch<React.SetStateAction<TemplateFormData>>;
 }
 
-type ViewType = 'front' | 'back' | 'side' | 'sleeve_left' | 'sleeve_right' | 'label';
+// GLOBAL 4-VIEW SYSTEM: Only these 4 views allowed
+type ViewType = 'front' | 'back' | 'left' | 'right';
 
 export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   formData,
   setFormData,
 }) => {
-  // Phase 2: View-based state (not image-index-based)
+  // View-based state
   const [selectedView, setSelectedView] = useState<ViewType>('front');
   const [activePrintAreaId, setActivePrintAreaId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState<string | null>(null);
-  const [dragStartPos, setDragStartPos] = useState({ mouseX: 0, mouseY: 0, areaX: 0, areaY: 0 });
+  const [aspectRatioLocked, setAspectRatioLocked] = useState(false);
+  
+  // FIXED: Store starting dimensions and container size to prevent jitter
+  const [dragStartPos, setDragStartPos] = useState({ 
+    mouseX: 0, 
+    mouseY: 0, 
+    areaX: 0, 
+    areaY: 0,
+    areaWidth: 0,
+    areaHeight: 0,
+    containerWidth: 0,
+    containerHeight: 0,
+  });
 
-  // Available views with labels
+  // GLOBAL 4-VIEW SYSTEM: Always these 4 views, regardless of print areas
   const availableViews: { value: ViewType; label: string }[] = [
     { value: 'front', label: 'Front' },
     { value: 'back', label: 'Back' },
-    { value: 'side', label: 'Side' },
-    { value: 'sleeve_left', label: 'Left Sleeve' },
-    { value: 'sleeve_right', label: 'Right Sleeve' },
-    { value: 'label', label: 'Label' },
+    { value: 'left', label: 'Left Side' },
+    { value: 'right', label: 'Right Side' },
   ];
 
   // Get print areas for the currently selected view
@@ -48,29 +58,27 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     return formData.printAreas.find((area) => area.id === activePrintAreaId) || viewPrintAreas[0] || null;
   }, [activePrintAreaId, formData.printAreas, viewPrintAreas]);
 
-  // Select mockup image for current view (from general images or color mockups)
-  const mockupOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [];
+  // Get mockup image for current view - simple direct mapping
+  const selectedMockupUrl = useMemo(() => {
+    // Priority 1: Color-specific mockup if available
+    if (formData.colorMockups && Object.keys(formData.colorMockups).length > 0) {
+      const firstColor = Object.keys(formData.colorMockups)[0];
+      const viewKey = selectedView === 'left' ? 'side' : selectedView; // Map left → side
+      const mockupUrl = formData.colorMockups[firstColor]?.[viewKey as 'front' | 'back' | 'side'];
+      if (mockupUrl) return mockupUrl;
+    }
     
-    // Add general template images
-    formData.images.forEach((img, idx) => {
-      options.push({ value: img, label: `Image ${idx + 1}` });
-    });
+    // Priority 2: General product images (direct index mapping)
+    const viewIndexMap: Record<ViewType, number> = {
+      'front': 0,
+      'back': 1,
+      'left': 2,
+      'right': 3,
+    };
     
-    // Add color-specific mockups for current view
-    Object.entries(formData.colorMockups || {}).forEach(([color, views]) => {
-      const viewUrl = views[selectedView];
-      if (viewUrl) {
-        options.push({ value: viewUrl, label: `${color} - ${selectedView}` });
-      }
-    });
-    
-    return options;
+    const imageIndex = viewIndexMap[selectedView];
+    return formData.images[imageIndex] || formData.images[0] || '';
   }, [formData.images, formData.colorMockups, selectedView]);
-
-  const [selectedMockupUrl, setSelectedMockupUrl] = useState<string>(
-    mockupOptions[0]?.value || formData.images[0] || ''
-  );
 
   // Phase 3: Track mockup image natural dimensions for pixel calculation
   const [mockupDimensions, setMockupDimensions] = useState<{
@@ -176,7 +184,7 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     }));
   };
 
-  // Phase 2: Fixed drag/resize handlers (no jitter)
+  // FIXED: Smooth drag/resize handlers with proper starting dimensions
   const handleMouseDown = (
     e: React.MouseEvent,
     areaId: string,
@@ -189,6 +197,11 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     const area = formData.printAreas.find((a) => a.id === areaId);
     if (!area) return;
     
+    const container = (e.currentTarget as HTMLElement).closest('[data-canvas-container]') as HTMLElement;
+    if (!container) return;
+    
+    const rect = container.getBoundingClientRect();
+    
     setActivePrintAreaId(areaId);
     
     if (action === 'drag') {
@@ -198,6 +211,10 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
         mouseY: e.clientY,
         areaX: area.x,
         areaY: area.y,
+        areaWidth: area.width,
+        areaHeight: area.height,
+        containerWidth: rect.width,
+        containerHeight: rect.height,
       });
     } else if (action === 'resize' && corner) {
       setResizing(corner);
@@ -206,6 +223,10 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
         mouseY: e.clientY,
         areaX: area.x,
         areaY: area.y,
+        areaWidth: area.width,
+        areaHeight: area.height,
+        containerWidth: rect.width,
+        containerHeight: rect.height,
       });
     }
   };
@@ -213,15 +234,16 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!activePrintArea || (!dragging && !resizing)) return;
 
-    const container = e.currentTarget as HTMLElement;
-    const rect = container.getBoundingClientRect();
+    // Use saved container dimensions - prevents recalculation jitter
+    const deltaXPixels = e.clientX - dragStartPos.mouseX;
+    const deltaYPixels = e.clientY - dragStartPos.mouseY;
     
-    // Calculate delta from drag start
-    const deltaXPercent = ((e.clientX - dragStartPos.mouseX) / rect.width) * 100;
-    const deltaYPercent = ((e.clientY - dragStartPos.mouseY) / rect.height) * 100;
+    // Convert pixel delta to percentage using STARTING container dimensions
+    const deltaXPercent = (deltaXPixels / dragStartPos.containerWidth) * 100;
+    const deltaYPercent = (deltaYPixels / dragStartPos.containerHeight) * 100;
 
     if (dragging) {
-      // Calculate new position (absolute from drag start, not cumulative)
+      // Calculate new position from starting position
       let newX = dragStartPos.areaX + deltaXPercent;
       let newY = dragStartPos.areaY + deltaYPercent;
       
@@ -234,30 +256,70 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
         y: Math.round(newY * 10) / 10,
       });
     } else if (resizing) {
-      let newWidth = activePrintArea.width;
-      let newHeight = activePrintArea.height;
-      let newX = activePrintArea.x;
-      let newY = activePrintArea.y;
+      let newWidth = dragStartPos.areaWidth;
+      let newHeight = dragStartPos.areaHeight;
+      let newX = dragStartPos.areaX;
+      let newY = dragStartPos.areaY;
 
-      // Resize from corners (fixed: use delta from start, not cumulative)
-      if (resizing.includes('e')) {
-        newWidth = Math.max(10, Math.min(100 - newX, activePrintArea.width + deltaXPercent));
+      // Calculate aspect ratio from starting dimensions
+      const startAspectRatio = dragStartPos.areaWidth / dragStartPos.areaHeight;
+
+      // Resize from corners - calculate from starting dimensions
+      if (resizing === 'se') {
+        // Southeast: expand right and down
+        newWidth = dragStartPos.areaWidth + deltaXPercent;
+        newHeight = dragStartPos.areaHeight + deltaYPercent;
+        
+        if (aspectRatioLocked) {
+          const avgScale = (deltaXPercent / dragStartPos.areaWidth + deltaYPercent / dragStartPos.areaHeight) / 2;
+          newWidth = dragStartPos.areaWidth * (1 + avgScale);
+          newHeight = dragStartPos.areaHeight * (1 + avgScale);
+        }
+      } else if (resizing === 'sw') {
+        // Southwest: expand left and down
+        newX = dragStartPos.areaX + deltaXPercent;
+        newWidth = dragStartPos.areaWidth - deltaXPercent;
+        newHeight = dragStartPos.areaHeight + deltaYPercent;
+        
+        if (aspectRatioLocked) {
+          const avgScale = (-deltaXPercent / dragStartPos.areaWidth + deltaYPercent / dragStartPos.areaHeight) / 2;
+          newWidth = dragStartPos.areaWidth * (1 + avgScale);
+          newHeight = dragStartPos.areaHeight * (1 + avgScale);
+          newX = dragStartPos.areaX + dragStartPos.areaWidth - newWidth;
+        }
+      } else if (resizing === 'ne') {
+        // Northeast: expand right and up
+        newWidth = dragStartPos.areaWidth + deltaXPercent;
+        newY = dragStartPos.areaY + deltaYPercent;
+        newHeight = dragStartPos.areaHeight - deltaYPercent;
+        
+        if (aspectRatioLocked) {
+          const avgScale = (deltaXPercent / dragStartPos.areaWidth - deltaYPercent / dragStartPos.areaHeight) / 2;
+          newWidth = dragStartPos.areaWidth * (1 + avgScale);
+          newHeight = dragStartPos.areaHeight * (1 + avgScale);
+          newY = dragStartPos.areaY + dragStartPos.areaHeight - newHeight;
+        }
+      } else if (resizing === 'nw') {
+        // Northwest: expand left and up
+        newX = dragStartPos.areaX + deltaXPercent;
+        newWidth = dragStartPos.areaWidth - deltaXPercent;
+        newY = dragStartPos.areaY + deltaYPercent;
+        newHeight = dragStartPos.areaHeight - deltaYPercent;
+        
+        if (aspectRatioLocked) {
+          const avgScale = (-deltaXPercent / dragStartPos.areaWidth - deltaYPercent / dragStartPos.areaHeight) / 2;
+          newWidth = dragStartPos.areaWidth * (1 + avgScale);
+          newHeight = dragStartPos.areaHeight * (1 + avgScale);
+          newX = dragStartPos.areaX + dragStartPos.areaWidth - newWidth;
+          newY = dragStartPos.areaY + dragStartPos.areaHeight - newHeight;
+        }
       }
-      if (resizing.includes('w')) {
-        const newLeft = dragStartPos.areaX + deltaXPercent;
-        const maxLeft = dragStartPos.areaX + activePrintArea.width - 10;
-        newX = Math.max(0, Math.min(maxLeft, newLeft));
-        newWidth = dragStartPos.areaX + activePrintArea.width - newX;
-      }
-      if (resizing.includes('s')) {
-        newHeight = Math.max(10, Math.min(100 - newY, activePrintArea.height + deltaYPercent));
-      }
-      if (resizing.includes('n')) {
-        const newTop = dragStartPos.areaY + deltaYPercent;
-        const maxTop = dragStartPos.areaY + activePrintArea.height - 10;
-        newY = Math.max(0, Math.min(maxTop, newTop));
-        newHeight = dragStartPos.areaY + activePrintArea.height - newY;
-      }
+
+      // Constrain to minimum and bounds
+      newWidth = Math.max(10, Math.min(100 - newX, newWidth));
+      newHeight = Math.max(10, Math.min(100 - newY, newHeight));
+      newX = Math.max(0, Math.min(100 - newWidth, newX));
+      newY = Math.max(0, Math.min(100 - newHeight, newY));
 
       updatePrintArea(activePrintArea.id!, {
         x: Math.round(newX * 10) / 10,
@@ -274,87 +336,24 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Phase 2: Clean View Selector Tabs */}
-      <div className="space-y-3">
-        <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">
-          Select View to Configure
-        </Label>
-        
-        <Tabs value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)}>
-          <TabsList className="grid w-full grid-cols-6 h-11">
-            {availableViews.map((view) => (
-              <TabsTrigger
-                key={view.value}
-                value={view.value}
-                className="text-[10px] font-black uppercase"
-              >
-                {view.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        
-        <p className="text-[9px] text-gray-500 pl-1">
-          Viewing: <span className="font-bold">{availableViews.find((v) => v.value === selectedView)?.label}</span> • 
-          {viewPrintAreas.length} print area(s) defined
-        </p>
-      </div>
-
-      {/* Mockup Image Selector */}
-      {mockupOptions.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">
-            Reference Mockup Image
-          </Label>
-          <Select value={selectedMockupUrl} onValueChange={setSelectedMockupUrl}>
-            <SelectTrigger className="rounded-xl h-11 text-xs">
-              <SelectValue placeholder="Select mockup image" />
-            </SelectTrigger>
-            <SelectContent>
-              {mockupOptions.map((option, idx) => (
-                <SelectItem key={idx} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Phase 2: Visual Canvas Editor with Multi-Area Support */}
-      {selectedMockupUrl ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">
-              Visual Print Area Editor - {availableViews.find((v) => v.value === selectedView)?.label}
-            </Label>
-            <Button
-              type="button"
-              onClick={addPrintArea}
-              size="sm"
-              className="h-8 text-[9px] font-black uppercase"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Add Area
-            </Button>
-          </div>
-
-          <div
-            className="relative w-full bg-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden cursor-crosshair"
-            style={{ height: '500px' }}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
-            {/* Phase 3: Mockup Image with dimension tracking */}
+    <div className="flex gap-6 h-[calc(100vh-220px)] min-h-[600px]">
+      {/* LEFT SIDE: VISUAL CANVAS (65%) */}
+      <div className="w-[65%] flex flex-col gap-3">
+        {/* Canvas Container */}
+        <div
+          data-canvas-container
+          className="flex-1 relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-300 overflow-hidden shadow-lg"
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          {/* Mockup Image */}
+          {selectedMockupUrl ? (
             <img
               src={selectedMockupUrl}
               alt={`${selectedView} view mockup`}
-              className="absolute inset-0 pointer-events-none"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              className="absolute inset-0 w-full h-full object-contain pointer-events-none"
               onLoad={(e) => {
-                // Phase 3: Capture natural dimensions for pixel calculation
                 const img = e.currentTarget as HTMLImageElement;
                 setMockupDimensions({
                   width: img.naturalWidth,
@@ -366,291 +365,390 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
                 setMockupDimensions(null);
               }}
             />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500">
+              <div className="text-center">
+                <p className="text-sm font-bold">No mockup image available</p>
+                <p className="text-xs mt-1">Add product images to enable print area editor</p>
+              </div>
+            </div>
+          )}
 
-            {/* Phase 2: Multi-Area Rendering - Render ALL print areas for this view */}
-            {viewPrintAreas.map((area) => (
+          {/* Print Area Boxes */}
+          {viewPrintAreas.map((area) => {
+            const isActive = activePrintAreaId === area.id;
+            
+            return (
               <div
                 key={area.id}
-                className={`absolute border-4 cursor-move transition-colors ${
-                  activePrintAreaId === area.id
-                    ? 'border-blue-500 bg-blue-500/10'
-                    : 'border-gray-400 bg-gray-400/5 hover:border-blue-400'
+                className={`absolute border-4 transition-all duration-200 group ${
+                  isActive
+                    ? 'border-blue-500 bg-blue-500/10 shadow-2xl shadow-blue-500/30 z-20'
+                    : 'border-gray-400 bg-gray-400/5 hover:border-blue-400 hover:bg-blue-400/5 z-10'
                 }`}
                 style={{
                   left: `${area.x}%`,
                   top: `${area.y}%`,
                   width: `${area.width}%`,
                   height: `${area.height}%`,
+                  cursor: dragging ? 'grabbing' : 'grab',
                 }}
                 onMouseDown={(e) => handleMouseDown(e, area.id!, 'drag')}
                 onClick={() => setActivePrintAreaId(area.id!)}
               >
-                {/* Corner Resize Handles */}
-                {activePrintAreaId === area.id && (
+                {/* Corner Resize Handles (Premium Style) */}
+                {isActive && (
                   <>
                     {['nw', 'ne', 'sw', 'se'].map((corner) => (
                       <div
                         key={corner}
-                        className={`absolute w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-${corner}-resize hover:scale-125 transition-transform z-10`}
+                        className={`absolute w-3 h-3 bg-white border-2 border-blue-500 rounded-full shadow-lg hover:scale-150 transition-transform z-30 cursor-${corner}-resize`}
                         style={{
-                          top: corner.includes('n') ? '-8px' : 'auto',
-                          bottom: corner.includes('s') ? '-8px' : 'auto',
-                          left: corner.includes('w') ? '-8px' : 'auto',
-                          right: corner.includes('e') ? '-8px' : 'auto',
+                          top: corner.includes('n') ? '-6px' : 'auto',
+                          bottom: corner.includes('s') ? '-6px' : 'auto',
+                          left: corner.includes('w') ? '-6px' : 'auto',
+                          right: corner.includes('e') ? '-6px' : 'auto',
                         }}
                         onMouseDown={(e) => handleMouseDown(e, area.id!, 'resize', corner)}
                       />
                     ))}
+
+                    {/* Floating Delete Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removePrintArea(area.id!);
+                      }}
+                      className="absolute -top-10 -right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 z-30"
+                      title="Delete print area"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </>
                 )}
 
-                {/* Center Icon */}
+                {/* Center Move Icon */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div
                     className={`${
-                      activePrintAreaId === area.id ? 'bg-blue-500' : 'bg-gray-500'
-                    } text-white rounded-full p-2`}
+                      isActive ? 'bg-blue-500' : 'bg-gray-500 opacity-60 group-hover:opacity-100'
+                    } text-white rounded-full p-2 shadow-lg transition-all`}
                   >
-                    <Move className="h-4 w-4" />
+                    <Move className="h-5 w-5" />
                   </div>
                 </div>
 
-                {/* Dimensions Label */}
+                {/* Top Label (Name) */}
                 <div
-                  className={`absolute -top-8 left-0 ${
-                    activePrintAreaId === area.id ? 'bg-blue-500' : 'bg-gray-500'
-                  } text-white text-[10px] font-black px-2 py-1 rounded whitespace-nowrap`}
+                  className={`absolute -top-9 left-0 ${
+                    isActive ? 'bg-blue-500' : 'bg-gray-500'
+                  } text-white text-[10px] font-bold px-3 py-1 rounded-md shadow-md max-w-[180px] truncate`}
                 >
-                  {area.name.length > 20 ? area.name.substring(0, 20) + '...' : area.name}
+                  {area.name}
                 </div>
 
-                {/* Size Label */}
+                {/* Bottom Label (Dimensions) */}
                 <div
-                  className={`absolute -bottom-8 left-0 ${
-                    activePrintAreaId === area.id ? 'bg-blue-500' : 'bg-gray-500'
-                  } text-white text-[9px] font-black px-2 py-1 rounded whitespace-nowrap`}
+                  className={`absolute -bottom-9 left-0 ${
+                    isActive ? 'bg-blue-500' : 'bg-gray-500'
+                  } text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-md whitespace-nowrap`}
                 >
                   {area.width.toFixed(1)}% × {area.height.toFixed(1)}%
                 </div>
               </div>
-            ))}
+            );
+          })}
 
-            {/* Empty State */}
-            {viewPrintAreas.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-center p-4">
-                <div>
-                  <Maximize2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm font-bold">No print areas defined for {selectedView} view</p>
-                  <p className="text-xs mt-1 opacity-75">Click "Add Area" to create your first print zone</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Active Print Area Info & Controls */}
-          {activePrintArea && (
-            <div className="space-y-2">
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <Input
-                      type="text"
-                      value={activePrintArea.name}
-                      onChange={(e) => updatePrintArea(activePrintArea.id!, { name: e.target.value })}
-                      className="text-xs font-bold h-8 border-blue-300"
-                      placeholder="Print area name"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removePrintArea(activePrintArea.id!)}
-                    className="h-8 w-8 text-red-600 hover:bg-red-50 ml-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {/* Phase 3: Dual Display - Percentages + Pixels */}
-                <div className="space-y-2">
-                  {/* Percentage Coordinates */}
-                  <div>
-                    <p className="text-[8px] font-black uppercase text-blue-600 mb-1">
-                      Percentage Coordinates (Responsive)
-                    </p>
-                    <div className="grid grid-cols-4 gap-2 text-[9px]">
-                      <div>
-                        <span className="text-blue-700">X:</span>{' '}
-                        <span className="font-bold text-blue-900">{activePrintArea.x.toFixed(1)}%</span>
-                      </div>
-                      <div>
-                        <span className="text-blue-700">Y:</span>{' '}
-                        <span className="font-bold text-blue-900">{activePrintArea.y.toFixed(1)}%</span>
-                      </div>
-                      <div>
-                        <span className="text-blue-700">W:</span>{' '}
-                        <span className="font-bold text-blue-900">{activePrintArea.width.toFixed(1)}%</span>
-                      </div>
-                      <div>
-                        <span className="text-blue-700">H:</span>{' '}
-                        <span className="font-bold text-blue-900">{activePrintArea.height.toFixed(1)}%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pixel Coordinates (Calculated) */}
-                  {activeAreaPixels && mockupDimensions && (
-                    <div>
-                      <p className="text-[8px] font-black uppercase text-green-600 mb-1">
-                        Pixel Coordinates (at {mockupDimensions.width}×{mockupDimensions.height} mockup)
-                      </p>
-                      <div className="grid grid-cols-4 gap-2 text-[9px]">
-                        <div>
-                          <span className="text-green-700">X:</span>{' '}
-                          <span className="font-bold text-green-900">{activeAreaPixels.x}px</span>
-                        </div>
-                        <div>
-                          <span className="text-green-700">Y:</span>{' '}
-                          <span className="font-bold text-green-900">{activeAreaPixels.y}px</span>
-                        </div>
-                        <div>
-                          <span className="text-green-700">W:</span>{' '}
-                          <span className="font-bold text-green-900">{activeAreaPixels.width}px</span>
-                        </div>
-                        <div>
-                          <span className="text-green-700">H:</span>{' '}
-                          <span className="font-bold text-green-900">{activeAreaPixels.height}px</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Reference Mockup Info */}
-                  {activePrintArea.referenceMockupWidth && (
-                    <div className="pt-1 border-t border-blue-200">
-                      <p className="text-[8px] text-blue-600">
-                        Reference: {activePrintArea.referenceMockupWidth}×{activePrintArea.referenceMockupHeight}px
-                        {activePrintArea.referenceMockupUrl && (
-                          <span className="ml-1 text-blue-500">• Mockup saved</span>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Phase 3: Save Confirmation with dual-unit display */}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const pixelInfo = activeAreaPixels && mockupDimensions
-                      ? `\nPixels (at ${mockupDimensions.width}×${mockupDimensions.height}): ${activeAreaPixels.x}px, ${activeAreaPixels.y}px | ${activeAreaPixels.width}px × ${activeAreaPixels.height}px`
-                      : '';
-                    
-                    alert(
-                      `✓ Print area saved!\n\n` +
-                      `Name: ${activePrintArea.name}\n` +
-                      `View: ${selectedView}\n` +
-                      `Percentages: ${activePrintArea.x.toFixed(1)}%, ${activePrintArea.y.toFixed(1)}% | ${activePrintArea.width.toFixed(1)}% × ${activePrintArea.height.toFixed(1)}%` +
-                      pixelInfo +
-                      (activePrintArea.referenceMockupUrl ? `\n\nReference mockup saved ✓` : '')
-                    );
-                  }}
-                  className="flex-1 rounded-xl h-11 text-[10px] font-black uppercase bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Print Area
-                </Button>
+          {/* Empty State */}
+          {viewPrintAreas.length === 0 && selectedMockupUrl && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="text-center text-white p-6 bg-black/20 rounded-2xl backdrop-blur-md">
+                <div className="text-4xl mb-3">📐</div>
+                <p className="text-base font-bold mb-1">No print areas for {availableViews.find(v => v.value === selectedView)?.label}</p>
+                <p className="text-sm opacity-90">Click "+ Add Print Area" to define a print zone</p>
               </div>
             </div>
           )}
         </div>
-      ) : (
-        <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-center">
-          <p className="text-xs font-bold text-amber-900">No mockup images available</p>
-          <p className="text-[10px] text-amber-700 mt-1">
-            Go to Display Tab → Add product images or color mockups to enable print area editor
+
+        {/* Bottom Toolbar */}
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            onClick={addPrintArea}
+            className="flex-1 h-11 rounded-xl text-[10px] font-black uppercase bg-green-600 hover:bg-green-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Print Area
+          </Button>
+          {activePrintArea && (
+            <Button
+              type="button"
+              onClick={() => removePrintArea(activePrintArea.id!)}
+              variant="destructive"
+              className="h-11 px-6 rounded-xl text-[10px] font-black uppercase"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* RIGHT SIDE: CONTROL SIDEBAR (35%) */}
+      <div className="w-[35%] space-y-4 overflow-y-auto pr-2">
+        {/* View Selector Tabs */}
+        <div className="bg-white rounded-xl border-2 border-gray-200 p-3 shadow-sm">
+          <Label className="text-[8px] font-black uppercase text-gray-500 mb-2 block">
+            Select View to Configure
+          </Label>
+          <Tabs value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)}>
+            <TabsList className="grid w-full grid-cols-4 h-11">
+              {availableViews.map((view) => (
+                <TabsTrigger
+                  key={view.value}
+                  value={view.value}
+                  className="text-[9px] font-black uppercase"
+                >
+                  {view.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <p className="text-[8px] text-gray-500 mt-2">
+            {viewPrintAreas.length} area(s) defined • Auto-applies to all colors
           </p>
         </div>
-      )}
 
-      {/* All Print Areas Summary List */}
-      {formData.printAreas.length > 0 && (
-        <div className="space-y-3">
-          <Label className="text-[10px] font-black uppercase text-gray-400 pl-1">
-            All Configured Print Areas ({formData.printAreas.length})
-          </Label>
+        {/* Active Print Area Card */}
+        {activePrintArea && (
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 shadow-sm">
+            <Label className="text-[8px] font-black uppercase text-blue-600 mb-2 block">
+              Active Print Area
+            </Label>
+            
+            {/* Name Input */}
+            <Input
+              type="text"
+              value={activePrintArea.name}
+              onChange={(e) => updatePrintArea(activePrintArea.id!, { name: e.target.value })}
+              className="text-xs font-bold h-9 mb-3 border-blue-300 bg-white"
+              placeholder="Print area name"
+            />
 
-          <div className="space-y-2">
-            {formData.printAreas.map((area) => {
-              const areaView = (area.view || area.position)?.toLowerCase();
-              const viewLabel = availableViews.find((v) => v.value === areaView)?.label || areaView;
-              const isActive = activePrintAreaId === area.id;
-              
-              return (
-                <div
-                  key={area.id}
-                  className={`p-3 rounded-xl border-2 transition-colors cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-50 border-blue-500'
-                      : 'bg-gray-50 border-gray-200 hover:border-blue-300'
-                  }`}
-                  onClick={() => {
-                    setSelectedView(areaView as ViewType);
-                    setActivePrintAreaId(area.id!);
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-xs font-black">{area.name}</p>
-                      <p className="text-[9px] text-gray-600">
-                        View: {viewLabel} •
-                        Area: {area.width.toFixed(1)}% × {area.height.toFixed(1)}% •
-                        DPI: {area.dpi || 300}
-                      </p>
+            {/* Coordinates Table */}
+            <div className="space-y-2">
+              <div>
+                <p className="text-[8px] font-black uppercase text-blue-600 mb-1">
+                  Percentage (Responsive)
+                </p>
+                <div className="grid grid-cols-4 gap-2 text-[9px] bg-white rounded-lg p-2 border border-blue-200">
+                  <div>
+                    <span className="text-blue-700">X:</span>{' '}
+                    <span className="font-bold text-blue-900">{activePrintArea.x.toFixed(1)}%</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Y:</span>{' '}
+                    <span className="font-bold text-blue-900">{activePrintArea.y.toFixed(1)}%</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">W:</span>{' '}
+                    <span className="font-bold text-blue-900">{activePrintArea.width.toFixed(1)}%</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">H:</span>{' '}
+                    <span className="font-bold text-blue-900">{activePrintArea.height.toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {activeAreaPixels && mockupDimensions && (
+                <div>
+                  <p className="text-[8px] font-black uppercase text-green-600 mb-1">
+                    Pixel (at {mockupDimensions.width}×{mockupDimensions.height})
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 text-[9px] bg-white rounded-lg p-2 border border-green-200">
+                    <div>
+                      <span className="text-green-700">X:</span>{' '}
+                      <span className="font-bold text-green-900">{activeAreaPixels.x}px</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {isActive && (
-                        <span className="text-[9px] bg-blue-500 text-white px-2 py-1 rounded font-black">
-                          ACTIVE
-                        </span>
-                      )}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedView(areaView as ViewType);
-                          setActivePrintAreaId(area.id!);
-                        }}
-                        className="h-8 w-8 text-blue-600 hover:bg-blue-100"
-                        title="Edit this print area"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removePrintArea(area.id!);
-                        }}
-                        className="h-8 w-8 text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div>
+                      <span className="text-green-700">Y:</span>{' '}
+                      <span className="font-bold text-green-900">{activeAreaPixels.y}px</span>
+                    </div>
+                    <div>
+                      <span className="text-green-700">W:</span>{' '}
+                      <span className="font-bold text-green-900">{activeAreaPixels.width}px</span>
+                    </div>
+                    <div>
+                      <span className="text-green-700">H:</span>{' '}
+                      <span className="font-bold text-green-900">{activeAreaPixels.height}px</span>
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
+        )}
+
+        {/* Fine-Tune Adjustments */}
+        {activePrintArea && (
+          <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm">
+            <Label className="text-[8px] font-black uppercase text-gray-500 mb-3 block">
+              Fine-Tune Adjustments
+            </Label>
+            
+            <div className="space-y-3">
+              {/* Position Inputs */}
+              <div>
+                <Label className="text-[8px] font-bold uppercase text-gray-600 mb-1 block">
+                  Position
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Input
+                      type="number"
+                      value={activePrintArea.x.toFixed(1)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          updatePrintArea(activePrintArea.id!, { x: Math.max(0, Math.min(100 - activePrintArea.width, val)) });
+                        }
+                      }}
+                      step={0.1}
+                      min={0}
+                      max={100}
+                      className="h-9 text-xs"
+                      placeholder="X %"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="number"
+                      value={activePrintArea.y.toFixed(1)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          updatePrintArea(activePrintArea.id!, { y: Math.max(0, Math.min(100 - activePrintArea.height, val)) });
+                        }
+                      }}
+                      step={0.1}
+                      min={0}
+                      max={100}
+                      className="h-9 text-xs"
+                      placeholder="Y %"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Size Inputs */}
+              <div>
+                <Label className="text-[8px] font-bold uppercase text-gray-600 mb-1 block">
+                  Size
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Input
+                      type="number"
+                      value={activePrintArea.width.toFixed(1)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          updatePrintArea(activePrintArea.id!, { width: Math.max(10, Math.min(100 - activePrintArea.x, val)) });
+                        }
+                      }}
+                      step={0.1}
+                      min={10}
+                      max={100}
+                      className="h-9 text-xs"
+                      placeholder="W %"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="number"
+                      value={activePrintArea.height.toFixed(1)}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          updatePrintArea(activePrintArea.id!, { height: Math.max(10, Math.min(100 - activePrintArea.y, val)) });
+                        }
+                      }}
+                      step={0.1}
+                      min={10}
+                      max={100}
+                      className="h-9 text-xs"
+                      placeholder="H %"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Aspect Ratio Lock */}
+              <button
+                type="button"
+                onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
+                className={`w-full flex items-center justify-center gap-2 h-9 rounded-lg text-[9px] font-bold uppercase transition-colors ${
+                  aspectRatioLocked
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {aspectRatioLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                {aspectRatioLocked ? 'Aspect Locked' : 'Lock Aspect Ratio'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* All Print Areas List */}
+        {formData.printAreas.length > 0 && (
+          <div className="bg-white rounded-xl border-2 border-gray-200 p-3 shadow-sm">
+            <Label className="text-[8px] font-black uppercase text-gray-500 mb-2 block">
+              All Print Areas ({formData.printAreas.length})
+            </Label>
+            
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {formData.printAreas.map((area) => {
+                const areaView = (area.view || area.position)?.toLowerCase();
+                const viewLabel = availableViews.find((v) => v.value === areaView)?.label || areaView;
+                const isActive = activePrintAreaId === area.id;
+                
+                return (
+                  <div
+                    key={area.id}
+                    className={`p-2 rounded-lg border-2 transition-colors cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-50 border-blue-500'
+                        : 'bg-gray-50 border-gray-200 hover:border-blue-300'
+                    }`}
+                    onClick={() => {
+                      setSelectedView(areaView as ViewType);
+                      setActivePrintAreaId(area.id!);
+                    }}
+                  >
+                    <p className="text-[10px] font-bold truncate">{area.name}</p>
+                    <p className="text-[8px] text-gray-600">
+                      {viewLabel} • {area.width.toFixed(0)}×{area.height.toFixed(0)}%
+                      {isActive && <span className="ml-1 text-blue-600 font-bold">• ACTIVE</span>}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Info Card */}
+        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+          <p className="text-[9px] font-bold text-green-900">✓ Global 4-View System</p>
+          <p className="text-[8px] text-green-700 mt-1">
+            Print areas defined here automatically apply to ALL product colors
+          </p>
         </div>
-      )}
+      </div>
     </div>
   );
 };
