@@ -56,9 +56,11 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
 
   // Get print areas for the currently selected view
   const viewPrintAreas = useMemo(() => {
-    return formData.printAreas.filter(
-      (area) => (area.view || area.position)?.toLowerCase() === selectedView.toLowerCase()
-    );
+    return formData.printAreas.filter((area) => {
+      // CRITICAL: Normalize legacy data - treat position and view as interchangeable
+      const currentAreaView = (area.view || area.position || '').toLowerCase();
+      return currentAreaView === selectedView.toLowerCase();
+    });
   }, [formData.printAreas, selectedView]);
 
   // Get active print area being edited - MUST belong to current view
@@ -69,8 +71,8 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     const area = formData.printAreas.find((area) => area.id === activePrintAreaId);
     if (!area) return viewPrintAreas[0] || null;
     
-    // Verify the area belongs to current view
-    const areaView = (area.view || area.position)?.toLowerCase();
+    // Verify the area belongs to current view (normalize legacy data)
+    const areaView = (area.view || area.position || '').toLowerCase();
     if (areaView !== selectedView.toLowerCase()) {
       // Area is from a different view - return first area in current view instead
       return viewPrintAreas[0] || null;
@@ -177,32 +179,21 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
 
   // Phase 3: Update specific print area by ID + stamp reference mockup dimensions
   const updatePrintArea = (id: string, updates: Partial<PrintArea>) => {
-    console.log('[updatePrintArea BEFORE]', { 
-      id, 
-      updates,
-      selectedView,
-      existingArea: formData.printAreas.find(a => a.id === id)
-    });
-    
     setFormData((prev) => ({
       ...prev,
       printAreas: prev.printAreas.map((area) => {
         if (area.id !== id) return area;
 
-        // CRITICAL: Preserve view/position during updates to prevent state leakage
+        // CRITICAL: Hard normalization for legacy data compatibility
+        // Legacy templates only have 'position', new ones have 'view'
+        // Force BOTH to be set during every update to prevent state leakage
         const updatedArea = { 
           ...area, 
           ...updates,
-          // Explicitly preserve view binding (never allow it to be lost)
-          view: area.view || selectedView,
-          position: area.position || selectedView,
+          // Hard fallback chain: prefer view > position > current selectedView
+          view: area.view || area.position || selectedView,
+          position: area.position || area.view || selectedView,
         };
-        
-        console.log('[updatePrintArea AFTER]', {
-          originalView: area.view,
-          updatedAreaView: updatedArea.view,
-          finalObject: updatedArea
-        });
         
         if (mockupDimensions) {
           return {
@@ -432,16 +423,6 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
           {/* Print Area Boxes */}
           {viewPrintAreas.map((area) => {
             const isActive = activePrintAreaId === area.id;
-            
-            // DEBUG: Log every area being rendered
-            console.log('[PrintAreasTab RENDER]', {
-              areaId: area.id,
-              areaName: area.name,
-              areaView: area.view,
-              areaPosition: area.position,
-              selectedView: selectedView,
-              shouldRender: (area.view || area.position)?.toLowerCase() === selectedView.toLowerCase()
-            });
             
             return (
               <div
