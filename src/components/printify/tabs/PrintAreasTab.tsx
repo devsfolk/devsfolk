@@ -25,6 +25,15 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   const [resizing, setResizing] = useState<string | null>(null);
   const [aspectRatioLocked, setAspectRatioLocked] = useState(false);
   
+  // CRITICAL FIX: Reset active print area when view changes to prevent state leakage
+  React.useEffect(() => {
+    // When view changes, select the first print area in that view (or null if none)
+    const firstAreaInView = formData.printAreas.find(
+      (area) => (area.view || area.position)?.toLowerCase() === selectedView.toLowerCase()
+    );
+    setActivePrintAreaId(firstAreaInView?.id || null);
+  }, [selectedView, formData.printAreas]);
+  
   // Animation frame ref for smooth updates
   const rafRef = useRef<number | null>(null);
   
@@ -55,11 +64,23 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     );
   }, [formData.printAreas, selectedView]);
 
-  // Get active print area being edited
+  // Get active print area being edited - MUST belong to current view
   const activePrintArea = useMemo(() => {
     if (!activePrintAreaId) return viewPrintAreas[0] || null;
-    return formData.printAreas.find((area) => area.id === activePrintAreaId) || viewPrintAreas[0] || null;
-  }, [activePrintAreaId, formData.printAreas, viewPrintAreas]);
+    
+    // CRITICAL: Only return the area if it belongs to the current view
+    const area = formData.printAreas.find((area) => area.id === activePrintAreaId);
+    if (!area) return viewPrintAreas[0] || null;
+    
+    // Verify the area belongs to current view
+    const areaView = (area.view || area.position)?.toLowerCase();
+    if (areaView !== selectedView.toLowerCase()) {
+      // Area is from a different view - return first area in current view instead
+      return viewPrintAreas[0] || null;
+    }
+    
+    return area;
+  }, [activePrintAreaId, formData.printAreas, viewPrintAreas, selectedView]);
 
   // Get mockup image for current view - simple direct mapping
   const selectedMockupUrl = useMemo(() => {

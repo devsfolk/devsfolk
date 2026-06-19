@@ -908,7 +908,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     let canvas: fabric.Canvas | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let disposed = false;
-    let rafConstraintId: number | null = null; // RAF for smooth constraint updates
 
     const resetWorkspaceState = () => {
       setCustomImage(null);
@@ -1022,84 +1021,58 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         };
 
         /**
-         * CRITICAL FIX: Smooth Fabric.js dragging with zero jumping/lag
+         * CRITICAL FIX: Absolute synchronous Fabric.js containment
          * 
-         * The bug: Fabric.js objects have originX/originY set to 'center' for text/images.
-         * During drag operations, if we apply constraints immediately, the object jumps
-         * because we're modifying obj.left/obj.top while the transformation matrix is mid-update.
+         * The bug: RAF approach defers constraint to next frame, causing lag/jumping
+         * because the mouse has already moved by the time the constraint applies.
          * 
-         * Solution:
-         * 1. Use requestAnimationFrame to sync with browser's paint cycle (60fps)
-         * 2. Calculate constraints based on bounding rect (handles all transformations)
-         * 3. Apply deltas smoothly to object's control point (works with any origin)
-         * 4. Use setCoords() to update Fabric's internal position cache
+         * Solution: SYNCHRONOUS clamping during object:moving event
+         * 1. Get bounding rect in absolute canvas coordinates
+         * 2. Calculate clamped position limits
+         * 3. Apply constraints IMMEDIATELY (not deferred)
+         * 4. Work with object's center point (originX/originY = 'center')
          */
         
         const constrainObjectToBounds = (obj: fabric.Object) => {
           if (!obj || !canvas) return;
 
-          // Cancel any pending constraint update
-          if (rafConstraintId !== null) {
-            cancelAnimationFrame(rafConstraintId);
+          const boundaries = calculateCanvasBoundaries();
+          
+          // Get the object's bounding rectangle in absolute coordinates
+          // This handles rotation, scaling, and origin point automatically
+          const bound = obj.getBoundingRect(false, true);
+          
+          // Calculate object center point (where left/top refer to with center origin)
+          const objCenterX = obj.left || 0;
+          const objCenterY = obj.top || 0;
+          
+          // Calculate how far the bounding rect extends from center
+          const halfWidth = bound.width / 2;
+          const halfHeight = bound.height / 2;
+          
+          // Calculate the valid range for the object's CENTER point
+          const minCenterX = boundaries.minX + halfWidth;
+          const maxCenterX = boundaries.maxX - halfWidth;
+          const minCenterY = boundaries.minY + halfHeight;
+          const maxCenterY = boundaries.maxY - halfHeight;
+          
+          // Clamp the center position to valid range
+          let newCenterX = objCenterX;
+          let newCenterY = objCenterY;
+          
+          if (newCenterX < minCenterX) newCenterX = minCenterX;
+          if (newCenterX > maxCenterX) newCenterX = maxCenterX;
+          if (newCenterY < minCenterY) newCenterY = minCenterY;
+          if (newCenterY > maxCenterY) newCenterY = maxCenterY;
+          
+          // Only update if position changed (avoid unnecessary renders)
+          if (newCenterX !== objCenterX || newCenterY !== objCenterY) {
+            obj.set({
+              left: newCenterX,
+              top: newCenterY,
+            });
+            obj.setCoords(); // Update coordinate cache
           }
-
-          // Schedule constraint for next frame (smooth, zero-lag)
-          rafConstraintId = requestAnimationFrame(() => {
-            const boundaries = calculateCanvasBoundaries();
-            
-            // Get actual visual bounding rectangle (handles rotation, scale, origin point)
-            // This returns the ABSOLUTE position and size of the object's visual bounds
-            const objBounds = obj.getBoundingRect(true, true); // absolute coords, with padding
-
-            // Calculate overflow amounts (how far object extends past boundaries)
-            // Positive means object is past the boundary, negative means inside
-            const leftOverflow = boundaries.minX - objBounds.left;
-            const topOverflow = boundaries.minY - objBounds.top;
-            const rightOverflow = (objBounds.left + objBounds.width) - boundaries.maxX;
-            const bottomOverflow = (objBounds.top + objBounds.height) - boundaries.maxY;
-
-            // Calculate delta to apply to object's control point (left, top)
-            // This works regardless of originX/originY settings
-            let deltaX = 0;
-            let deltaY = 0;
-
-            if (leftOverflow > 0) {
-              // Object is past left edge - push it right
-              deltaX = leftOverflow;
-            } else if (rightOverflow > 0) {
-              // Object is past right edge - push it left
-              deltaX = -rightOverflow;
-            }
-
-            if (topOverflow > 0) {
-              // Object is past top edge - push it down
-              deltaY = topOverflow;
-            } else if (bottomOverflow > 0) {
-              // Object is past bottom edge - push it up
-              deltaY = -bottomOverflow;
-            }
-
-            // Apply constraint if object is out of bounds
-            if (deltaX !== 0 || deltaY !== 0) {
-              // CRITICAL: Apply delta to current position (not absolute override)
-              // This preserves the smooth drag experience
-              const newLeft = (obj.left || 0) + deltaX;
-              const newTop = (obj.top || 0) + deltaY;
-              
-              obj.set({
-                left: Math.floor(newLeft), // Pixel-perfect alignment
-                top: Math.floor(newTop),
-              });
-              
-              // Update Fabric.js coordinate cache immediately
-              obj.setCoords();
-              
-              // Render without full recalculation for performance
-              canvas.requestRenderAll();
-            }
-            
-            rafConstraintId = null;
-          });
         };
 
         // Phase 5: Attach boundary enforcement to Fabric.js events
@@ -1150,13 +1123,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
     return () => {
       disposed = true;
-      
-      // Cancel any pending RAF constraint updates
-      if (rafConstraintId !== null) {
-        cancelAnimationFrame(rafConstraintId);
-        rafConstraintId = null;
-      }
-      
       resizeObserver?.disconnect();
       if (canvas) {
         canvas.dispose();
