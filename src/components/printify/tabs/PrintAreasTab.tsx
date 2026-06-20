@@ -407,21 +407,33 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
     <div className="flex gap-2 h-[calc(100vh-180px)]">
       {/* LEFT SIDE: VISUAL CANVAS (65%) - ABSOLUTE HEIGHT LOCK */}
       <div className="w-[65%] flex flex-col gap-2">
-        {/* Canvas Container - ABSOLUTE: No flex, fixed viewport calc */}
+        {/* Canvas Container - Fixed viewport height, flex-centered */}
         <div
-          data-canvas-container
-          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 overflow-hidden shadow-lg"
+          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 overflow-hidden shadow-lg flex items-center justify-center"
           style={{ height: 'calc(100vh - 260px)' }}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
         >
-          {/* Mockup Image - 100% fill with object-contain */}
+          {/* Fix 1: Aspect-ratio-locked inner wrapper — getBoundingClientRect() now measures
+              the rendered image rect, not the outer container with letterbox margins */}
+          <div
+            data-canvas-container
+            className="relative"
+            style={mockupDimensions ? {
+              aspectRatio: `${mockupDimensions.width} / ${mockupDimensions.height}`,
+              maxHeight: '100%',
+              maxWidth: '100%',
+              height: mockupDimensions.width / mockupDimensions.height < 1 ? '100%' : 'auto',
+              width: mockupDimensions.width / mockupDimensions.height >= 1 ? '100%' : 'auto',
+            } : { width: '100%', height: '100%' }}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+          {/* Mockup Image - fills the aspect-ratio-locked wrapper */}
           {selectedMockupUrl ? (
             <img
               src={selectedMockupUrl}
               alt={`${selectedView} view mockup`}
-              className="w-full h-full object-contain pointer-events-none"
+              className="absolute inset-0 w-full h-full pointer-events-none"
               onLoad={(e) => {
                 const img = e.currentTarget as HTMLImageElement;
                 setMockupDimensions({
@@ -542,6 +554,7 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Bottom Toolbar */}
