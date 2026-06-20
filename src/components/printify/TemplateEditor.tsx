@@ -8,7 +8,6 @@ import { useTemplateForm } from '@/hooks/useTemplateForm';
 import { DisplayTab } from './tabs/DisplayTab';
 import { PricesTab } from './tabs/PricesTab';
 import { PrintAreasTab } from './tabs/PrintAreasTab';
-import { GeneratorTab } from './tabs/GeneratorTab';
 import { PrintifyCatalogTemplate } from '@/types';
 import { supabase } from '@/lib/supabase';
 
@@ -443,12 +442,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
             >
               Print Areas ({formData.printAreas.length})
             </TabsTrigger>
-            <TabsTrigger
-              value="generator"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-black px-4 py-2.5 text-xs font-black uppercase"
-            >
-              Generator
-            </TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto p-6">
@@ -462,10 +455,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
             <TabsContent value="printareas" className="mt-0">
               <PrintAreasTab formData={formData} setFormData={setFormData} />
-            </TabsContent>
-
-            <TabsContent value="generator" className="mt-0">
-              <GeneratorTab formData={formData} setFormData={setFormData} />
             </TabsContent>
           </div>
         </Tabs>
