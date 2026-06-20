@@ -406,25 +406,22 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
   return (
     <div className="flex gap-2 h-[calc(100vh-180px)]">
       {/* LEFT SIDE: VISUAL CANVAS (65%) - ABSOLUTE HEIGHT LOCK */}
-      <div className="w-[65%] flex flex-col items-center justify-center gap-2 bg-gray-50/50 rounded-xl border border-gray-100 p-4">
-        {/* Canvas Container - Tightly wrapped to aspect ratio */}
+      <div className="w-[65%] flex flex-col gap-2">
+        {/* Canvas Container - ABSOLUTE: No flex, fixed viewport calc */}
         <div
           data-canvas-container
-          className="relative bg-white rounded-md shadow-lg border-2 border-gray-300 w-full max-w-[600px] overflow-hidden"
-          style={{ 
-            aspectRatio: mockupDimensions ? `${mockupDimensions.width} / ${mockupDimensions.height}` : '1 / 1',
-            maxHeight: 'calc(100vh - 280px)'
-          }}
+          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 overflow-hidden shadow-lg"
+          style={{ height: 'calc(100vh - 260px)' }}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          {/* Mockup Image - 100% fill with object-cover so it exactly fits the aspect-ratio container */}
+          {/* Mockup Image - 100% fill with object-contain */}
           {selectedMockupUrl ? (
             <img
               src={selectedMockupUrl}
               alt={`${selectedView} view mockup`}
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              className="w-full h-full object-contain pointer-events-none"
               onLoad={(e) => {
                 const img = e.currentTarget as HTMLImageElement;
                 setMockupDimensions({
