@@ -409,136 +409,151 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
       <div className="w-[65%] flex flex-col gap-2">
         {/* Canvas Container - ABSOLUTE: No flex, fixed viewport calc */}
         <div
-          data-canvas-container
-          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 overflow-hidden shadow-lg"
+          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 overflow-hidden shadow-lg flex items-center justify-center"
           style={{ height: 'calc(100vh - 260px)' }}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          {/* Mockup Image - 100% fill with object-contain */}
+          {/* Inner perfectly bounded container for aspect-ratio matching */}
           {selectedMockupUrl ? (
-            <img
-              src={selectedMockupUrl}
-              alt={`${selectedView} view mockup`}
-              className="w-full h-full object-contain pointer-events-none"
-              onLoad={(e) => {
-                const img = e.currentTarget as HTMLImageElement;
-                setMockupDimensions({
-                  width: img.naturalWidth,
-                  height: img.naturalHeight,
-                });
-              }}
-              onError={(e) => {
-                e.currentTarget.src = '/custom-tee-mockup.png';
-                setMockupDimensions(null);
-              }}
-            />
+            <div 
+              data-canvas-container
+              className="relative shadow-sm"
+              style={
+                mockupDimensions
+                  ? {
+                      aspectRatio: `${mockupDimensions.width} / ${mockupDimensions.height}`,
+                      maxHeight: '100%',
+                      maxWidth: '100%',
+                      height: mockupDimensions.width / mockupDimensions.height < 1 ? '100%' : 'auto',
+                      width: mockupDimensions.width / mockupDimensions.height >= 1 ? '100%' : 'auto',
+                    }
+                  : { width: '100%', height: '100%' }
+              }
+            >
+              <img
+                src={selectedMockupUrl}
+                alt={`${selectedView} view mockup`}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                onLoad={(e) => {
+                  const img = e.currentTarget as HTMLImageElement;
+                  setMockupDimensions({
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                  });
+                }}
+                onError={(e) => {
+                  e.currentTarget.src = '/custom-tee-mockup.png';
+                  setMockupDimensions(null);
+                }}
+              />
+
+              {/* Print Area Boxes - MOVED INSIDE THE IMAGE BOUNDS CONTAINER */}
+              {viewPrintAreas.map((area) => {
+                const isActive = activePrintAreaId === area.id;
+                
+                return (
+                  <div
+                    key={area.id}
+                    className={`absolute border-4 transition-all duration-200 group ${
+                      isActive
+                        ? 'border-blue-500 bg-blue-500/10 shadow-2xl shadow-blue-500/30 z-20'
+                        : 'border-gray-400 bg-gray-400/5 hover:border-blue-400 hover:bg-blue-400/5 z-10'
+                    }`}
+                    style={{
+                      left: `${area.x}%`,
+                      top: `${area.y}%`,
+                      width: `${area.width}%`,
+                      height: `${area.height}%`,
+                      cursor: dragging ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, area.id!, 'drag')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActivePrintAreaId(area.id!);
+                    }}
+                  >
+                    {/* Corner Resize Handles (Premium Style) */}
+                    {isActive && (
+                      <>
+                        {['nw', 'ne', 'sw', 'se'].map((corner) => (
+                          <div
+                            key={corner}
+                            className={`absolute w-3 h-3 bg-white border-2 border-blue-500 rounded-full shadow-lg hover:scale-150 transition-transform z-30 cursor-${corner}-resize`}
+                            style={{
+                              top: corner.includes('n') ? '-6px' : 'auto',
+                              bottom: corner.includes('s') ? '-6px' : 'auto',
+                              left: corner.includes('w') ? '-6px' : 'auto',
+                              right: corner.includes('e') ? '-6px' : 'auto',
+                            }}
+                            onMouseDown={(e) => handleMouseDown(e, area.id!, 'resize', corner)}
+                          />
+                        ))}
+
+                        {/* Floating Delete Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removePrintArea(area.id!);
+                          }}
+                          className="absolute -top-10 -right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 z-30"
+                          title="Delete print area"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+
+                    {/* Center Move Icon */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div
+                        className={`${
+                          isActive ? 'bg-blue-500' : 'bg-gray-500 opacity-60 group-hover:opacity-100'
+                        } text-white rounded-full p-2 shadow-lg transition-all`}
+                      >
+                        <Move className="h-5 w-5" />
+                      </div>
+                    </div>
+
+                    {/* Top Label (Name) */}
+                    <div
+                      className={`absolute -top-9 left-0 ${
+                        isActive ? 'bg-blue-500' : 'bg-gray-500'
+                      } text-white text-[10px] font-bold px-3 py-1 rounded-md shadow-md max-w-[180px] truncate`}
+                    >
+                      {area.name}
+                    </div>
+
+                    {/* Bottom Label (Dimensions) */}
+                    <div
+                      className={`absolute -bottom-9 left-0 ${
+                        isActive ? 'bg-blue-500' : 'bg-gray-500'
+                      } text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-md whitespace-nowrap`}
+                    >
+                      {area.width.toFixed(1)}% × {area.height.toFixed(1)}%
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Empty State Overlay */}
+              {viewPrintAreas.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                  <div className="text-center text-white p-6 bg-black/20 rounded-2xl backdrop-blur-md">
+                    <div className="text-4xl mb-3">📐</div>
+                    <p className="text-base font-bold mb-1">No print areas for {availableViews.find(v => v.value === selectedView)?.label}</p>
+                    <p className="text-sm opacity-90">Click "+ Add Print Area" to define a print zone</p>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500">
               <div className="text-center">
                 <p className="text-sm font-bold">No mockup image available</p>
                 <p className="text-xs mt-1">Add product images to enable print area editor</p>
-              </div>
-            </div>
-          )}
-
-          {/* Print Area Boxes */}
-          {viewPrintAreas.map((area) => {
-            const isActive = activePrintAreaId === area.id;
-            
-            return (
-              <div
-                key={area.id}
-                className={`absolute border-4 transition-all duration-200 group ${
-                  isActive
-                    ? 'border-blue-500 bg-blue-500/10 shadow-2xl shadow-blue-500/30 z-20'
-                    : 'border-gray-400 bg-gray-400/5 hover:border-blue-400 hover:bg-blue-400/5 z-10'
-                }`}
-                style={{
-                  left: `${area.x}%`,
-                  top: `${area.y}%`,
-                  width: `${area.width}%`,
-                  height: `${area.height}%`,
-                  cursor: dragging ? 'grabbing' : 'grab',
-                }}
-                onMouseDown={(e) => handleMouseDown(e, area.id!, 'drag')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActivePrintAreaId(area.id!);
-                }}
-              >
-                {/* Corner Resize Handles (Premium Style) */}
-                {isActive && (
-                  <>
-                    {['nw', 'ne', 'sw', 'se'].map((corner) => (
-                      <div
-                        key={corner}
-                        className={`absolute w-3 h-3 bg-white border-2 border-blue-500 rounded-full shadow-lg hover:scale-150 transition-transform z-30 cursor-${corner}-resize`}
-                        style={{
-                          top: corner.includes('n') ? '-6px' : 'auto',
-                          bottom: corner.includes('s') ? '-6px' : 'auto',
-                          left: corner.includes('w') ? '-6px' : 'auto',
-                          right: corner.includes('e') ? '-6px' : 'auto',
-                        }}
-                        onMouseDown={(e) => handleMouseDown(e, area.id!, 'resize', corner)}
-                      />
-                    ))}
-
-                    {/* Floating Delete Button */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removePrintArea(area.id!);
-                      }}
-                      className="absolute -top-10 -right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 z-30"
-                      title="Delete print area"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
-
-                {/* Center Move Icon */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div
-                    className={`${
-                      isActive ? 'bg-blue-500' : 'bg-gray-500 opacity-60 group-hover:opacity-100'
-                    } text-white rounded-full p-2 shadow-lg transition-all`}
-                  >
-                    <Move className="h-5 w-5" />
-                  </div>
-                </div>
-
-                {/* Top Label (Name) */}
-                <div
-                  className={`absolute -top-9 left-0 ${
-                    isActive ? 'bg-blue-500' : 'bg-gray-500'
-                  } text-white text-[10px] font-bold px-3 py-1 rounded-md shadow-md max-w-[180px] truncate`}
-                >
-                  {area.name}
-                </div>
-
-                {/* Bottom Label (Dimensions) */}
-                <div
-                  className={`absolute -bottom-9 left-0 ${
-                    isActive ? 'bg-blue-500' : 'bg-gray-500'
-                  } text-white text-[9px] font-bold px-2 py-1 rounded-md shadow-md whitespace-nowrap`}
-                >
-                  {area.width.toFixed(1)}% × {area.height.toFixed(1)}%
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Empty State */}
-          {viewPrintAreas.length === 0 && selectedMockupUrl && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <div className="text-center text-white p-6 bg-black/20 rounded-2xl backdrop-blur-md">
-                <div className="text-4xl mb-3">📐</div>
-                <p className="text-base font-bold mb-1">No print areas for {availableViews.find(v => v.value === selectedView)?.label}</p>
-                <p className="text-sm opacity-90">Click "+ Add Print Area" to define a print zone</p>
               </div>
             </div>
           )}
