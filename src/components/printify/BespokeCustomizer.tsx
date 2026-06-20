@@ -263,90 +263,25 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   }, [activeProduct, customProducts, productSlug]);
 
+  // Storefront Phase 2: Direct 1:1 Percentage Mapping
+  // Eliminates hardcoded dimensions and aspect-ratio guessing.
+  // Coordinates are injected exactly as saved in the admin dashboard.
   const getPrintAreaStyle = () => {
-    const title = (activeProduct?.name || activeTemplate?.title || '').toLowerCase();
-    
-    // Default style (suitable for T-shirts/clothing)
-    let style = {
-      width: 35,
-      height: 45,
-      top: 28,
-      left: 32.5,
-    };
-
-    if (title.includes('mug') || title.includes('cup') || title.includes('bottle')) {
-      style = {
-        width: 55,
-        height: 35,
-        top: 35,
-        left: 22.5,
-      };
-    } else if (title.includes('poster') || title.includes('canvas') || title.includes('print')) {
-      style = {
-        width: 80,
-        height: 80,
-        top: 10,
-        left: 10,
-      };
-    } else if (title.includes('phone') || title.includes('case')) {
-      style = {
-        width: 45,
-        height: 75,
-        top: 12.5,
-        left: 27.5,
-      };
-    } else if (title.includes('shoe') || title.includes('sneaker') || title.includes('boot')) {
-      style = {
-        width: 60,
-        height: 40,
-        top: 30,
-        left: 20,
-      };
-    } else if (title.includes('hoodie') || title.includes('sweatshirt')) {
-      style = {
-        width: 32,
-        height: 38,
-        top: 34,
-        left: 34,
-      };
-    }
-    
-    let { width, height, top, left } = style;
-
-    // Issue 1 Fix: Use activeViewPrintArea instead of searching for "front"
     if (activeViewPrintArea) {
-      const pWidth = Number(activeViewPrintArea?.width || activeViewPrintArea?.pixel_width || 0);
-      const pHeight = Number(activeViewPrintArea?.height || activeViewPrintArea?.pixel_height || 0);
-
-      if (pWidth > 0 && pHeight > 0) {
-        const targetRatio = pWidth / pHeight;
-        const maxRatio = width / height;
-
-        if (targetRatio > maxRatio) {
-          // Blueprint print area is wider than max layout bounds - adjust height
-          const originalHeight = height;
-          height = width / targetRatio;
-          top = top + (originalHeight - height) / 2;
-        } else {
-          // Blueprint print area is taller than max layout bounds - adjust width
-          const originalWidth = width;
-          width = height * targetRatio;
-          left = left + (originalWidth - width) / 2;
-        }
-      }
-
-      // Use position offsets from the placeholder if available
-      const posTop = Number(activeViewPrintArea?.top ?? activeViewPrintArea?.y ?? activeViewPrintArea?.offset_y ?? 0);
-      const posLeft = Number(activeViewPrintArea?.left ?? activeViewPrintArea?.x ?? activeViewPrintArea?.offset_x ?? 0);
-      if (posTop > 0 && posTop <= 100) top = posTop;
-      if (posLeft > 0 && posLeft <= 100) left = posLeft;
+      return {
+        width: `${activeViewPrintArea.width || activeViewPrintArea.pixel_width || 32}%`,
+        height: `${activeViewPrintArea.height || activeViewPrintArea.pixel_height || 45}%`,
+        top: `${activeViewPrintArea.y ?? activeViewPrintArea.top ?? activeViewPrintArea.offset_y ?? 25}%`,
+        left: `${activeViewPrintArea.x ?? activeViewPrintArea.left ?? activeViewPrintArea.offset_x ?? 34}%`,
+      };
     }
     
+    // Fallback if no print area defined for this template
     return {
-      width: `${width}%`,
-      height: `${height}%`,
-      top: `${top}%`,
-      left: `${left}%`,
+      width: '32%',
+      height: '45%',
+      top: '25%',
+      left: '34%',
     };
   };
 
@@ -355,6 +290,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [selectedSize, setSelectedSize] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
   
+  // Phase 2: Add mockup intrinsic dimensions state
+  const [mockupDimensions, setMockupDimensions] = useState<{ width: number; height: number } | null>(null);
+
   // Issue 3 Fix: Add view/position state for multi-image support
   const [selectedView, setSelectedView] = useState<string>('front');
 
@@ -1033,7 +971,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
          * 4. Work with object's center point (originX/originY = 'center')
          */
         
-        const constrainObjectToBounds = (obj: fabric.Object) => {
+        const constrainObjectToBounds = (obj: fabric.Object, isMoving: boolean = false) => {
           if (!obj || !canvas) return;
 
           const boundaries = calculateCanvasBoundaries();
@@ -1071,7 +1009,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               left: newCenterX,
               top: newCenterY,
             });
-            obj.setCoords(); // Update coordinate cache
+            
+            // CRITICAL FIX: Only call setCoords if we are NOT actively moving/dragging.
+            // Calling setCoords during object:moving causes the mouse pointer delta to reset,
+            // resulting in violent jumping/flickering.
+            if (!isMoving) {
+              obj.setCoords(); // Update coordinate cache safely
+            }
           }
         };
 
@@ -1079,14 +1023,14 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         // These fire during drag, scale, rotate operations
         canvas.on('object:moving', (e) => {
           if (e.target) {
-            constrainObjectToBounds(e.target);
+            constrainObjectToBounds(e.target, true);
           }
         });
 
         // Phase 5: Enforce boundaries AFTER scaling/rotating completes
         canvas.on('object:modified', (e) => {
           if (e.target) {
-            constrainObjectToBounds(e.target);
+            constrainObjectToBounds(e.target, false);
             canvas.renderAll();
           }
         });
@@ -1094,14 +1038,14 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         // Phase 5: Enforce during rotation (prevents escape while rotating)
         canvas.on('object:rotating', (e) => {
           if (e.target) {
-            constrainObjectToBounds(e.target);
+            constrainObjectToBounds(e.target, true);
           }
         });
 
         // Phase 5: Enforce during scaling (prevents escape while scaling)
         canvas.on('object:scaling', (e) => {
           if (e.target) {
-            constrainObjectToBounds(e.target);
+            constrainObjectToBounds(e.target, true);
           }
         });
 
@@ -1763,22 +1707,35 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Canvas Preview area */}
         <div className="lg:col-span-7 flex flex-col items-center">
-          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
+          {/* Outer container remains square for UI consistency */}
+          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 shadow-sm flex items-center justify-center overflow-hidden p-4">
             
-            {/* Template Mockup Image */}
-            <img 
-              src={activeViewImage} 
-              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
-              className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
-            />
-
-            {/* Print Area Bounds holding Fabric Canvas */}
+            {/* Phase 2: Inner tight aspect-ratio wrapper for pixel-perfect coordinates */}
             <div 
-              ref={printAreaRef}
-              className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
-              style={getPrintAreaStyle()}
+              className="relative w-full h-full flex items-center justify-center max-h-full max-w-full"
+              style={{
+                aspectRatio: mockupDimensions ? `${mockupDimensions.width} / ${mockupDimensions.height}` : '1 / 1',
+              }}
             >
-              <canvas ref={canvasElRef} id="fabric-canvas" className="absolute inset-0 w-full h-full" />
+              {/* Template Mockup Image - object-cover to perfectly fill the aspect-ratio container */}
+              <img 
+                src={activeViewImage} 
+                alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
+                className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none rounded-xl"
+                onLoad={(e) => {
+                  const img = e.currentTarget as HTMLImageElement;
+                  setMockupDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+                }}
+              />
+
+              {/* Print Area Bounds holding Fabric Canvas */}
+              <div 
+                ref={printAreaRef}
+                className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
+                style={getPrintAreaStyle()}
+              >
+                <canvas ref={canvasElRef} id="fabric-canvas" className="absolute inset-0 w-full h-full" />
+              </div>
             </div>
           </div>
           
