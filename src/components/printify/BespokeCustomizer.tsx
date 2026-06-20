@@ -6,7 +6,6 @@ import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Pa
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
@@ -346,32 +345,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   
   // Issue 3 Fix: Add view/position state for multi-image support
   const [selectedView, setSelectedView] = useState<string>('front');
-  const canvasStatesRef = useRef<Record<string, any>>({});
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState('');
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
-
-  const handleViewChange = (newView: string) => {
-    if (selectedView === newView) return;
-    
-    const canvas = fabricCanvasRef.current;
-    if (canvas) {
-      canvasStatesRef.current[selectedView] = canvas.toJSON(['id', 'layerName', 'selectable']);
-      canvas.clear();
-      
-      const savedState = canvasStatesRef.current[newView];
-      if (savedState) {
-        canvas.loadFromJSON(savedState, () => {
-          canvas.renderAll();
-        });
-      }
-    }
-    
-    setSelectedView(newView);
-    setCustomImage(null);
-    setCustomText('');
-    setHasSelection(false);
-  };
 
   // FIXED: availableViews should ALWAYS return image-based views, NOT print area positions
   const availableViews = useMemo(() => {
@@ -466,7 +439,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Ensure selectedView is valid when template changes
   useEffect(() => {
     if (!availableViews.includes(selectedView.toLowerCase())) {
-      handleViewChange(availableViews[0] || 'front');
+      setSelectedView(availableViews[0] || 'front');
     }
   }, [availableViews, selectedView]);
 
@@ -948,13 +921,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         });
         fabricCanvasRef.current = canvas;
 
-        const savedState = canvasStatesRef.current[selectedView];
-        if (savedState) {
-          canvas.loadFromJSON(savedState, () => {
-            canvas.renderAll();
-          });
-        }
-
         const syncSelection = () => {
           const activeObj = canvas?.getActiveObject();
           if (activeObj) {
@@ -1060,26 +1026,40 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           const boundaries = calculateCanvasBoundaries();
           
+          // Get the object's bounding rectangle in absolute coordinates
+          // This handles rotation, scaling, and origin point automatically
           const bound = obj.getBoundingRect(false, true);
           
-          let dx = 0;
-          let dy = 0;
-
-          if (bound.left < boundaries.minX) {
-            dx = boundaries.minX - bound.left;
-          } else if (bound.left + bound.width > boundaries.maxX) {
-            dx = boundaries.maxX - (bound.left + bound.width);
-          }
-
-          if (bound.top < boundaries.minY) {
-            dy = boundaries.minY - bound.top;
-          } else if (bound.top + bound.height > boundaries.maxY) {
-            dy = boundaries.maxY - (bound.top + bound.height);
-          }
-
-          if (dx !== 0 || dy !== 0) {
-            obj.left = (obj.left || 0) + dx;
-            obj.top = (obj.top || 0) + dy;
+          // Calculate object center point (where left/top refer to with center origin)
+          const objCenterX = obj.left || 0;
+          const objCenterY = obj.top || 0;
+          
+          // Calculate how far the bounding rect extends from center
+          const halfWidth = bound.width / 2;
+          const halfHeight = bound.height / 2;
+          
+          // Calculate the valid range for the object's CENTER point
+          const minCenterX = boundaries.minX + halfWidth;
+          const maxCenterX = boundaries.maxX - halfWidth;
+          const minCenterY = boundaries.minY + halfHeight;
+          const maxCenterY = boundaries.maxY - halfHeight;
+          
+          // Clamp the center position to valid range
+          let newCenterX = objCenterX;
+          let newCenterY = objCenterY;
+          
+          if (newCenterX < minCenterX) newCenterX = minCenterX;
+          if (newCenterX > maxCenterX) newCenterX = maxCenterX;
+          if (newCenterY < minCenterY) newCenterY = minCenterY;
+          if (newCenterY > maxCenterY) newCenterY = maxCenterY;
+          
+          // Only update if position changed (avoid unnecessary renders)
+          if (newCenterX !== objCenterX || newCenterY !== objCenterY) {
+            obj.set({
+              left: newCenterX,
+              top: newCenterY,
+            });
+            obj.setCoords(); // Update coordinate cache
           }
         };
 
@@ -1653,27 +1633,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     });
   };
 
-  const handleOpenPreview = async () => {
-    if (!activeProduct) return;
-    setIsGeneratingPreview(true);
-    
-    // Save current active layer state first
-    const canvas = fabricCanvasRef.current;
-    if (canvas) {
-      canvasStatesRef.current[selectedView] = canvas.toJSON(['id', 'layerName', 'selectable']);
-    }
-    
-    const url = await generatePreviewDataUrl().catch(() => '');
-    setIsGeneratingPreview(false);
-    
-    if (url) {
-      setPreviewImageUrl(url);
-      setIsPreviewOpen(true);
-    } else {
-      alert("Please wait for the design to finish loading or try again.");
-    }
-  };
-
   // Add compiled customization item to cart
   const handleAddToCart = async () => {
     if (!activeProduct) {
@@ -1821,7 +1780,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               {availableViews.map((view) => (
                 <button
                   key={view}
-                  onClick={() => handleViewChange(view)}
+                  onClick={() => setSelectedView(view)}
                   className={`px-6 py-2.5 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${
                     selectedView.toLowerCase() === view.toLowerCase()
                       ? 'bg-black text-white border-black shadow-md'
@@ -2533,8 +2492,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   
                   <Button
                     size="lg"
-                    onClick={handleOpenPreview}
-                    disabled={!hasCustomization || isGeneratingPreview}
+                    onClick={handleAddToCart}
+                    disabled={!hasCustomization}
                     className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                       backgroundColor: hasCustomization ? settings.primaryColor : '#9CA3AF',
@@ -2542,11 +2501,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       borderColor: 'var(--primary-border)',
                     }}
                   >
-                    {isGeneratingPreview ? (
-                      <><RefreshCw className="h-5 w-5 animate-spin" /> Generating Preview...</>
-                    ) : (
-                      <><Check className="h-5 w-5" /> Preview Design</>
-                    )}
+                    <ShoppingBag className="h-5 w-5" />
+                    Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
                   </Button>
                 </>
               );
@@ -2557,46 +2513,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
       {/* Hidden compilation Canvas */}
       <canvas ref={compiledCanvasRef} className="hidden" />
-
-      {/* Preview Modal */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-md bg-white border-2 border-gray-100 rounded-3xl overflow-hidden p-0 shadow-2xl">
-          <DialogHeader className="p-6 pb-0">
-            <DialogTitle className="text-xl font-black uppercase tracking-tight text-center">Design Preview</DialogTitle>
-          </DialogHeader>
-          <div className="p-6 flex flex-col items-center">
-            <div className="relative w-full max-w-[350px] aspect-square rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden shadow-inner mb-6">
-              {previewImageUrl ? (
-                <img src={previewImageUrl} alt="Preview" className="w-full h-full object-contain" />
-              ) : (
-                <div className="flex items-center justify-center w-full h-full text-gray-500 font-bold text-sm">
-                  Loading preview...
-                </div>
-              )}
-            </div>
-            
-            <div className="w-full space-y-3">
-              <Button
-                onClick={() => {
-                  setIsPreviewOpen(false);
-                  handleAddToCart();
-                }}
-                className="w-full h-14 rounded-2xl text-xs font-black uppercase tracking-wider bg-black hover:bg-neutral-800 text-white shadow-lg shadow-black/20"
-              >
-                <ShoppingBag className="h-5 w-5 mr-2" />
-                Add to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setIsPreviewOpen(false)}
-                className="w-full h-12 rounded-2xl text-[10px] font-black uppercase tracking-wider border-2 border-gray-200 text-gray-500 hover:text-black hover:border-gray-400"
-              >
-                Keep Editing
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
