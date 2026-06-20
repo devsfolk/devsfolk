@@ -313,21 +313,33 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     
     let { width, height, top, left } = style;
 
+    // Issue 1 Fix: Use activeViewPrintArea instead of searching for "front"
     if (activeViewPrintArea) {
-      const pWidth = Number(activeViewPrintArea.width || activeViewPrintArea.pixel_width || 0);
-      const pHeight = Number(activeViewPrintArea.height || activeViewPrintArea.pixel_height || 0);
-      const posX = Number(activeViewPrintArea.x ?? activeViewPrintArea.left ?? 0);
-      const posY = Number(activeViewPrintArea.y ?? activeViewPrintArea.top ?? 0);
+      const pWidth = Number(activeViewPrintArea?.width || activeViewPrintArea?.pixel_width || 0);
+      const pHeight = Number(activeViewPrintArea?.height || activeViewPrintArea?.pixel_height || 0);
 
-      // Issue 1 Fix: Explicitly map the exact admin-configured dimensions against the rendered product mockup viewport
-      if (pWidth > 0 && pHeight > 0 && posX >= 0 && posY >= 0) {
-        return {
-          width: `${pWidth}%`,
-          height: `${pHeight}%`,
-          top: `${posY}%`,
-          left: `${posX}%`,
-        };
+      if (pWidth > 0 && pHeight > 0) {
+        const targetRatio = pWidth / pHeight;
+        const maxRatio = width / height;
+
+        if (targetRatio > maxRatio) {
+          // Blueprint print area is wider than max layout bounds - adjust height
+          const originalHeight = height;
+          height = width / targetRatio;
+          top = top + (originalHeight - height) / 2;
+        } else {
+          // Blueprint print area is taller than max layout bounds - adjust width
+          const originalWidth = width;
+          width = height * targetRatio;
+          left = left + (originalWidth - width) / 2;
+        }
       }
+
+      // Use position offsets from the placeholder if available
+      const posTop = Number(activeViewPrintArea?.top ?? activeViewPrintArea?.y ?? activeViewPrintArea?.offset_y ?? 0);
+      const posLeft = Number(activeViewPrintArea?.left ?? activeViewPrintArea?.x ?? activeViewPrintArea?.offset_x ?? 0);
+      if (posTop > 0 && posTop <= 100) top = posTop;
+      if (posLeft > 0 && posLeft <= 100) left = posLeft;
     }
     
     return {
@@ -1748,10 +1760,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Canvas Preview area */}
         <div className="lg:col-span-7 flex flex-col items-center">
-          <div className="relative w-full max-w-[550px] aspect-square rounded-3xl bg-gray-50/50 border border-gray-100 overflow-hidden flex items-center justify-center p-4 lg:p-6">
+          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
             
             {/* Template Mockup Image */}
             <img 
@@ -1795,7 +1807,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         </div>
 
         {/* Right Column: Control Options */}
-        <div className="lg:col-span-5 bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm flex flex-col w-full">
+        <div className="lg:col-span-5 bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm flex flex-col w-full">
           {/* Tab buttons list */}
           <div className="grid border-b" style={{ gridTemplateColumns: `repeat(${tabsList.length}, minmax(0, 1fr))` }}>
             {tabsList.map((tab) => {
@@ -1804,11 +1816,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-3.5 flex flex-col items-center justify-center gap-1.5 transition-all relative group ${activeTab === tab.id ? 'text-black bg-gray-50' : 'text-gray-400 hover:text-black hover:bg-gray-50/50'}`}
+                  className={`py-4 flex flex-col items-center justify-center gap-1.5 border-r last:border-r-0 transition-colors ${activeTab === tab.id ? 'bg-gray-50 text-black border-b-2 border-b-black' : 'text-gray-400 hover:text-black'}`}
                 >
-                  <Icon className={`h-4 w-4 ${activeTab === tab.id ? 'text-black' : 'text-gray-400 group-hover:text-black'}`} />
-                  <span className="text-[9px] font-bold uppercase tracking-wider">{tab.label}</span>
-                  {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
+                  <Icon className="h-4 w-4" />
+                  <span className="text-[9px] font-black uppercase tracking-wider">{tab.label}</span>
                 </button>
               );
             })}
