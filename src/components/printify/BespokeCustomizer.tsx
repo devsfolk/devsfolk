@@ -1738,22 +1738,28 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Canvas Preview area */}
         <div className="lg:col-span-7 flex flex-col items-center">
-          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 overflow-hidden shadow-sm flex items-center justify-center p-8">
+          <div className="relative w-full max-w-[500px] aspect-square rounded-[2.5rem] bg-gray-50 border border-gray-100 shadow-sm flex items-center justify-center">
             
-            {/* Template Mockup Image */}
-            <img 
-              src={activeViewImage} 
-              alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
-              className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
-            />
+            {/* Defensive Fix: Aspect-ratio-locked inner wrapper — print-area percentages resolve
+                against the rendered image rect, not the outer square container. Prevents misalignment
+                if a non-square mockup is ever introduced (same pattern as Fix 1 in PrintAreasTab). */}
+            <div className="relative w-fit h-fit max-w-full max-h-full">
+            
+              {/* Template Mockup Image */}
+              <img 
+                src={activeViewImage} 
+                alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
+                className="max-w-full max-h-[500px] w-auto h-auto block select-none pointer-events-none"
+              />
 
-            {/* Print Area Bounds holding Fabric Canvas */}
-            <div 
-              ref={printAreaRef}
-              className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
-              style={getPrintAreaStyle()}
-            >
-              <canvas ref={canvasElRef} id="fabric-canvas" className="absolute inset-0 w-full h-full" />
+              {/* Print Area Bounds holding Fabric Canvas */}
+              <div 
+                ref={printAreaRef}
+                className="absolute border-2 border-dashed border-gray-400/30 hover:border-gray-500/50 rounded-xl transition-all flex items-center justify-center overflow-hidden"
+                style={getPrintAreaStyle()}
+              >
+                <canvas ref={canvasElRef} id="fabric-canvas" className="absolute inset-0 w-full h-full" />
+              </div>
             </div>
           </div>
           
