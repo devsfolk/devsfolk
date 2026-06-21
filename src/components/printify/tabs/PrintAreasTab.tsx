@@ -409,21 +409,15 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
       <div className="w-[65%] flex flex-col gap-2">
         {/* Canvas Container - Fixed viewport height, flex-centered */}
         <div
-          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 overflow-hidden shadow-lg flex items-center justify-center"
+          className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300 shadow-lg flex items-center justify-center"
           style={{ height: 'calc(100vh - 260px)' }}
         >
           {/* Fix 1: Aspect-ratio-locked inner wrapper — getBoundingClientRect() now measures
               the rendered image rect, not the outer container with letterbox margins */}
           <div
             data-canvas-container
-            className="relative"
-            style={mockupDimensions ? {
-              aspectRatio: `${mockupDimensions.width} / ${mockupDimensions.height}`,
-              maxHeight: '100%',
-              maxWidth: '100%',
-              height: mockupDimensions.width / mockupDimensions.height < 1 ? '100%' : 'auto',
-              width: mockupDimensions.width / mockupDimensions.height >= 1 ? '100%' : 'auto',
-            } : { width: '100%', height: '100%' }}
+            className="relative w-fit h-fit max-w-full max-h-full"
+            style={mockupDimensions ? {} : { width: '100%', height: '100%' }}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
@@ -433,7 +427,7 @@ export const PrintAreasTab: React.FC<PrintAreasTabProps> = ({
             <img
               src={selectedMockupUrl}
               alt={`${selectedView} view mockup`}
-              className="absolute inset-0 w-full h-full pointer-events-none"
+              className="max-h-[calc(100vh-260px)] max-w-full w-auto h-auto block pointer-events-none"
               onLoad={(e) => {
                 const img = e.currentTarget as HTMLImageElement;
                 setMockupDimensions({
