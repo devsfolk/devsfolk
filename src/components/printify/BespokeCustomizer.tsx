@@ -979,35 +979,20 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
          */
         
         const calculateCanvasBoundaries = () => {
-          if (!activeViewPrintArea || !canvas) {
-            // No print area defined - allow full canvas (backwards compat)
+          if (!canvas) {
             return {
               minX: 0,
               minY: 0,
-              maxX: canvas?.getWidth() || 0,
-              maxY: canvas?.getHeight() || 0,
+              maxX: 0,
+              maxY: 0,
             };
           }
-
-          const canvasWidth = canvas.getWidth();
-          const canvasHeight = canvas.getHeight();
-
-          // PRECISION FIX: Use Math.floor for consistent pixel alignment
-          const boundaries = {
-            minX: Math.floor((activeViewPrintArea.x / 100) * canvasWidth),
-            minY: Math.floor((activeViewPrintArea.y / 100) * canvasHeight),
-            maxX: Math.floor(((activeViewPrintArea.x + activeViewPrintArea.width) / 100) * canvasWidth),
-            maxY: Math.floor(((activeViewPrintArea.y + activeViewPrintArea.height) / 100) * canvasHeight),
+          return {
+            minX: 0,
+            minY: 0,
+            maxX: canvas.getWidth(),
+            maxY: canvas.getHeight(),
           };
-
-          console.log('[BespokeCustomizer] Canvas boundaries calculated:', {
-            canvasSize: `${canvasWidth}×${canvasHeight}`,
-            printArea: `${activeViewPrintArea.x}%, ${activeViewPrintArea.y}%, ${activeViewPrintArea.width}%, ${activeViewPrintArea.height}%`,
-            boundaries: `(${boundaries.minX},${boundaries.minY}) to (${boundaries.maxX},${boundaries.maxY})`,
-            exactSize: `${boundaries.maxX - boundaries.minX}×${boundaries.maxY - boundaries.minY}`,
-          });
-
-          return boundaries;
         };
 
         /**
