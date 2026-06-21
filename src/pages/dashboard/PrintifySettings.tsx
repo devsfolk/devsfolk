@@ -24,7 +24,7 @@ import { TemplateVariantsTable } from '@/components/printify/TemplateVariantsTab
 import { TemplatePrintAreas } from '@/components/printify/TemplatePrintAreas';
 import { TemplatePricingPanel } from '@/components/printify/TemplatePricingPanel';
 import { TemplateEditor } from '@/components/printify/TemplateEditor';
-
+import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 export const PrintifySettings: React.FC = () => {
   const { settings, updateSettings, orders, printifyCatalog, upsertPrintifyCatalogTemplates, updatePrintifyCatalogTemplate, upsertPrintifyShopProducts, updateOrderPrintifySync, deleteProduct, products, deletePrintifyCatalogTemplate, clearPrintifyCatalog } = useShop();
   
@@ -1467,6 +1467,67 @@ export const PrintifySettings: React.FC = () => {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Orphaned Templates Cleanup */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white mt-6 mb-6">
+              <CardHeader className="p-5 md:p-6 border-b border-red-50 bg-red-50/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                    <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight text-red-700">
+                      Orphaned Templates
+                    </CardTitle>
+                  </div>
+                </div>
+                <CardDescription className="text-xs text-red-600/70">
+                  Stray template rows found in the products table. These can cause duplicate or hidden products in the bespoke customizer.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 md:p-6">
+                {(() => {
+                  const orphans = products.filter(p => 
+                    isRawPrintifyTemplateProduct(p) && 
+                    !printifyCatalog.find(t => t.id === p.id || `printify_template_${t.id}` === p.id)
+                  );
+                  
+                  if (orphans.length === 0) {
+                    return (
+                      <div className="text-center py-6">
+                        <CheckCircle2 className="h-6 w-6 text-green-400 mx-auto mb-2" />
+                        <p className="text-xs font-medium text-gray-600">No orphaned templates found</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Your catalog is clean.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {orphans.map(orphan => (
+                        <div key={orphan.id} className="flex items-center justify-between p-3 rounded-xl border border-red-100 bg-red-50/30">
+                          <div>
+                            <p className="text-xs font-black">{orphan.name}</p>
+                            <p className="text-[10px] text-gray-500 font-mono mt-0.5">ID: {orphan.id}</p>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm(`Delete orphaned template "${orphan.name}"?`)) {
+                                deleteProduct(orphan.id);
+                              }
+                            }}
+                            className="h-8 text-[10px] font-black uppercase rounded-lg"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 
