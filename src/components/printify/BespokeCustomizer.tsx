@@ -264,6 +264,27 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   }, [activeProduct, customProducts, productSlug]);
 
   const getPrintAreaStyle = () => {
+    if (activeViewPrintArea) {
+      const pX = Number(activeViewPrintArea.x);
+      const pY = Number(activeViewPrintArea.y);
+      const pWidth = Number(activeViewPrintArea.width);
+      const pHeight = Number(activeViewPrintArea.height);
+
+      if (
+        Number.isFinite(pX) &&
+        Number.isFinite(pY) &&
+        Number.isFinite(pWidth) &&
+        Number.isFinite(pHeight)
+      ) {
+        return {
+          left: `${pX}%`,
+          top: `${pY}%`,
+          width: `${pWidth}%`,
+          height: `${pHeight}%`,
+        };
+      }
+    }
+
     const title = (activeProduct?.name || activeTemplate?.title || '').toLowerCase();
     
     // Default style (suitable for T-shirts/clothing)
@@ -311,42 +332,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       };
     }
     
-    let { width, height, top, left } = style;
-
-    // Issue 1 Fix: Use activeViewPrintArea instead of searching for "front"
-    if (activeViewPrintArea) {
-      const pWidth = Number(activeViewPrintArea?.width || activeViewPrintArea?.pixel_width || 0);
-      const pHeight = Number(activeViewPrintArea?.height || activeViewPrintArea?.pixel_height || 0);
-
-      if (pWidth > 0 && pHeight > 0) {
-        const targetRatio = pWidth / pHeight;
-        const maxRatio = width / height;
-
-        if (targetRatio > maxRatio) {
-          // Blueprint print area is wider than max layout bounds - adjust height
-          const originalHeight = height;
-          height = width / targetRatio;
-          top = top + (originalHeight - height) / 2;
-        } else {
-          // Blueprint print area is taller than max layout bounds - adjust width
-          const originalWidth = width;
-          width = height * targetRatio;
-          left = left + (originalWidth - width) / 2;
-        }
-      }
-
-      // Use position offsets from the placeholder if available
-      const posTop = Number(activeViewPrintArea?.top ?? activeViewPrintArea?.y ?? activeViewPrintArea?.offset_y ?? 0);
-      const posLeft = Number(activeViewPrintArea?.left ?? activeViewPrintArea?.x ?? activeViewPrintArea?.offset_x ?? 0);
-      if (posTop > 0 && posTop <= 100) top = posTop;
-      if (posLeft > 0 && posLeft <= 100) left = posLeft;
-    }
-    
     return {
-      width: `${width}%`,
-      height: `${height}%`,
-      top: `${top}%`,
-      left: `${left}%`,
+      width: `${style.width}%`,
+      height: `${style.height}%`,
+      top: `${style.top}%`,
+      left: `${style.left}%`,
     };
   };
 
