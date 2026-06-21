@@ -1188,7 +1188,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             borderColor: '#000000',
             cornerSize: 8,
             transparentCorners: false,
-            padding: 5,
+            padding: 0,
           });
 
           // Remove any existing graphic layers to keep it focused
@@ -1239,7 +1239,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       borderColor: '#000000',
       cornerSize: 8,
       transparentCorners: false,
-      padding: 5,
+      padding: 0,
     });
     
     canvas.add(newText);
@@ -1279,7 +1279,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           borderColor: '#000000',
           cornerSize: 8,
           transparentCorners: false,
-          padding: 5,
+          padding: 0,
         });
         canvas.add(newText);
         canvas.setActiveObject(newText);
