@@ -1948,7 +1948,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           quantity: nextCart[existingIndex].quantity + quantity,
         };
       } else {
-        nextCart.push({
+        const cartItem = {
           productId: product.id,
           variantId: variant?.id,
           name: product.name + (variant ? ` - ${variant.name}` : '') + (options?.color ? ` (${options.color})` : '') + (options?.size ? ` - ${options.size}` : '') + (options?.customization ? ' (Customized)' : ''),
@@ -1965,7 +1965,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           printifyPrintProviderId: options?.customization?.printifyPrintProviderId,
           printifyVariantId: options?.customization?.printifyVariantId,
           printifyPrintAreas: options?.customization?.printifyPrintAreas,
+        };
+
+        console.log('[ShopContext] addToCart stored item', {
+          productId: cartItem.productId,
+          price: cartItem.price,
+          customization: cartItem.customization,
+          image: cartItem.image,
         });
+
+        nextCart.push(cartItem);
       }
 
       try {

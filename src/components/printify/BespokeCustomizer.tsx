@@ -1905,6 +1905,13 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
       };
 
+      console.log('[BespokeCustomizer] handleAddToCart payload', {
+        priceSource: activeOrderCustomerPrice,
+        productId: activeProduct.id,
+        variantId: undefined,
+        customization,
+      });
+
       addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
         color: selectedColor,
         size: selectedSize,
