@@ -376,16 +376,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     
     // Phase 5: Validate print area has required data
     if (found) {
-      console.log('[BespokeCustomizer] Active print area for view:', selectedView, found);
       return found;
     }
     
     // Fallback to first print area if no match
     const fallback = printAreas[0] || null;
-    if (fallback) {
-      console.warn('[BespokeCustomizer] No print area found for view:', selectedView, '- using fallback:', fallback);
-    }
-    
     return fallback;
   }, [activeTemplate, selectedView]);
 
@@ -410,7 +405,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         }
         
         if (colorMockupUrl) {
-          console.log(`[BespokeCustomizer] Using color-specific mockup: ${selectedColor} / ${viewKey} → ${colorMockupUrl}`);
           return colorMockupUrl;
         }
       }
@@ -434,7 +428,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const imageIndex = viewIndexMap[selectedView.toLowerCase()] || 0;
     const imageUrl = activeProduct.images[imageIndex] || activeProduct.images[0];
     
-    console.log(`[BespokeCustomizer] Using product image: view=${selectedView}, index=${imageIndex}, url=${imageUrl}`);
     return imageUrl;
   }, [activeProduct, selectedView, selectedColor, activeTemplate]);
 
@@ -829,11 +822,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     saveCurrentCanvasState(selectedView);
     setSelectedView(newView);
     loadCanvasStateForView(newView);
-    console.log('[BespokeCustomizer] handleViewChange snapshot', {
-      fromView: selectedView,
-      toView: newView,
-      canvasStates: getCanvasStateDebugSnapshot(),
-    });
   };
 
   const getViewCustomizationFromState = (view: string, fabricState: any): PrintifyViewCustomization | null => {
@@ -915,24 +903,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       hasText ? Number(editorCharges?.textOnly ?? 0) :
       0;
 
-    console.log('[BespokeCustomizer] getViewCustomizationFee', {
-      selectedView,
-      view,
-      hasText,
-      hasDesign,
-      fee,
-      viewCustomization,
-    });
-
-    if (hasText && hasDesign) {
-      return fee;
-    }
-    if (hasDesign) {
-      return fee;
-    }
-    if (hasText) {
-      return fee;
-    }
     return fee;
   };
 
@@ -1330,35 +1300,25 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   // Optimize and Upload image onto Fabric.js Canvas
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('🔵 [IMAGE UPLOAD] Handler triggered');
     const file = e.target.files?.[0];
-    console.log('🔵 [IMAGE UPLOAD] File selected:', file ? `${file.name} (${Math.round(file.size / 1024)}KB)` : 'NO FILE');
     if (!file) return;
     
     setIsUploading(true);
-    console.log('🔵 [IMAGE UPLOAD] Starting optimization...');
     
     try {
       const optimized = await optimizeImage(file, 800, 800);
-      console.log('🔵 [IMAGE UPLOAD] Optimization complete. Data URL length:', optimized.length, 'chars');
       
       const canvas = fabricCanvasRef.current;
-      console.log('🔵 [IMAGE UPLOAD] Canvas ref status:', canvas ? `EXISTS (${canvas.getWidth()}x${canvas.getHeight()})` : '❌ NULL');
       
       if (canvas) {
-        console.log('🔵 [IMAGE UPLOAD] Loading image into Fabric.js...');
         fabric.Image.fromURL(optimized, (img) => {
-          console.log('🔵 [IMAGE UPLOAD] Fabric.js callback fired. Image object:', img ? 'CREATED' : '❌ NULL');
-          
           if (!img) {
-            console.error('❌ [IMAGE UPLOAD] Fabric.js failed to create image object');
             alert('Failed to load image. Please try a different file.');
             return;
           }
 
           // Resize to fit print area reasonably
           const scaleFactor = (canvas.width * 0.7) / (img.width || 1);
-          console.log('🔵 [IMAGE UPLOAD] Scale factor:', scaleFactor, `(image: ${img.width}x${img.height})`);
           
           img.set({
             left: canvas.width / 2,
@@ -1377,30 +1337,22 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           // Remove any existing graphic layers to keep it focused
           const oldImages = canvas.getObjects('image');
-          console.log('🔵 [IMAGE UPLOAD] Removing old images:', oldImages.length);
           oldImages.forEach((obj) => canvas.remove(obj));
 
           canvas.add(img);
-          console.log('🔵 [IMAGE UPLOAD] Image added to canvas');
           canvas.setActiveObject(img);
-          console.log('🔵 [IMAGE UPLOAD] Image set as active object');
           canvas.renderAll();
-          console.log('🔵 [IMAGE UPLOAD] Canvas rendered');
 
           setCustomImage(optimized);
           setActiveTab('upload');
-          console.log('✅ [IMAGE UPLOAD] Upload complete!');
         });
       } else {
-        console.error('❌ [IMAGE UPLOAD] Canvas not initialized. Print area may not have dimensions yet.');
         alert('Editor not ready. Please wait a moment and try again.');
       }
     } catch (err) {
-      console.error('❌ [IMAGE UPLOAD] Error during upload:', err);
       alert('Failed to process custom design. Please try another image.');
     } finally {
       setIsUploading(false);
-      console.log('🔵 [IMAGE UPLOAD] Upload state reset (isUploading = false)');
     }
   };
 
@@ -1888,7 +1840,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         return;
       }
 
-      console.log('[BespokeCustomizer] handleAddToCart before buildCustomizationsByView', getCanvasStateDebugSnapshot());
       const customizationsByView = buildCustomizationsByView();
       const hasViewCustomizations = Object.keys(customizationsByView).length > 0;
       const previewUrl = await generatePreviewDataUrl(customizationsByView).catch((error) => {
@@ -1904,13 +1855,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         printifyVariantId,
         printifyPrintAreas: activeTemplate?.printAreas?.[0] || undefined,
       };
-
-      console.log('[BespokeCustomizer] handleAddToCart payload', {
-        priceSource: activeOrderCustomerPrice,
-        productId: activeProduct.id,
-        variantId: undefined,
-        customization,
-      });
 
       addToCart({ ...activeProduct, price: activeOrderCustomerPrice }, undefined, 1, {
         color: selectedColor,
@@ -2652,38 +2596,37 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   </div>
 
                   {(() => {
-                    const fCanvas = fabricCanvasRef.current;
-                    const hasText = !!customText.trim() || (fCanvas && fCanvas.getObjects('i-text').length > 0);
-                    const hasDesign = !!customImage || (fCanvas && fCanvas.getObjects('image').length > 0);
                     const editorCharges = settings.printifySettings?.charges?.editorCharges || {
                       textOnly: 0,
                       designOnly: 0,
                       textAndDesign: 0,
                     };
+                    const pricedViews: Array<{ view: PrintifyViewKey; label: string }> = [
+                      { view: 'front', label: 'Front' },
+                      { view: 'back', label: 'Back' },
+                      { view: 'left', label: 'Left' },
+                      { view: 'right', label: 'Right' },
+                    ];
 
-                    let customizationFee = 0;
-                    let feeLabel = '';
+                    const feeLines = pricedViews
+                      .map(({ view, label }) => ({
+                        label,
+                        fee: getViewCustomizationFee(view, editorCharges),
+                      }))
+                      .filter((line) => line.fee > 0);
 
-                    if (hasText && hasDesign) {
-                      customizationFee = Number(editorCharges.textAndDesign ?? 0);
-                      feeLabel = 'Customization Fee (Text + Design)';
-                    } else if (hasDesign) {
-                      customizationFee = Number(editorCharges.designOnly ?? 0);
-                      feeLabel = 'Customization Fee (Design Only)';
-                    } else if (hasText) {
-                      customizationFee = Number(editorCharges.textOnly ?? 0);
-                      feeLabel = 'Customization Fee (Text Only)';
-                    }
+                    if (feeLines.length === 0) return null;
 
-                    if (customizationFee > 0) {
-                      return (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">+ {feeLabel}</span>
-                          <span className="font-bold">{settings.currencySymbol}{customizationFee.toFixed(2)}</span>
-                        </div>
-                      );
-                    }
-                    return null;
+                    return (
+                      <div className="space-y-1.5">
+                        {feeLines.map((line) => (
+                          <div key={line.label} className="flex justify-between items-center">
+                            <span className="text-gray-600">{line.label} customization</span>
+                            <span className="font-bold">{settings.currencySymbol}{line.fee.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
                   })()}
 
                   <div className="pt-2 border-t border-gray-200 flex justify-between items-center">

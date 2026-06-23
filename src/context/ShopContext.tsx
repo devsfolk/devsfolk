@@ -761,11 +761,6 @@ const toPrintifyCatalogRow = (template: PrintifyCatalogTemplate) => {
     last_synced: template.lastSynced,
   };
   
-  // Log the colorMockups field for debugging
-  if (Object.keys(template.colorMockups || {}).length > 0) {
-    console.log('[toPrintifyCatalogRow] Template with colorMockups:', template.id, template.colorMockups);
-  }
-  
   return row;
 };
 
@@ -938,16 +933,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       reportSyncError('Failed to load Printify catalog from Supabase.', printifyCatalogResult.error.message);
     } else {
       const remoteCatalog = (printifyCatalogResult.data ?? []).map(mapPrintifyCatalogRow);
-      
-      console.log('[ShopContext] Fetched printifyCatalog from Supabase, count:', remoteCatalog.length);
-      if (remoteCatalog.length > 0) {
-        const bp440 = remoteCatalog.find(t => t.id === 'bp_440');
-        console.log('[ShopContext] bp_440 template found?', !!bp440);
-        if (bp440) {
-          console.log('[ShopContext] bp_440.variants:', bp440.variants);
-          console.log('[ShopContext] bp_440 keys:', Object.keys(bp440));
-        }
-      }
       
       setPrintifyCatalog(remoteCatalog);
       savePrintifyCatalogLocally(remoteCatalog);
@@ -1609,11 +1594,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (supabase) {
       let hasCatalogTable = true;
       
-      // Log the payload being sent to Supabase for debugging
       const catalogRows = updated.map(toPrintifyCatalogRow);
-      console.log('[Supabase Upsert] Sending payload:', catalogRows.length, 'templates');
-      console.log('[Supabase Upsert] Sample payload:', catalogRows[0]);
-      
+
       const { error } = await supabase.from('printify_catalog').upsert(catalogRows);
       if (error) {
         console.error('[Supabase Upsert Error] Full error object:', error);
@@ -1629,8 +1611,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           alert(`❌ Database Save Failed!\n\nError: ${error.message}\n\nDetails: ${error.details || 'No details'}\n\nHint: ${error.hint || 'No hint'}\n\nCheck console for full error.`);
           return;
         }
-      } else {
-        console.log('[Supabase Upsert] SUCCESS - Templates saved to database');
       }
 
       try {
@@ -1966,13 +1946,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           printifyVariantId: options?.customization?.printifyVariantId,
           printifyPrintAreas: options?.customization?.printifyPrintAreas,
         };
-
-        console.log('[ShopContext] addToCart stored item', {
-          productId: cartItem.productId,
-          price: cartItem.price,
-          customization: cartItem.customization,
-          image: cartItem.image,
-        });
 
         nextCart.push(cartItem);
       }

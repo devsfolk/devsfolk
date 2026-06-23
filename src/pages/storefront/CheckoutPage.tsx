@@ -77,6 +77,22 @@ export const CheckoutPage: React.FC = () => {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  const getCustomizationSummary = (customization: any) => {
+    const orderedViews = ['front', 'back', 'left', 'right'] as const;
+    const customizedViews = orderedViews.filter((view) => !!customization?.customizationsByView?.[view]);
+
+    if (customizedViews.length <= 1) {
+      return '';
+    }
+
+    const labels = customizedViews.map((view) => view.charAt(0).toUpperCase() + view.slice(1));
+    if (labels.length <= 2) {
+      return `${labels.join(' + ')} customized`;
+    }
+
+    return `${labels.length} sides customized: ${labels.join(', ')}`;
+  };
+
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -110,7 +126,6 @@ export const CheckoutPage: React.FC = () => {
       setOcrProgress(95);
 
       const text = (result.data.text || '').toLowerCase();
-      console.log('OCR Result Text:', text);
 
       // Clean check total for matching
       const targetAmount = cartTotal.toFixed(2);
@@ -839,6 +854,11 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-sm line-clamp-1">{item.name}</h4>
+                      {getCustomizationSummary(item.customization) && (
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">
+                          {getCustomizationSummary(item.customization)}
+                        </p>
+                      )}
                       <p className="text-xs text-gray-500">{item.quantity} x {settings.currencySymbol}{item.price.toFixed(2)}</p>
                     </div>
                     <p className="font-bold text-sm">{settings.currencySymbol}{(item.price * item.quantity).toFixed(2)}</p>

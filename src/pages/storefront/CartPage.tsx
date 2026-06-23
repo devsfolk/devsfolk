@@ -16,6 +16,22 @@ export const CartPage: React.FC = () => {
     navigate('/checkout');
   };
 
+  const getCustomizationSummary = (customization: any) => {
+    const orderedViews = ['front', 'back', 'left', 'right'] as const;
+    const customizedViews = orderedViews.filter((view) => !!customization?.customizationsByView?.[view]);
+
+    if (customizedViews.length <= 1) {
+      return '';
+    }
+
+    const labels = customizedViews.map((view) => view.charAt(0).toUpperCase() + view.slice(1));
+    if (labels.length <= 2) {
+      return `${labels.join(' + ')} customized`;
+    }
+
+    return `${labels.length} sides customized: ${labels.join(', ')}`;
+  };
+
   if (cart.length === 0) {
     return (
       <div className="container mx-auto px-4 py-32 text-center">
@@ -50,6 +66,11 @@ export const CartPage: React.FC = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-black text-sm md:text-lg uppercase tracking-tight">{item.name}</h3>
+                    {getCustomizationSummary(item.customization) && (
+                      <p className="text-[9px] md:text-[11px] font-bold text-gray-500 uppercase tracking-widest mt-1">
+                        {getCustomizationSummary(item.customization)}
+                      </p>
+                    )}
                     <p className="text-[10px] md:text-sm font-bold text-gray-400 uppercase tracking-widest italic opacity-60 leading-none mt-1">Price: {settings.currencySymbol}{item.price.toFixed(2)}</p>
                   </div>
                   <Button 
