@@ -778,6 +778,19 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     }
   };
 
+  const getCanvasStateDebugSnapshot = () => {
+    const entries = Object.entries(canvasStatesRef.current).map(([view, state]) => ({
+      view,
+      hasObjects: Array.isArray(state?.objects) && state.objects.length > 0,
+      objectCount: Array.isArray(state?.objects) ? state.objects.length : 0,
+    }));
+
+    return {
+      selectedView,
+      entries,
+    };
+  };
+
   const saveCurrentCanvasState = (view = selectedView) => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
@@ -816,6 +829,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     saveCurrentCanvasState(selectedView);
     setSelectedView(newView);
     loadCanvasStateForView(newView);
+    console.log('[BespokeCustomizer] handleViewChange snapshot', {
+      fromView: selectedView,
+      toView: newView,
+      canvasStates: getCanvasStateDebugSnapshot(),
+    });
   };
 
   const getViewCustomizationFromState = (view: string, fabricState: any): PrintifyViewCustomization | null => {
@@ -891,16 +909,31 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const hasText = !!viewCustomization?.customText?.trim();
     const hasDesign = !!viewCustomization?.customImageUrl;
 
+    const fee =
+      hasText && hasDesign ? Number(editorCharges?.textAndDesign ?? 0) :
+      hasDesign ? Number(editorCharges?.designOnly ?? 0) :
+      hasText ? Number(editorCharges?.textOnly ?? 0) :
+      0;
+
+    console.log('[BespokeCustomizer] getViewCustomizationFee', {
+      selectedView,
+      view,
+      hasText,
+      hasDesign,
+      fee,
+      viewCustomization,
+    });
+
     if (hasText && hasDesign) {
-      return Number(editorCharges?.textAndDesign ?? 0);
+      return fee;
     }
     if (hasDesign) {
-      return Number(editorCharges?.designOnly ?? 0);
+      return fee;
     }
     if (hasText) {
-      return Number(editorCharges?.textOnly ?? 0);
+      return fee;
     }
-    return 0;
+    return fee;
   };
 
   const buildCustomizationsByView = () => {
@@ -1855,6 +1888,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         return;
       }
 
+      console.log('[BespokeCustomizer] handleAddToCart before buildCustomizationsByView', getCanvasStateDebugSnapshot());
       const customizationsByView = buildCustomizationsByView();
       const hasViewCustomizations = Object.keys(customizationsByView).length > 0;
       const previewUrl = await generatePreviewDataUrl(customizationsByView).catch((error) => {
