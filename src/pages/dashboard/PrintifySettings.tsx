@@ -1487,10 +1487,21 @@ export const PrintifySettings: React.FC = () => {
               </CardHeader>
               <CardContent className="p-5 md:p-6">
                 {(() => {
-                  const orphans = products.filter(p => 
-                    isRawPrintifyTemplateProduct(p) && 
-                    !printifyCatalog.find(t => t.id === p.id || `printify_template_${t.id}` === p.id)
-                  );
+                  const orphans = products.filter(p => {
+                    const isRawTemplate = isRawPrintifyTemplateProduct(p);
+                    const catalogMatch = printifyCatalog.find(t => t.id === p.id || `printify_template_${t.id}` === p.id);
+
+                    if (p.id === 'printify_template_bp_36') {
+                      console.log('[Orphaned Templates Debug] bp_36 product check', {
+                        product: p,
+                        isRawTemplate,
+                        catalogMatch: catalogMatch || null,
+                        catalogIds: printifyCatalog.map(t => t.id),
+                      });
+                    }
+
+                    return isRawTemplate && !catalogMatch;
+                  });
                   
                   if (orphans.length === 0) {
                     return (
