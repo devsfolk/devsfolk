@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
-import { Product, PrintifyCatalogTemplate } from '@/types';
+import { Product, PrintifyCatalogTemplate, PrintifyViewCustomization, PrintifyViewKey } from '@/types';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
 interface BespokeCustomizerProps {
@@ -438,6 +438,49 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return imageUrl;
   }, [activeProduct, selectedView, selectedColor, activeTemplate]);
 
+  const getPreviewView = (customizationsByView?: Partial<Record<PrintifyViewKey, PrintifyViewCustomization>>) => {
+    const orderedViews: PrintifyViewKey[] = ['front', 'back', 'left', 'right'];
+    return orderedViews.find((view) => !!customizationsByView?.[view]) || (selectedView as PrintifyViewKey);
+  };
+
+  const getViewImageForView = (view: string) => {
+    if (selectedColor && activeTemplate?.colorMockups) {
+      const colorData = activeTemplate.colorMockups[selectedColor];
+      if (colorData) {
+        const viewKey = view.toLowerCase();
+        let colorMockupUrl = colorData[viewKey as 'front' | 'back' | 'side' | 'left' | 'right'];
+
+        if (!colorMockupUrl && (viewKey === 'left' || viewKey === 'right')) {
+          colorMockupUrl = colorData.side;
+        }
+
+        if (!colorMockupUrl) {
+          colorMockupUrl = colorData.front;
+        }
+
+        if (colorMockupUrl) {
+          return colorMockupUrl;
+        }
+      }
+    }
+
+    if (!activeProduct?.images || activeProduct.images.length === 0) {
+      return '/custom-tee-mockup.png';
+    }
+
+    const viewIndexMap: Record<string, number> = {
+      front: 0,
+      back: 1,
+      left: 2,
+      side: 2,
+      right: 3,
+      detail: 3,
+    };
+
+    const imageIndex = viewIndexMap[view.toLowerCase()] || 0;
+    return activeProduct.images[imageIndex] || activeProduct.images[0];
+  };
+
   // Ensure selectedView is valid when template changes
   useEffect(() => {
     if (!availableViews.includes(selectedView.toLowerCase())) {
@@ -686,6 +729,203 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasStatesRef = useRef<Record<string, any>>({});
+  const [canvasStateVersion, setCanvasStateVersion] = useState(0);
+
+  const resetWorkspaceIndicators = () => {
+    setCustomImage(null);
+    setCustomText('');
+    setHasSelection(false);
+    setSelectedAngle(0);
+    setSelectedScale(1);
+    setTextColor('#000000');
+    setTextFont('Inter');
+    setTextIsBold(false);
+    setTextIsItalic(false);
+    setTextIsUnderline(false);
+    setTextAlign('left');
+  };
+
+  const getImageSource = (imageObj?: fabric.Object) => {
+    if (!imageObj) return '';
+    const source = (imageObj as any).getSrc?.() || (imageObj as any).src || imageObj.toObject?.()?.src;
+    return typeof source === 'string' ? source : '';
+  };
+
+  const syncWorkspaceIndicatorsFromCanvas = (canvas?: fabric.Canvas | null) => {
+    resetWorkspaceIndicators();
+    if (!canvas) return;
+
+    const imageObj = canvas.getObjects('image')[0];
+    const textObj = canvas.getObjects('i-text')[0] as fabric.IText | undefined;
+
+    if (imageObj) {
+      setCustomImage(getImageSource(imageObj) || null);
+    }
+
+    if (textObj) {
+      setCustomText(textObj.text || '');
+      setTextFont(textObj.fontFamily || 'Inter');
+      if (typeof textObj.fill === 'string') {
+        setTextColor(textObj.fill || '#000000');
+      } else {
+        setTextColor('gradient');
+      }
+      setTextIsBold(textObj.fontWeight === 'bold');
+      setTextIsItalic(textObj.fontStyle === 'italic');
+      setTextIsUnderline(!!textObj.underline);
+      setTextAlign((textObj.textAlign as 'left' | 'center' | 'right') || 'left');
+    }
+  };
+
+  const saveCurrentCanvasState = (view = selectedView) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    const state = canvas.toJSON(['id', 'layerName', 'selectable']);
+    const hasObjects = Array.isArray(state.objects) && state.objects.length > 0;
+    if (hasObjects) {
+      canvasStatesRef.current[view] = state;
+    } else {
+      delete canvasStatesRef.current[view];
+    }
+    setCanvasStateVersion((version) => version + 1);
+  };
+
+  const loadCanvasStateForView = (view: string) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    canvas.discardActiveObject();
+    canvas.clear();
+    const savedState = canvasStatesRef.current[view];
+    if (savedState) {
+      canvas.loadFromJSON(savedState, () => {
+        canvas.renderAll();
+        syncWorkspaceIndicatorsFromCanvas(canvas);
+      });
+      return;
+    }
+
+    canvas.renderAll();
+    syncWorkspaceIndicatorsFromCanvas(canvas);
+  };
+
+  const handleViewChange = (newView: string) => {
+    if (selectedView === newView) return;
+    saveCurrentCanvasState(selectedView);
+    setSelectedView(newView);
+    loadCanvasStateForView(newView);
+  };
+
+  const getViewCustomizationFromState = (view: string, fabricState: any): PrintifyViewCustomization | null => {
+    const objects = Array.isArray(fabricState?.objects) ? fabricState.objects : [];
+    const imageObj = objects.find((object: any) => object?.type === 'image');
+    const textObj = objects.find((object: any) => object?.type === 'i-text' || object?.type === 'text');
+
+    if (!imageObj && !textObj) {
+      return null;
+    }
+
+    return {
+      view: view as PrintifyViewKey,
+      customImageUrl: imageObj?.src || undefined,
+      customText: textObj?.text || undefined,
+      textColor: textObj?.fill && typeof textObj.fill === 'string' ? textObj.fill : undefined,
+      fontFamily: textObj?.fontFamily || undefined,
+      imagePosition: imageObj ? {
+        x: imageObj.left || 0,
+        y: imageObj.top || 0,
+        scale: imageObj.scaleX || 1,
+        rotate: imageObj.angle || 0,
+      } : undefined,
+      textPosition: textObj ? {
+        x: textObj.left || 0,
+        y: textObj.top || 0,
+        scale: textObj.scaleX || 1,
+        rotate: textObj.angle || 0,
+      } : undefined,
+      fabricState,
+    };
+  };
+
+  const getViewCustomizationFromCanvas = (view: string, canvas?: fabric.Canvas | null): PrintifyViewCustomization | null => {
+    if (!canvas) return null;
+
+    const imageObj = canvas.getObjects('image')[0];
+    const textObj = canvas.getObjects('i-text')[0] as fabric.IText | undefined;
+    if (!imageObj && !textObj) {
+      return null;
+    }
+
+    return {
+      view: view as PrintifyViewKey,
+      customImageUrl: getImageSource(imageObj) || undefined,
+      customText: textObj?.text || undefined,
+      textColor: textObj?.fill && typeof textObj.fill === 'string' ? textObj.fill : undefined,
+      fontFamily: textObj?.fontFamily || undefined,
+      imagePosition: imageObj ? {
+        x: imageObj.left || 0,
+        y: imageObj.top || 0,
+        scale: imageObj.scaleX || 1,
+        rotate: imageObj.angle || 0,
+      } : undefined,
+      textPosition: textObj ? {
+        x: textObj.left || 0,
+        y: textObj.top || 0,
+        scale: textObj.scaleX || 1,
+        rotate: textObj.angle || 0,
+      } : undefined,
+      fabricState: canvas.toJSON(['id', 'layerName', 'selectable']),
+    };
+  };
+
+  const getCustomizationForPriceView = (view: PrintifyViewKey) => (
+    view === selectedView
+      ? getViewCustomizationFromCanvas(view, fabricCanvasRef.current)
+      : getViewCustomizationFromState(view, canvasStatesRef.current[view])
+  );
+
+  const getViewCustomizationFee = (view: PrintifyViewKey, editorCharges: NonNullable<typeof settings.printifySettings>['charges']['editorCharges']) => {
+    const viewCustomization = getCustomizationForPriceView(view);
+    const hasText = !!viewCustomization?.customText?.trim();
+    const hasDesign = !!viewCustomization?.customImageUrl;
+
+    if (hasText && hasDesign) {
+      return Number(editorCharges?.textAndDesign ?? 0);
+    }
+    if (hasDesign) {
+      return Number(editorCharges?.designOnly ?? 0);
+    }
+    if (hasText) {
+      return Number(editorCharges?.textOnly ?? 0);
+    }
+    return 0;
+  };
+
+  const buildCustomizationsByView = () => {
+    saveCurrentCanvasState(selectedView);
+
+    return Object.entries(canvasStatesRef.current).reduce<Partial<Record<PrintifyViewKey, PrintifyViewCustomization>>>((accumulator, [view, state]) => {
+      const viewCustomization = getViewCustomizationFromState(view, state);
+      if (viewCustomization) {
+        accumulator[view as PrintifyViewKey] = viewCustomization;
+      }
+      return accumulator;
+    }, {});
+  };
+
+  const hasSavedCanvasCustomization = useMemo(
+    () => Object.values(canvasStatesRef.current).some((state: any) => Array.isArray(state?.objects) && state.objects.length > 0),
+    [canvasStateVersion],
+  );
+
+  useEffect(() => {
+    canvasStatesRef.current = {};
+    setCanvasStateVersion((version) => version + 1);
+    setSelectedView('front');
+    resetWorkspaceIndicators();
+  }, [activeProduct?.id]);
 
   // Feature 2: Pricing with Design Charges - useCallback to avoid circular dependencies
   const calculateCustomizedPrice = React.useCallback((retailPrice: number) => {
@@ -730,67 +970,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     activeProduct ? calculateCustomizedPrice(activeOrderBasePrice) : 0,
     [activeProduct, activeOrderBasePrice, calculateCustomizedPrice]
   );
-
-  const getSelectedColorImage = useMemo(() => {
-    if (!activeProduct?.images || activeProduct.images.length === 0) {
-      return '/custom-tee-mockup.png';
-    }
-
-    // Priority 1: Use the variant-specific image_url mapped during sync (most reliable)
-    if (selectedColor && activePrintifyVariant?.image_url) {
-      return activePrintifyVariant.image_url;
-    }
-
-    // Priority 2: Check catalog template variants for image_url matching the selected color
-    if (selectedColor && activeTemplate?.variants) {
-      const matchingVariant = activeTemplate.variants.find((v: any) => {
-        if (!v?.image_url) return false;
-        const vColor = getVariantColor(v);
-        return vColor && vColor === selectedColor;
-      });
-      if (matchingVariant?.image_url) return matchingVariant.image_url;
-    }
-
-    if (!selectedColor) {
-      return activeProduct.images[0];
-    }
-    
-    // Fallback: fuzzy color-to-filename matching (kept as safety net)
-    const colorLower = selectedColor.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const colorWords = selectedColor.toLowerCase().split(/[\s_-]+/);
-    
-    // First, look for an image that contains the exact color name (ignoring non-alphanumeric chars)
-    const exactMatch = activeProduct.images.find(img => {
-      const imgLower = img.toLowerCase();
-      return imgLower.includes(colorLower) || 
-             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '-')) ||
-             imgLower.includes(selectedColor.toLowerCase().replace(/\s+/g, '_'));
-    });
-    if (exactMatch) return exactMatch;
-    
-    // If not found, look for an image containing ALL the words in the color name
-    const allWordsMatch = activeProduct.images.find(img => {
-      const imgLower = img.toLowerCase();
-      return colorWords.every(word => imgLower.includes(word));
-    });
-    if (allWordsMatch) return allWordsMatch;
-
-    // If not found, look for an image containing the FIRST word of the color name (if it's not generic)
-    const primaryWord = colorWords[0];
-    if (primaryWord && primaryWord.length > 2 && primaryWord !== 'light' && primaryWord !== 'dark' && primaryWord !== 'unisex') {
-      const firstWordMatch = activeProduct.images.find(img => img.toLowerCase().includes(primaryWord));
-      if (firstWordMatch) return firstWordMatch;
-    }
-    
-    // If not found, check if there is an image that matches any word
-    const anyWordMatch = activeProduct.images.find(img => {
-      const imgLower = img.toLowerCase();
-      return colorWords.some(word => word.length > 2 && imgLower.includes(word));
-    });
-    if (anyWordMatch) return anyWordMatch;
-    
-    return activeProduct.images[0];
-  }, [activeProduct, selectedColor, activePrintifyVariant, activeTemplate]);
 
   // Selected object properties for sliders
   const [selectedAngle, setSelectedAngle] = useState(0);
@@ -899,12 +1078,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     let resizeObserver: ResizeObserver | null = null;
     let disposed = false;
 
-    const resetWorkspaceState = () => {
-      setCustomImage(null);
-      setCustomText('');
-      setHasSelection(false);
-    };
-
     const initOrResizeCanvas = () => {
       if (disposed) return;
 
@@ -914,7 +1087,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       if (width < 24 || height < 24) return;
 
       if (!canvas) {
-        resetWorkspaceState();
+        resetWorkspaceIndicators();
         canvas = new fabric.Canvas(canvasEl, {
           width,
           height,
@@ -922,6 +1095,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           preserveObjectStacking: true,
         });
         fabricCanvasRef.current = canvas;
+        loadCanvasStateForView(selectedView);
 
         const syncSelection = () => {
           const activeObj = canvas?.getActiveObject();
@@ -1529,95 +1703,124 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       const canvas = fabricCanvasRef.current;
       if (canvas) {
         canvas.clear();
-        setCustomImage(null);
-        setCustomText('');
-        setHasSelection(false);
+        delete canvasStatesRef.current[selectedView];
+        setCanvasStateVersion((version) => version + 1);
+        resetWorkspaceIndicators();
       }
     }
   };
 
-  const generatePreviewDataUrl = (): Promise<string> => {
-    return new Promise((resolve) => {
-      try {
-        const canvas = compiledCanvasRef.current;
-        const fCanvas = fabricCanvasRef.current;
-        if (!canvas || !fCanvas) {
-          resolve('');
-          return;
-        }
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve('');
-          return;
-        }
+  const generatePreviewDataUrl = async (
+    customizationsByView?: Partial<Record<PrintifyViewKey, PrintifyViewCustomization>>,
+  ): Promise<string> => {
+    try {
+      const canvas = compiledCanvasRef.current;
+      const fCanvas = fabricCanvasRef.current;
+      if (!canvas || !fCanvas) {
+        return '';
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return '';
+      }
 
-        canvas.width = 600;
-        canvas.height = 600;
+      const previewView = getPreviewView(customizationsByView);
+      const previewFabricState = previewView === selectedView
+        ? fCanvas.toJSON(['id', 'layerName', 'selectable'])
+        : canvasStatesRef.current[previewView];
 
-        // 1. Draw neutral canvas; product colors should come from Printify mockups/variants, not simulated tinting.
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 600, 600);
+      canvas.width = 600;
+      canvas.height = 600;
 
-        // Load base mockup
-        const baseImg = new Image();
-        baseImg.crossOrigin = 'anonymous';
-        baseImg.src = getSelectedColorImage || '/custom-tee-mockup.png';
-        baseImg.onload = () => {
-          try {
-            ctx.drawImage(baseImg, 0, 0, 600, 600);
+      // 1. Draw neutral canvas; product colors should come from Printify mockups/variants, not simulated tinting.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 600, 600);
 
-            // Get the dynamic style coordinates
-            const printStyle = getPrintAreaStyle();
-            const parsePct = (val: string) => parseFloat(val) / 100;
-            const widthPct = parsePct(printStyle.width);
-            const heightPct = parsePct(printStyle.height);
-            const topPct = parsePct(printStyle.top);
-            const leftPct = parsePct(printStyle.left);
+      const baseImg = new Image();
+      baseImg.crossOrigin = 'anonymous';
+      baseImg.src = getViewImageForView(previewView) || '/custom-tee-mockup.png';
 
-            // Coordinates matching the relative boundary size
-            const pw = 600 * widthPct;
-            const ph = 600 * heightPct;
-            const px = 600 * leftPct;
-            const py = 600 * topPct;
+      await new Promise<void>((resolve) => {
+        baseImg.onload = () => resolve();
+        baseImg.onerror = () => resolve();
+      });
 
-            // Discard active selection line before compilation
+      ctx.drawImage(baseImg, 0, 0, 600, 600);
+
+      const printStyle = getPrintAreaStyle();
+      const parsePct = (val: string) => parseFloat(val) / 100;
+      const widthPct = parsePct(printStyle.width);
+      const heightPct = parsePct(printStyle.height);
+      const topPct = parsePct(printStyle.top);
+      const leftPct = parsePct(printStyle.left);
+
+      const pw = 600 * widthPct;
+      const ph = 600 * heightPct;
+      const px = 600 * leftPct;
+      const py = 600 * topPct;
+
+      const fabricDataUrl = await new Promise<string>((resolve) => {
+        try {
+          if (previewView === selectedView) {
             const activeObj = fCanvas.getActiveObject();
             if (activeObj) {
               fCanvas.discardActiveObject();
               fCanvas.renderAll();
             }
 
-            const fabricDataUrl = fCanvas.toDataURL({ format: 'png' });
-            const fabricImg = new Image();
-            fabricImg.src = fabricDataUrl;
-            fabricImg.onload = () => {
-              try {
-                ctx.drawImage(fabricImg, px, py, pw, ph);
-
-                // Restore selection state
-                if (activeObj) {
-                  fCanvas.setActiveObject(activeObj);
-                  fCanvas.renderAll();
-                }
-
-                resolve(canvas.toDataURL('image/jpeg', 0.60));
-              } catch (error) {
-                console.warn('Preview compilation failed; continuing without compiled preview.', error);
-                resolve('');
-              }
-            };
-            fabricImg.onerror = () => resolve('');
-          } catch (error) {
-            console.warn('Preview generation failed; continuing without compiled preview.', error);
-            resolve('');
+            const dataUrl = fCanvas.toDataURL({ format: 'png' });
+            if (activeObj) {
+              fCanvas.setActiveObject(activeObj);
+              fCanvas.renderAll();
+            }
+            resolve(dataUrl);
+            return;
           }
-        };
-        baseImg.onerror = () => resolve('');
-      } catch (err) {
-        console.error('Failed to compile preview image:', err);
-        resolve('');
+
+          if (!previewFabricState) {
+            resolve('');
+            return;
+          }
+
+          const tempCanvasEl = document.createElement('canvas');
+          tempCanvasEl.width = fCanvas.getWidth();
+          tempCanvasEl.height = fCanvas.getHeight();
+          const tempCanvas = new fabric.StaticCanvas(tempCanvasEl, {
+            width: fCanvas.getWidth(),
+            height: fCanvas.getHeight(),
+            backgroundColor: 'transparent',
+            preserveObjectStacking: true,
+          });
+
+          tempCanvas.loadFromJSON(previewFabricState, () => {
+            tempCanvas.renderAll();
+            resolve(tempCanvas.toDataURL({ format: 'png' }));
+            tempCanvas.dispose();
+          });
+        } catch (error) {
+          console.warn('Preview generation failed; continuing without compiled preview.', error);
+          resolve('');
+        }
+      });
+
+      if (!fabricDataUrl) {
+        return '';
       }
-    });
+
+      const fabricImg = new Image();
+      fabricImg.src = fabricDataUrl;
+
+      await new Promise<void>((resolve) => {
+        fabricImg.onload = () => resolve();
+        fabricImg.onerror = () => resolve();
+      });
+
+      ctx.drawImage(fabricImg, px, py, pw, ph);
+      return canvas.toDataURL('image/jpeg', 0.60);
+    } catch (err) {
+      console.error('Failed to compile preview image:', err);
+      return '';
+    }
   };
 
   // Add compiled customization item to cart
@@ -1653,13 +1856,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         return;
       }
 
-      const previewUrl = await generatePreviewDataUrl().catch((error) => {
-        console.warn('Preview generation failed; adding item with fallback image.', error);
-        return '';
-      });
-
-      const imgObj = fCanvas.getObjects('image')[0];
-      const textObj = fCanvas.getObjects('i-text')[0] as fabric.IText;
       const printifyVariantId = getPrintifyVariantId(activePrintifyVariant);
 
       if (!printifyVariantId) {
@@ -1667,13 +1863,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         return;
       }
 
+      const customizationsByView = buildCustomizationsByView();
+      const hasViewCustomizations = Object.keys(customizationsByView).length > 0;
+      const previewUrl = await generatePreviewDataUrl(customizationsByView).catch((error) => {
+        console.warn('Preview generation failed; adding item with fallback image.', error);
+        return '';
+      });
+
       const customization = {
-        customImageUrl: customImage || undefined,
-        customText: customText || undefined,
-        textColor: customText ? textColor : undefined,
-        fontFamily: customText ? textFont : undefined,
-        imagePosition: imgObj ? { x: imgObj.left || 0, y: imgObj.top || 0, scale: imgObj.scaleX || 1, rotate: imgObj.angle || 0 } : undefined,
-        textPosition: textObj ? { x: textObj.left || 0, y: textObj.top || 0, scale: textObj.scaleX || 1, rotate: textObj.angle || 0 } : undefined,
+        customizationsByView: hasViewCustomizations ? customizationsByView : undefined,
         previewUrl: previewUrl || undefined,
         printifyBlueprintId,
         printifyPrintProviderId,
@@ -1773,7 +1971,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               {availableViews.map((view) => (
                 <button
                   key={view}
-                  onClick={() => setSelectedView(view)}
+                  onClick={() => handleViewChange(view)}
                   className={`px-6 py-2.5 text-xs rounded-xl font-black uppercase tracking-wider border-2 transition-all ${
                     selectedView.toLowerCase() === view.toLowerCase()
                       ? 'bg-black text-white border-black shadow-md'
@@ -2470,7 +2668,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               const fCanvas = fabricCanvasRef.current;
               const hasText = !!customText.trim() || (fCanvas && fCanvas.getObjects('i-text').length > 0);
               const hasDesign = !!customImage || (fCanvas && fCanvas.getObjects('image').length > 0);
-              const hasCustomization = hasText || hasDesign;
+              const hasCustomization = hasText || hasDesign || hasSavedCanvasCustomization;
 
               return (
                 <>

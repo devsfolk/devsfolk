@@ -281,8 +281,22 @@ export interface Review {
   createdAt: number;
 }
 
+export type PrintifyViewKey = 'front' | 'back' | 'left' | 'right' | 'side';
+
+export interface PrintifyViewCustomization {
+  view: PrintifyViewKey;
+  customImageUrl?: string;
+  customText?: string;
+  textColor?: string;
+  fontFamily?: string;
+  textPosition?: { x: number; y: number; rotate: number; scale: number };
+  imagePosition?: { x: number; y: number; rotate: number; scale: number };
+  fabricState?: any;
+}
+
 export interface PrintifyCustomization {
   designId?: string;
+  customizationsByView?: Partial<Record<PrintifyViewKey, PrintifyViewCustomization>>;
   customImageUrl?: string;
   customText?: string;
   textColor?: string;
