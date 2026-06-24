@@ -39,6 +39,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         description: editingTemplate.description || '',
         images: Array.isArray(editingTemplate.images) ? editingTemplate.images : [],
         colors: Array.isArray(editingTemplate.colors) ? editingTemplate.colors : [],
+        providers: Array.isArray(editingTemplate.providers) ? editingTemplate.providers : [],
         sizes: Array.isArray(editingTemplate.variants) && editingTemplate.variants.length > 0
           ? (() => {
               // FIXED: Extract sizes with individual prices from variants
@@ -101,6 +102,41 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   // Initialize form with editing template data
   const { formData, setFormData } = useTemplateForm(initialFormData);
 
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const authToken = session?.access_token;
+
+    if (!authToken) {
+      throw new Error('Admin authentication required. Please log in again.');
+    }
+
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`,
+    };
+  };
+
+  const fetchBlueprintProviders = async (blueprintId: number) => {
+    const authHeaders = await getAuthHeaders();
+    const response = await fetch('/api/printify/catalog', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        mode: 'providers',
+        blueprintId,
+        apiKey,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.details || `Providers API returned status ${response.status}`);
+    }
+
+    const providersData = await response.json();
+    return providersData.data || providersData || [];
+  };
+
   const handleSync = async () => {
     if (!formData.blueprintId) {
       alert('Please provide a Blueprint ID to sync data.');
@@ -109,18 +145,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
     setSyncing(true);
     try {
-      // Get auth token from Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-      const authToken = session?.access_token;
-
-      if (!authToken) {
-        throw new Error('Admin authentication required. Please log in again.');
-      }
-
-      const authHeaders = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      };
+      const authHeaders = await getAuthHeaders();
 
       // Fetch blueprint details
       const blueprintResponse = await fetch('/api/printify/catalog', {
@@ -151,32 +176,22 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           ).filter(Boolean)
         : [];
 
-      // Fetch providers
-      const providersResponse = await fetch('/api/printify/catalog', {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({
-          mode: 'providers',
-          blueprintId: formData.blueprintId,
-          apiKey,
-        }),
-      });
-
-      if (!providersResponse.ok) {
-        console.warn('Failed to fetch providers');
+      let providers: any[] = [];
+      try {
+        providers = await fetchBlueprintProviders(formData.blueprintId);
+      } catch (providerError) {
+        console.warn('Failed to fetch providers', providerError);
         // Update with basic blueprint data only
         setFormData(prev => ({
           ...prev,
           title: prev.title || blueprintData.title || '',
           description: prev.description || blueprintData.description || '',
           images: prev.images.length > 0 ? prev.images : images,
+          providers: [],
         }));
         alert('⚠️ Blueprint synced, but providers unavailable. Please select a print provider in the Prices tab to load sizes and pricing.');
         return;
       }
-
-      const providersData = await providersResponse.json();
-      const providers = providersData.data || providersData || [];
       
       if (providers.length === 0) {
         setFormData(prev => ({
@@ -184,6 +199,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           title: prev.title || blueprintData.title || '',
           description: prev.description || blueprintData.description || '',
           images: prev.images.length > 0 ? prev.images : images,
+          providers: [],
         }));
         alert('⚠️ No print providers available for this blueprint.');
         return;
@@ -299,6 +315,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         title: prev.title || blueprintData.title || '',
         description: prev.description || blueprintData.description || '',
         images: prev.images.length > 0 ? prev.images : images,
+        providers,
         colors: extractedColors.length > 0 ? extractedColors : prev.colors,
         sizes: extractedSizes.length > 0 ? extractedSizes : prev.sizes,
         printAreas: printAreas.length > 0
@@ -336,6 +353,15 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
     setLoading(true);
     try {
+      let providers = Array.isArray(formData.providers) ? formData.providers : [];
+      if (formData.blueprintId && providers.length === 0) {
+        providers = await fetchBlueprintProviders(formData.blueprintId);
+      }
+
+      if (formData.blueprintId && providers.length === 0) {
+        throw new Error('No Printify providers were loaded for this blueprint. Please sync from Printify again before publishing.');
+      }
+
       const templateData: PrintifyCatalogTemplate = {
         id: formData.id || `bp_${formData.blueprintId || Date.now()}`,
         blueprintId: formData.blueprintId || 0,
@@ -345,7 +371,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         mockups: formData.images,
         colors: formData.colors,
         sizes: formData.sizes.map(s => s.size),
-        providers: [],
+        providers,
         variants: formData.sizes.map((s, idx) => ({
           id: idx + 1,
           title: s.size,
