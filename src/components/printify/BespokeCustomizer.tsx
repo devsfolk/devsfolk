@@ -1753,6 +1753,33 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             return;
           }
 
+          const savedState = previewFabricState as any;
+          const savedObjects = Array.isArray(savedState?.objects)
+            ? savedState.objects.map((object: any, index: number) => ({
+                index,
+                type: object?.type,
+                left: object?.left,
+                top: object?.top,
+                scaleX: object?.scaleX,
+                scaleY: object?.scaleY,
+                angle: object?.angle,
+              }))
+            : [];
+
+          console.log('[Preview Debug] Non-active view snapshot', {
+            previewView,
+            selectedView,
+            tempCanvasWidth: fCanvas.getWidth(),
+            tempCanvasHeight: fCanvas.getHeight(),
+            savedStateMeta: {
+              width: savedState?.width,
+              height: savedState?.height,
+              viewportTransform: savedState?.viewportTransform,
+            },
+            rawSavedState: savedState,
+            objects: savedObjects,
+          });
+
           const tempCanvasEl = document.createElement('canvas');
           tempCanvasEl.width = fCanvas.getWidth();
           tempCanvasEl.height = fCanvas.getHeight();
