@@ -754,10 +754,9 @@ export const PrintifySettings: React.FC = () => {
       const data = await fetchPrintifyShopProducts(apiKey, shopId);
       console.log('[TEMP] Printify shop-products raw response:', data);
       const printifyProducts = data.data || data || [];
-      console.log(
-        '[TEMP] Printify shop-products first raw product:',
-        Array.isArray(printifyProducts) ? printifyProducts[0] : printifyProducts
-      );
+      const firstProduct = Array.isArray(printifyProducts) ? printifyProducts[0] : printifyProducts;
+      console.log('[TEMP] First product images (expanded):', JSON.stringify(firstProduct?.images, null, 2));
+      console.log('[TEMP] First product views (expanded):', JSON.stringify(firstProduct?.views, null, 2));
       
       if (!Array.isArray(printifyProducts)) {
         throw new Error('Unexpected API response format. Expected an array of products.');
