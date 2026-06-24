@@ -543,11 +543,24 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return undefined;
     }
 
+    const isBp95 = activeTemplate?.id === 'bp_95';
     const syncColorCodes = activeTemplate?.syncDetails?.colorCodes;
+    let syncMatch: string | undefined;
+    let syncMatchedKey: string | undefined;
     if (syncColorCodes && typeof syncColorCodes === 'object') {
       const directSyncHex = syncColorCodes[normalizedTitle];
       if (isHexColorString(directSyncHex)) {
-        return String(directSyncHex).trim();
+        syncMatch = String(directSyncHex).trim();
+        syncMatchedKey = normalizedTitle;
+        if (isBp95) {
+          console.log('[Color Debug][bp_95] sync-color-codes direct hit', {
+            title: normalizedTitle,
+            matchedKey: syncMatchedKey,
+            matchedHex: syncMatch,
+            syncKeys: Object.keys(syncColorCodes),
+          });
+        }
+        return syncMatch;
       }
 
       const matchedSyncEntry = Object.entries(syncColorCodes).find(([entryTitle, entryHex]) => (
@@ -555,15 +568,58 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         isHexColorString(entryHex)
       ));
       if (matchedSyncEntry) {
-        return String(matchedSyncEntry[1]).trim();
+        syncMatchedKey = matchedSyncEntry[0];
+        syncMatch = String(matchedSyncEntry[1]).trim();
+        if (isBp95) {
+          console.log('[Color Debug][bp_95] sync-color-codes normalized hit', {
+            title: normalizedTitle,
+            matchedKey: syncMatchedKey,
+            matchedHex: syncMatch,
+            syncKeys: Object.keys(syncColorCodes),
+          });
+        }
+        return syncMatch;
       }
     }
 
-    for (const variant of activePrintifyVariants) {
-      const colorDetail = getVariantColorDetail(variant);
-      if (String(colorDetail?.title || '').trim().toLowerCase() === normalizedTitle.toLowerCase() && isHexColorString(colorDetail.hex)) {
-        return String(colorDetail.hex).trim();
+    const variantMatches = activePrintifyVariants
+      .map((variant: any) => ({
+        variantId: String(variant?.id || variant?.variant_id || variant?.printify_variant_id || ''),
+        ...getVariantColorDetail(variant),
+      }))
+      .filter((entry) => (
+        String(entry?.title || '').trim().toLowerCase() === normalizedTitle.toLowerCase() &&
+        isHexColorString(entry?.hex)
+      ));
+
+    if (isBp95) {
+      console.log('[Color Debug][bp_95] variant-scan candidates', {
+        title: normalizedTitle,
+        syncColorCodes: syncColorCodes && typeof syncColorCodes === 'object' ? syncColorCodes : null,
+        variantMatches,
+      });
+    }
+
+    for (const match of variantMatches) {
+      if (isHexColorString(match.hex)) {
+        if (isBp95) {
+          console.log('[Color Debug][bp_95] variant-scan hit', {
+            title: normalizedTitle,
+            resolvedHex: String(match.hex).trim(),
+            match,
+          });
+        }
+        return String(match.hex).trim();
       }
+    }
+
+    if (isBp95) {
+      console.log('[Color Debug][bp_95] unresolved', {
+        title: normalizedTitle,
+        syncMatch: syncMatch || null,
+        syncMatchedKey: syncMatchedKey || null,
+        variantMatches,
+      });
     }
 
     return undefined;
