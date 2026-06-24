@@ -715,6 +715,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   
   // Refs - MUST BE DEFINED BEFORE calculateCustomizedPrice
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const previewMockupImageRef = useRef<HTMLImageElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const compiledCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -733,6 +734,52 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     setTextIsItalic(false);
     setTextIsUnderline(false);
     setTextAlign('left');
+  };
+
+  const logEditorOverlayMetrics = (source: string) => {
+    const mockupEl = previewMockupImageRef.current;
+    const printAreaEl = printAreaRef.current;
+
+    if (!mockupEl || !printAreaEl) {
+      return;
+    }
+
+    const mockupRect = mockupEl.getBoundingClientRect();
+    const printAreaRect = printAreaEl.getBoundingClientRect();
+    const relativeTop = printAreaRect.top - mockupRect.top;
+    const relativeLeft = printAreaRect.left - mockupRect.left;
+    const relativeWidth = printAreaRect.width;
+    const relativeHeight = printAreaRect.height;
+
+    console.log('[Preview Debug] Editor overlay metrics', {
+      source,
+      selectedView,
+      mockupRect: {
+        top: mockupRect.top,
+        left: mockupRect.left,
+        width: mockupRect.width,
+        height: mockupRect.height,
+      },
+      printAreaRect: {
+        top: printAreaRect.top,
+        left: printAreaRect.left,
+        width: printAreaRect.width,
+        height: printAreaRect.height,
+      },
+      relativeToMockup: {
+        top: relativeTop,
+        left: relativeLeft,
+        width: relativeWidth,
+        height: relativeHeight,
+      },
+      ratios: {
+        top: mockupRect.height ? relativeTop / mockupRect.height : null,
+        left: mockupRect.width ? relativeLeft / mockupRect.width : null,
+        width: mockupRect.width ? relativeWidth / mockupRect.width : null,
+        height: mockupRect.height ? relativeHeight / mockupRect.height : null,
+      },
+      printStyle: getPrintAreaStyle(),
+    });
   };
 
   const getImageSource = (imageObj?: fabric.Object) => {
@@ -1736,6 +1783,32 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       const px = PREVIEW_RENDER_SIZE * leftPct;
       const py = PREVIEW_RENDER_SIZE * topPct;
 
+      console.log('[Preview Debug] Preview compositor metrics', {
+        previewView,
+        selectedView,
+        previewBranch: previewView === selectedView ? 'active' : 'saved',
+        previewTargetSize: PREVIEW_RENDER_SIZE,
+        printStyle,
+        percentages: {
+          leftPct,
+          topPct,
+          widthPct,
+          heightPct,
+        },
+        pixels: {
+          px,
+          py,
+          pw,
+          ph,
+        },
+        ratios: {
+          left: px / PREVIEW_RENDER_SIZE,
+          top: py / PREVIEW_RENDER_SIZE,
+          width: pw / PREVIEW_RENDER_SIZE,
+          height: ph / PREVIEW_RENDER_SIZE,
+        },
+      });
+
       const fabricDataUrl = await new Promise<string>((resolve) => {
         try {
           if (previewView === selectedView) {
@@ -1977,9 +2050,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
             
               {/* Template Mockup Image */}
               <img 
+                ref={previewMockupImageRef}
                 src={activeViewImage} 
                 alt={`${activeProduct?.name || 'Product'} - ${selectedView}`} 
                 className="max-w-full max-h-[500px] w-auto h-auto block select-none pointer-events-none"
+                onLoad={() => logEditorOverlayMetrics('mockup-image-load')}
               />
 
               {/* Print Area Bounds holding Fabric Canvas */}
