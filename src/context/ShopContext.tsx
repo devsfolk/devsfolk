@@ -1947,6 +1947,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           printifyPrintAreas: options?.customization?.printifyPrintAreas,
         };
 
+        console.log('[ShopContext] addToCart customizationsByView stored', {
+          productId: cartItem.productId,
+          price: cartItem.price,
+          customizationsByView: cartItem.customization?.customizationsByView,
+          customizationViewKeys: Object.keys(cartItem.customization?.customizationsByView || {}),
+        });
+
         nextCart.push(cartItem);
       }
 
