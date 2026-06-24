@@ -470,6 +470,105 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return activeProduct.images[imageIndex >= 0 ? imageIndex : 0] || activeProduct.images[0];
   };
 
+  const isHexColorString = (value: unknown) => (
+    typeof value === 'string' && /^#[0-9a-f]{3,6}$/i.test(value.trim())
+  );
+
+  const getVariantColorOption = (variant: any) => {
+    const options = Array.isArray(variant?.options) ? variant.options : [];
+
+    return options.find((opt: any) => {
+      if (typeof opt === 'number') return false;
+
+      const name = String(opt?.name || opt?.key || opt?.label || '').toLowerCase();
+      const type = String(opt?.type || '').toLowerCase();
+
+      return name.includes('color') || name.includes('colour') ||
+             type.includes('color') || type.includes('colour') ||
+             !!opt?.hex ||
+             (Array.isArray(opt?.colors) && opt.colors.length > 0);
+    }) || null;
+  };
+
+  const getHexFromColorOption = (colorOpt: any) => {
+    if (!colorOpt) return undefined;
+
+    const directHex = colorOpt?.hex ? String(colorOpt.hex).trim() : '';
+    if (isHexColorString(directHex)) {
+      return directHex;
+    }
+
+    const colorFieldHex = colorOpt?.color ? String(colorOpt.color).trim() : '';
+    if (isHexColorString(colorFieldHex)) {
+      return colorFieldHex;
+    }
+
+    const arrayHex = Array.isArray(colorOpt?.colors) && colorOpt.colors.length > 0
+      ? String(colorOpt.colors[0]).trim()
+      : '';
+    if (isHexColorString(arrayHex)) {
+      return arrayHex;
+    }
+
+    return undefined;
+  };
+
+  const getVariantColorDetail = (variant: any) => {
+    const colorOpt = getVariantColorOption(variant);
+    if (!colorOpt) {
+      return null;
+    }
+
+    const title = String(
+      colorOpt?.title ||
+      colorOpt?.value ||
+      colorOpt?.name ||
+      colorOpt?.label ||
+      ''
+    ).trim();
+
+    if (!title) {
+      return null;
+    }
+
+    return {
+      title,
+      hex: getHexFromColorOption(colorOpt),
+    };
+  };
+
+  const getResolvedColorHex = (title: string) => {
+    const normalizedTitle = String(title || '').trim();
+    if (!normalizedTitle) {
+      return undefined;
+    }
+
+    const syncColorCodes = activeTemplate?.syncDetails?.colorCodes;
+    if (syncColorCodes && typeof syncColorCodes === 'object') {
+      const directSyncHex = syncColorCodes[normalizedTitle];
+      if (isHexColorString(directSyncHex)) {
+        return String(directSyncHex).trim();
+      }
+
+      const matchedSyncEntry = Object.entries(syncColorCodes).find(([entryTitle, entryHex]) => (
+        String(entryTitle || '').trim().toLowerCase() === normalizedTitle.toLowerCase() &&
+        isHexColorString(entryHex)
+      ));
+      if (matchedSyncEntry) {
+        return String(matchedSyncEntry[1]).trim();
+      }
+    }
+
+    for (const variant of activePrintifyVariants) {
+      const colorDetail = getVariantColorDetail(variant);
+      if (String(colorDetail?.title || '').trim().toLowerCase() === normalizedTitle.toLowerCase() && isHexColorString(colorDetail.hex)) {
+        return String(colorDetail.hex).trim();
+      }
+    }
+
+    return undefined;
+  };
+
   // Ensure selectedView is valid when template changes
   useEffect(() => {
     if (!availableViews.includes(selectedView.toLowerCase())) {
@@ -503,9 +602,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       for (const color of activeTemplate.colors) {
         // Handle both string colors and { title, hex } objects
         const colorTitle = typeof color === 'string' ? color : String(color?.title || color?.name || '').trim();
-        const colorHex = typeof color === 'string' 
-          ? (/^#[0-9a-f]{3,6}$/i.test(color) ? color : undefined)
-          : String(color?.hex || color?.color || '').trim() || undefined;
+        const directColorHex = typeof color === 'string'
+          ? (isHexColorString(color) ? String(color).trim() : undefined)
+          : getHexFromColorOption(color);
+        const colorHex = directColorHex || getResolvedColorHex(colorTitle);
 
         if (!colorTitle || seen.has(colorTitle)) {
           continue;
@@ -544,33 +644,16 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const result: Array<{ title: string; hex?: string }> = [];
 
     for (const variant of activePrintifyVariants) {
-      const options = Array.isArray(variant?.options) ? variant.options : [];
-      
-      // Find color option - check enriched 'name' field, original 'type' field, or infer from position
-      const colorOpt = options.find((opt: any) => {
-        // If opt is just a number (unenriched), skip it - we'll handle this differently
-        if (typeof opt === 'number') return false;
-        
-        const name = String(opt?.name || opt?.key || opt?.label || '').toLowerCase();
-        const type = String(opt?.type || '').toLowerCase();
-        
-        // Check if this is a color option
-        return name.includes('color') || name.includes('colour') || 
-               type.includes('color') || type.includes('colour') ||
-               !!opt?.hex ||
-               (Array.isArray(opt?.colors) && opt.colors.length > 0);
-      });
-      
+      const colorOpt = getVariantColorOption(variant);
       if (!colorOpt) {
         continue;
       }
-      
-      // Extract title from multiple possible fields
+
       const title = String(
-        colorOpt?.title || 
-        colorOpt?.value || 
-        colorOpt?.name || 
-        colorOpt?.label || 
+        colorOpt?.title ||
+        colorOpt?.value ||
+        colorOpt?.name ||
+        colorOpt?.label ||
         ''
       ).trim();
       
@@ -579,12 +662,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       }
       seen.add(title);
       
-      // Extract hex color - check multiple fields
-      const hex = colorOpt?.hex
-        ? String(colorOpt.hex).trim()
-        : colorOpt?.colors && Array.isArray(colorOpt.colors) && colorOpt.colors.length > 0
-        ? String(colorOpt.colors[0]).trim()
-        : /^#[0-9a-f]{3,6}$/i.test(title) ? title : undefined;
+      const hex = getHexFromColorOption(colorOpt);
       
       result.push({
         title,
