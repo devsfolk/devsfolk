@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getPrintifyCustomizationSummary } from '@/lib/printifyCustomizationSummary';
 
 export const CartPage: React.FC = () => {
   const { cart, removeFromCart, updateCartQuantity, cartTotal, settings } = useShop();
@@ -14,22 +15,6 @@ export const CartPage: React.FC = () => {
 
   const handleCheckout = () => {
     navigate('/checkout');
-  };
-
-  const getCustomizationSummary = (customization: any) => {
-    const orderedViews = ['front', 'back', 'left', 'right'] as const;
-    const customizedViews = orderedViews.filter((view) => !!customization?.customizationsByView?.[view]);
-
-    if (customizedViews.length <= 1) {
-      return '';
-    }
-
-    const labels = customizedViews.map((view) => view.charAt(0).toUpperCase() + view.slice(1));
-    if (labels.length <= 2) {
-      return `${labels.join(' + ')} customized`;
-    }
-
-    return `${labels.length} sides customized: ${labels.join(', ')}`;
   };
 
   if (cart.length === 0) {
@@ -66,9 +51,9 @@ export const CartPage: React.FC = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-black text-sm md:text-lg uppercase tracking-tight">{item.name}</h3>
-                    {getCustomizationSummary(item.customization) && (
+                    {getPrintifyCustomizationSummary(item.customization) && (
                       <p className="text-[9px] md:text-[11px] font-bold text-gray-500 uppercase tracking-widest mt-1">
-                        {getCustomizationSummary(item.customization)}
+                        {getPrintifyCustomizationSummary(item.customization)}
                       </p>
                     )}
                     <p className="text-[10px] md:text-sm font-bold text-gray-400 uppercase tracking-widest italic opacity-60 leading-none mt-1">Price: {settings.currencySymbol}{item.price.toFixed(2)}</p>

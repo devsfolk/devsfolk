@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, ArrowLeft, ShoppingBag, CheckCircle2, Landmark, Copy, Check, ShieldAlert, ShieldCheck, Loader2, Upload, AlertCircle, QrCode, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { optimizeImage } from '@/lib/imageUtils';
+import { getPrintifyCustomizationSummary } from '@/lib/printifyCustomizationSummary';
 
 const loadTesseract = (): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -75,22 +76,6 @@ export const CheckoutPage: React.FC = () => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const getCustomizationSummary = (customization: any) => {
-    const orderedViews = ['front', 'back', 'left', 'right'] as const;
-    const customizedViews = orderedViews.filter((view) => !!customization?.customizationsByView?.[view]);
-
-    if (customizedViews.length <= 1) {
-      return '';
-    }
-
-    const labels = customizedViews.map((view) => view.charAt(0).toUpperCase() + view.slice(1));
-    if (labels.length <= 2) {
-      return `${labels.join(' + ')} customized`;
-    }
-
-    return `${labels.length} sides customized: ${labels.join(', ')}`;
   };
 
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -854,9 +839,9 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-sm line-clamp-1">{item.name}</h4>
-                      {getCustomizationSummary(item.customization) && (
+                      {getPrintifyCustomizationSummary(item.customization) && (
                         <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">
-                          {getCustomizationSummary(item.customization)}
+                          {getPrintifyCustomizationSummary(item.customization)}
                         </p>
                       )}
                       <p className="text-xs text-gray-500">{item.quantity} x {settings.currencySymbol}{item.price.toFixed(2)}</p>
