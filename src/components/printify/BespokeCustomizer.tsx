@@ -2852,8 +2852,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           handleClosePreview();
         }}
       >
-        <DialogContent className="overflow-hidden p-0 sm:max-w-3xl lg:max-w-4xl">
-          <div className="flex max-h-[85vh] min-h-0 flex-col overflow-hidden p-5 md:p-6">
+        <DialogContent className="p-0 sm:max-w-3xl lg:max-w-4xl">
+          <div className="flex max-h-[85vh] flex-col p-5 md:p-6">
             <DialogHeader className="pr-10">
               <DialogTitle className="text-base md:text-lg font-black uppercase tracking-tight">Preview</DialogTitle>
               <DialogDescription className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400">
@@ -2861,7 +2861,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               </DialogDescription>
             </DialogHeader>
 
-            <div className="mt-4 flex-1 min-h-0 overflow-hidden">
+            <div className="mt-4 min-h-[320px]">
               {isGeneratingPreview ? (
                 <div className="flex min-h-[320px] flex-col items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -2870,7 +2870,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   </p>
                 </div>
               ) : previewFrames.length === 1 ? (
-                <div className="flex h-full min-h-0 flex-col space-y-3">
+                <div className="space-y-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {previewFrames[0]?.label} Preview
                   </p>
@@ -2886,7 +2886,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 <Tabs
                   value={activePreviewView}
                   onValueChange={(value) => setActivePreviewView(value as PrintifyViewKey)}
-                  className="flex h-full min-h-0 w-full flex-col"
+                  className="w-full"
                 >
                   <TabsList variant="line" className="w-full justify-start overflow-x-auto">
                     {previewFrames.map((frame) => (
@@ -2897,8 +2897,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   </TabsList>
 
                   {previewFrames.map((frame) => (
-                    <TabsContent key={frame.view} value={frame.view} className="mt-4 min-h-0">
-                      <div className="flex h-full min-h-0 flex-col space-y-3">
+                    <TabsContent key={frame.view} value={frame.view} className="mt-4">
+                      <div className="space-y-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                           {frame.label} Preview
                         </p>
