@@ -787,7 +787,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const state = canvas.toJSON(['id', 'layerName', 'selectable']);
     const hasObjects = Array.isArray(state.objects) && state.objects.length > 0;
     if (hasObjects) {
-      canvasStatesRef.current[view] = state;
+      canvasStatesRef.current[view] = {
+        ...state,
+        savedWidth: canvas.getWidth(),
+        savedHeight: canvas.getHeight(),
+      };
     } else {
       delete canvasStatesRef.current[view];
     }
@@ -1756,38 +1760,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           }
 
           const savedState = previewFabricState as any;
-          const savedObjects = Array.isArray(savedState?.objects)
-            ? savedState.objects.map((object: any, index: number) => ({
-                index,
-                type: object?.type,
-                left: object?.left,
-                top: object?.top,
-                scaleX: object?.scaleX,
-                scaleY: object?.scaleY,
-                angle: object?.angle,
-              }))
-            : [];
-
-          console.log('[Preview Debug] Non-active view snapshot', {
-            previewView,
-            selectedView,
-            tempCanvasWidth: fCanvas.getWidth(),
-            tempCanvasHeight: fCanvas.getHeight(),
-            savedStateMeta: {
-              width: savedState?.width,
-              height: savedState?.height,
-              viewportTransform: savedState?.viewportTransform,
-            },
-            rawSavedState: savedState,
-            objects: savedObjects,
-          });
+          const savedWidth = Number(savedState?.savedWidth) || fCanvas.getWidth();
+          const savedHeight = Number(savedState?.savedHeight) || fCanvas.getHeight();
 
           const tempCanvasEl = document.createElement('canvas');
-          tempCanvasEl.width = fCanvas.getWidth();
-          tempCanvasEl.height = fCanvas.getHeight();
+          tempCanvasEl.width = savedWidth;
+          tempCanvasEl.height = savedHeight;
           const tempCanvas = new fabric.StaticCanvas(tempCanvasEl, {
-            width: fCanvas.getWidth(),
-            height: fCanvas.getHeight(),
+            width: savedWidth,
+            height: savedHeight,
             backgroundColor: 'transparent',
             preserveObjectStacking: true,
           });
