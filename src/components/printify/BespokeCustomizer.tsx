@@ -1769,7 +1769,24 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         baseImg.onerror = () => resolve();
       });
 
-      ctx.drawImage(baseImg, 0, 0, PREVIEW_RENDER_SIZE, PREVIEW_RENDER_SIZE);
+      const baseAspectRatio = baseImg.naturalWidth && baseImg.naturalHeight
+        ? baseImg.naturalWidth / baseImg.naturalHeight
+        : 1;
+
+      let baseDrawWidth = PREVIEW_RENDER_SIZE;
+      let baseDrawHeight = PREVIEW_RENDER_SIZE;
+      let baseDrawX = 0;
+      let baseDrawY = 0;
+
+      if (baseAspectRatio > 1) {
+        baseDrawHeight = PREVIEW_RENDER_SIZE / baseAspectRatio;
+        baseDrawY = (PREVIEW_RENDER_SIZE - baseDrawHeight) / 2;
+      } else if (baseAspectRatio > 0) {
+        baseDrawWidth = PREVIEW_RENDER_SIZE * baseAspectRatio;
+        baseDrawX = (PREVIEW_RENDER_SIZE - baseDrawWidth) / 2;
+      }
+
+      ctx.drawImage(baseImg, baseDrawX, baseDrawY, baseDrawWidth, baseDrawHeight);
 
       const printStyle = getPrintAreaStyle();
       const parsePct = (val: string) => parseFloat(val) / 100;
@@ -1778,10 +1795,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       const topPct = parsePct(printStyle.top);
       const leftPct = parsePct(printStyle.left);
 
-      const pw = PREVIEW_RENDER_SIZE * widthPct;
-      const ph = PREVIEW_RENDER_SIZE * heightPct;
-      const px = PREVIEW_RENDER_SIZE * leftPct;
-      const py = PREVIEW_RENDER_SIZE * topPct;
+      const pw = baseDrawWidth * widthPct;
+      const ph = baseDrawHeight * heightPct;
+      const px = baseDrawX + (baseDrawWidth * leftPct);
+      const py = baseDrawY + (baseDrawHeight * topPct);
 
       console.log('[Preview Debug] Preview compositor metrics', {
         previewView,
@@ -1801,11 +1818,17 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           pw,
           ph,
         },
+        baseRect: {
+          x: baseDrawX,
+          y: baseDrawY,
+          width: baseDrawWidth,
+          height: baseDrawHeight,
+        },
         ratios: {
-          left: px / PREVIEW_RENDER_SIZE,
-          top: py / PREVIEW_RENDER_SIZE,
-          width: pw / PREVIEW_RENDER_SIZE,
-          height: ph / PREVIEW_RENDER_SIZE,
+          left: baseDrawWidth ? (px - baseDrawX) / baseDrawWidth : null,
+          top: baseDrawHeight ? (py - baseDrawY) / baseDrawHeight : null,
+          width: baseDrawWidth ? pw / baseDrawWidth : null,
+          height: baseDrawHeight ? ph / baseDrawHeight : null,
         },
       });
 
@@ -2829,8 +2852,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           handleClosePreview();
         }}
       >
-        <DialogContent className="p-0 sm:max-w-3xl lg:max-w-4xl">
-          <div className="flex max-h-[85vh] flex-col p-5 md:p-6">
+        <DialogContent className="overflow-hidden p-0 sm:max-w-3xl lg:max-w-4xl">
+          <div className="flex max-h-[85vh] min-h-0 flex-col overflow-hidden p-5 md:p-6">
             <DialogHeader className="pr-10">
               <DialogTitle className="text-base md:text-lg font-black uppercase tracking-tight">Preview</DialogTitle>
               <DialogDescription className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400">
@@ -2838,7 +2861,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               </DialogDescription>
             </DialogHeader>
 
-            <div className="mt-4 min-h-[320px]">
+            <div className="mt-4 flex-1 min-h-0 overflow-hidden">
               {isGeneratingPreview ? (
                 <div className="flex min-h-[320px] flex-col items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -2847,7 +2870,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   </p>
                 </div>
               ) : previewFrames.length === 1 ? (
-                <div className="space-y-3">
+                <div className="flex h-full min-h-0 flex-col space-y-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {previewFrames[0]?.label} Preview
                   </p>
@@ -2863,7 +2886,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                 <Tabs
                   value={activePreviewView}
                   onValueChange={(value) => setActivePreviewView(value as PrintifyViewKey)}
-                  className="w-full"
+                  className="flex h-full min-h-0 w-full flex-col"
                 >
                   <TabsList variant="line" className="w-full justify-start overflow-x-auto">
                     {previewFrames.map((frame) => (
@@ -2874,8 +2897,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   </TabsList>
 
                   {previewFrames.map((frame) => (
-                    <TabsContent key={frame.view} value={frame.view} className="mt-4">
-                      <div className="space-y-3">
+                    <TabsContent key={frame.view} value={frame.view} className="mt-4 min-h-0">
+                      <div className="flex h-full min-h-0 flex-col space-y-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                           {frame.label} Preview
                         </p>
