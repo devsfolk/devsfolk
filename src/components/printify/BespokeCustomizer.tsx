@@ -30,6 +30,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const [previewFrames, setPreviewFrames] = useState<Array<{ view: PrintifyViewKey; label: string; url: string }>>([]);
   const [activePreviewView, setActivePreviewView] = useState<PrintifyViewKey>('front');
   const previewRequestIdRef = useRef(0);
+  const PREVIEW_RENDER_SIZE = 1200;
+  const PREVIEW_EXPORT_MULTIPLIER = 2;
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
@@ -1700,12 +1702,12 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         ? fCanvas.toJSON(['id', 'layerName', 'selectable'])
         : customizationsByView?.[previewView]?.fabricState || canvasStatesRef.current[previewView];
 
-      canvas.width = 600;
-      canvas.height = 600;
+      canvas.width = PREVIEW_RENDER_SIZE;
+      canvas.height = PREVIEW_RENDER_SIZE;
 
       // 1. Draw neutral canvas; product colors should come from Printify mockups/variants, not simulated tinting.
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 600, 600);
+      ctx.fillRect(0, 0, PREVIEW_RENDER_SIZE, PREVIEW_RENDER_SIZE);
 
       const baseImg = new Image();
       baseImg.crossOrigin = 'anonymous';
@@ -1716,7 +1718,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         baseImg.onerror = () => resolve();
       });
 
-      ctx.drawImage(baseImg, 0, 0, 600, 600);
+      ctx.drawImage(baseImg, 0, 0, PREVIEW_RENDER_SIZE, PREVIEW_RENDER_SIZE);
 
       const printStyle = getPrintAreaStyle();
       const parsePct = (val: string) => parseFloat(val) / 100;
@@ -1725,10 +1727,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       const topPct = parsePct(printStyle.top);
       const leftPct = parsePct(printStyle.left);
 
-      const pw = 600 * widthPct;
-      const ph = 600 * heightPct;
-      const px = 600 * leftPct;
-      const py = 600 * topPct;
+      const pw = PREVIEW_RENDER_SIZE * widthPct;
+      const ph = PREVIEW_RENDER_SIZE * heightPct;
+      const px = PREVIEW_RENDER_SIZE * leftPct;
+      const py = PREVIEW_RENDER_SIZE * topPct;
 
       const fabricDataUrl = await new Promise<string>((resolve) => {
         try {
@@ -1739,7 +1741,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
               fCanvas.renderAll();
             }
 
-            const dataUrl = fCanvas.toDataURL({ format: 'png' });
+            const dataUrl = fCanvas.toDataURL({ format: 'png', multiplier: PREVIEW_EXPORT_MULTIPLIER });
             if (activeObj) {
               fCanvas.setActiveObject(activeObj);
               fCanvas.renderAll();
@@ -1792,7 +1794,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
           tempCanvas.loadFromJSON(previewFabricState, () => {
             tempCanvas.renderAll();
-            resolve(tempCanvas.toDataURL({ format: 'png' }));
+            resolve(tempCanvas.toDataURL({ format: 'png', multiplier: PREVIEW_EXPORT_MULTIPLIER }));
             tempCanvas.dispose();
           });
         } catch (error) {
@@ -1814,7 +1816,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       });
 
       ctx.drawImage(fabricImg, px, py, pw, ph);
-      return canvas.toDataURL('image/jpeg', 0.60);
+      return canvas.toDataURL('image/jpeg', 0.88);
     } catch (err) {
       console.error('Failed to compile preview image:', err);
       return '';
@@ -2771,8 +2773,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           handleClosePreview();
         }}
       >
-        <DialogContent className="max-w-5xl p-0 sm:max-w-5xl">
-          <div className="flex max-h-[90vh] flex-col p-5 md:p-6">
+        <DialogContent className="p-0 sm:max-w-3xl lg:max-w-4xl">
+          <div className="flex max-h-[85vh] flex-col p-5 md:p-6">
             <DialogHeader className="pr-10">
               <DialogTitle className="text-base md:text-lg font-black uppercase tracking-tight">Preview</DialogTitle>
               <DialogDescription className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400">
