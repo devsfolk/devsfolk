@@ -364,6 +364,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return ['front']; // Single image default
   }, [activeProduct]);
 
+  const templateViewOrder = useMemo(
+    () => availableViews.map((view) => view.toLowerCase() as PrintifyViewKey),
+    [availableViews],
+  );
+
   // Phase 5: Get the print area for the currently selected view (NEW SCHEMA)
   const activeViewPrintArea = useMemo(() => {
     const printAreas = activeTemplate?.printAreas || activeTemplate?.print_areas || [];
@@ -415,25 +420,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return '/custom-tee-mockup.png';
     }
 
-    // FIXED: Direct view to index mapping (not dependent on availableViews)
-    const viewIndexMap: Record<string, number> = {
-      'front': 0,
-      'back': 1,
-      'left': 2,
-      'side': 2, // Alias for left
-      'right': 3,
-      'detail': 3, // Alias for right
-    };
-    
-    const imageIndex = viewIndexMap[selectedView.toLowerCase()] || 0;
-    const imageUrl = activeProduct.images[imageIndex] || activeProduct.images[0];
+    const imageIndex = templateViewOrder.findIndex((view) => view === selectedView.toLowerCase());
+    const resolvedImageIndex = imageIndex >= 0 ? imageIndex : 0;
+    const imageUrl = activeProduct.images[resolvedImageIndex] || activeProduct.images[0];
     
     return imageUrl;
-  }, [activeProduct, selectedView, selectedColor, activeTemplate]);
+  }, [activeProduct, selectedView, selectedColor, activeTemplate, templateViewOrder]);
 
   const getPreviewView = (customizationsByView?: Partial<Record<PrintifyViewKey, PrintifyViewCustomization>>) => {
-    const orderedViews: PrintifyViewKey[] = ['front', 'back', 'left', 'right'];
-    return orderedViews.find((view) => !!customizationsByView?.[view]) || (selectedView as PrintifyViewKey);
+    return templateViewOrder.find((view) => !!customizationsByView?.[view]) || (selectedView as PrintifyViewKey);
   };
 
   const getViewImageForView = (view: string) => {
@@ -461,17 +456,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return '/custom-tee-mockup.png';
     }
 
-    const viewIndexMap: Record<string, number> = {
-      front: 0,
-      back: 1,
-      left: 2,
-      side: 2,
-      right: 3,
-      detail: 3,
-    };
-
-    const imageIndex = viewIndexMap[view.toLowerCase()] || 0;
-    return activeProduct.images[imageIndex] || activeProduct.images[0];
+    const imageIndex = templateViewOrder.findIndex((candidate) => candidate === view.toLowerCase());
+    return activeProduct.images[imageIndex >= 0 ? imageIndex : 0] || activeProduct.images[0];
   };
 
   // Ensure selectedView is valid when template changes
@@ -943,8 +929,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       },
     };
 
-    const pricedViews: PrintifyViewKey[] = ['front', 'back', 'left', 'right'];
-    const customizationFee = pricedViews.reduce(
+    const customizationFee = templateViewOrder.reduce(
       (total, view) => total + getViewCustomizationFee(view, editorCharges),
       0,
     );
@@ -953,7 +938,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const areaSurcharge = 0;
 
     return Number((retailPrice + customizationFee + areaSurcharge).toFixed(2));
-  }, [settings.printifySettings?.charges?.editorCharges, customText, customImage, canvasStateVersion]);
+  }, [settings.printifySettings?.charges?.editorCharges, customText, customImage, canvasStateVersion, templateViewOrder]);
 
   // Calculate customer prices AFTER calculateCustomizedPrice is defined
   const activeDisplayCustomerPrice = useMemo(() => 
@@ -2601,12 +2586,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       designOnly: 0,
                       textAndDesign: 0,
                     };
-                    const pricedViews: Array<{ view: PrintifyViewKey; label: string }> = [
-                      { view: 'front', label: 'Front' },
-                      { view: 'back', label: 'Back' },
-                      { view: 'left', label: 'Left' },
-                      { view: 'right', label: 'Right' },
-                    ];
+                    const pricedViews: Array<{ view: PrintifyViewKey; label: string }> = templateViewOrder.map((view) => ({
+                      view,
+                      label: view.charAt(0).toUpperCase() + view.slice(1),
+                    }));
 
                     const feeLines = pricedViews
                       .map(({ view, label }) => ({
