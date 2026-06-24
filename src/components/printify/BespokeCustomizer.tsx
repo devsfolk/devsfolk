@@ -2776,11 +2776,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {previewFrames[0]?.label} Preview
                   </p>
-                  <div className="overflow-hidden rounded-3xl border border-gray-200 bg-gray-50">
+                  <div className="overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 max-h-[70vh]">
                     <img
                       src={previewFrames[0]?.url}
                       alt={`${previewFrames[0]?.label} preview`}
-                      className="h-full w-full object-contain"
+                      className="block w-full max-h-[70vh] object-contain"
                     />
                   </div>
                 </div>
@@ -2804,11 +2804,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                           {frame.label} Preview
                         </p>
-                        <div className="overflow-hidden rounded-3xl border border-gray-200 bg-gray-50">
+                        <div className="overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 max-h-[70vh]">
                           <img
                             src={frame.url}
                             alt={`${frame.label} preview`}
-                            className="h-full w-full object-contain"
+                            className="block w-full max-h-[70vh] object-contain"
                           />
                         </div>
                       </div>
