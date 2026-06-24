@@ -6,7 +6,11 @@ const PRINTIFY_VIEW_LABELS: Record<string, string> = {
   side: 'Side',
 };
 
-const hasViewCustomization = (customization: any) => {
+export const getPrintifyViewLabel = (view: string) => (
+  PRINTIFY_VIEW_LABELS[view] || view.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+);
+
+export const hasPrintifyViewCustomization = (customization: any) => {
   if (!customization || typeof customization !== 'object') return false;
   const objects = customization.fabricState?.objects;
   return !!(
@@ -23,8 +27,8 @@ export const getPrintifyCustomizationSummary = (customization: any) => {
   }
 
   const labels = Object.entries(customizationsByView)
-    .filter(([, viewCustomization]) => hasViewCustomization(viewCustomization))
-    .map(([view]) => PRINTIFY_VIEW_LABELS[view] || view.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()));
+    .filter(([, viewCustomization]) => hasPrintifyViewCustomization(viewCustomization))
+    .map(([view]) => getPrintifyViewLabel(view));
 
   if (labels.length <= 1) {
     return '';

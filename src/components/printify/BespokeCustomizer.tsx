@@ -2,15 +2,18 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { fabric } from 'fabric';
-import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Copy, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import { ArrowLeft, Upload, Type, Layout, ShoppingBag, RefreshCw, HelpCircle, Palette, RotateCcw, Trash2, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Copy, ChevronUp, ChevronDown, Check, Eye, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
 import { Product, PrintifyCatalogTemplate, PrintifyViewCustomization, PrintifyViewKey } from '@/types';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
+import { getPrintifyViewLabel, hasPrintifyViewCustomization } from '@/lib/printifyCustomizationSummary';
 
 interface BespokeCustomizerProps {
   productSlug?: string;
@@ -22,6 +25,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const { products, settings, addToCart } = useShop();
   const { editorReadyTemplates } = usePrintifyCatalog();
   const [templateSearch, setTemplateSearch] = useState('');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewFrames, setPreviewFrames] = useState<Array<{ view: PrintifyViewKey; label: string; url: string }>>([]);
+  const [activePreviewView, setActivePreviewView] = useState<PrintifyViewKey>('front');
+  const previewRequestIdRef = useRef(0);
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
@@ -1674,6 +1682,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
   const generatePreviewDataUrl = async (
     customizationsByView?: Partial<Record<PrintifyViewKey, PrintifyViewCustomization>>,
+    targetView?: PrintifyViewKey,
   ): Promise<string> => {
     try {
       const canvas = compiledCanvasRef.current;
@@ -1686,10 +1695,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         return '';
       }
 
-      const previewView = getPreviewView(customizationsByView);
+      const previewView = targetView || getPreviewView(customizationsByView);
       const previewFabricState = previewView === selectedView
         ? fCanvas.toJSON(['id', 'layerName', 'selectable'])
-        : canvasStatesRef.current[previewView];
+        : customizationsByView?.[previewView]?.fabricState || canvasStatesRef.current[previewView];
 
       canvas.width = 600;
       canvas.height = 600;
@@ -1783,6 +1792,57 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       console.error('Failed to compile preview image:', err);
       return '';
     }
+  };
+
+  const handleOpenPreview = async () => {
+    if (!activeProduct) {
+      return;
+    }
+
+    const customizationsByView = buildCustomizationsByView();
+    const previewViews = templateViewOrder.filter((view) => hasPrintifyViewCustomization(customizationsByView?.[view]));
+
+    if (previewViews.length === 0) {
+      return;
+    }
+
+    const requestId = previewRequestIdRef.current + 1;
+    previewRequestIdRef.current = requestId;
+
+    setIsPreviewOpen(true);
+    setIsGeneratingPreview(true);
+    setPreviewFrames([]);
+    setActivePreviewView(previewViews[0]);
+
+    const frames: Array<{ view: PrintifyViewKey; label: string; url: string }> = [];
+
+    for (const view of previewViews) {
+      const url = await generatePreviewDataUrl(customizationsByView, view);
+      if (previewRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      frames.push({
+        view,
+        label: getPrintifyViewLabel(view),
+        url: url || getViewImageForView(view) || '/custom-tee-mockup.png',
+      });
+    }
+
+    if (previewRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    setPreviewFrames(frames);
+    setActivePreviewView(frames[0]?.view || previewViews[0]);
+    setIsGeneratingPreview(false);
+  };
+
+  const handleClosePreview = () => {
+    previewRequestIdRef.current += 1;
+    setIsPreviewOpen(false);
+    setIsGeneratingPreview(false);
+    setPreviewFrames([]);
   };
 
   // Add compiled customization item to cart
@@ -2600,8 +2660,8 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
 
                     if (feeLines.length === 0) return null;
 
-                    return (
-                      <div className="space-y-1.5">
+                  return (
+                    <div className="space-y-1.5">
                         {feeLines.map((line) => (
                           <div key={line.label} className="flex justify-between items-center">
                             <span className="text-gray-600">{line.label} customization</span>
@@ -2638,27 +2698,132 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       </p>
                     </div>
                   )}
-                  
-                  <Button
-                    size="lg"
-                    onClick={handleAddToCart}
-                    disabled={!hasCustomization}
-                    className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      backgroundColor: hasCustomization ? settings.primaryColor : '#9CA3AF',
-                      color: 'var(--primary-foreground)',
-                      borderColor: 'var(--primary-border)',
-                    }}
-                  >
-                    <ShoppingBag className="h-5 w-5" />
-                    Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
-                  </Button>
+
+                  <div className="space-y-3">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={handleOpenPreview}
+                      disabled={!hasCustomization || isGeneratingPreview}
+                      className="w-full h-12 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Preview
+                    </Button>
+
+                    <Button
+                      size="lg"
+                      onClick={handleAddToCart}
+                      disabled={!hasCustomization}
+                      className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        backgroundColor: hasCustomization ? settings.primaryColor : '#9CA3AF',
+                        color: 'var(--primary-foreground)',
+                        borderColor: 'var(--primary-border)',
+                      }}
+                    >
+                      <ShoppingBag className="h-5 w-5" />
+                      Add Customized to Cart — {settings.currencySymbol}{activeOrderCustomerPrice.toFixed(2)}
+                    </Button>
+                  </div>
                 </>
               );
             })()}
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={isPreviewOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsPreviewOpen(true);
+            return;
+          }
+
+          handleClosePreview();
+        }}
+      >
+        <DialogContent className="max-w-5xl p-0 sm:max-w-5xl">
+          <div className="flex max-h-[90vh] flex-col p-5 md:p-6">
+            <DialogHeader className="pr-10">
+              <DialogTitle className="text-base md:text-lg font-black uppercase tracking-tight">Preview</DialogTitle>
+              <DialogDescription className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400">
+                Review each customized side before adding it to cart.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 min-h-[320px]">
+              {isGeneratingPreview ? (
+                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    Generating previews...
+                  </p>
+                </div>
+              ) : previewFrames.length === 1 ? (
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {previewFrames[0]?.label} Preview
+                  </p>
+                  <div className="overflow-hidden rounded-3xl border border-gray-200 bg-gray-50">
+                    <img
+                      src={previewFrames[0]?.url}
+                      alt={`${previewFrames[0]?.label} preview`}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <Tabs
+                  value={activePreviewView}
+                  onValueChange={(value) => setActivePreviewView(value as PrintifyViewKey)}
+                  className="w-full"
+                >
+                  <TabsList variant="line" className="w-full justify-start overflow-x-auto">
+                    {previewFrames.map((frame) => (
+                      <TabsTrigger key={frame.view} value={frame.view} className="px-4">
+                        {frame.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
+                  {previewFrames.map((frame) => (
+                    <TabsContent key={frame.view} value={frame.view} className="mt-4">
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          {frame.label} Preview
+                        </p>
+                        <div className="overflow-hidden rounded-3xl border border-gray-200 bg-gray-50">
+                          <img
+                            src={frame.url}
+                            alt={`${frame.label} preview`}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              )}
+            </div>
+
+            <div className="mt-6 flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={handleClosePreview}>
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  handleClosePreview();
+                  void handleAddToCart();
+                }}
+              >
+                Add Customized to Cart
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Hidden compilation Canvas */}
       <canvas ref={compiledCanvasRef} className="hidden" />
