@@ -32,6 +32,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const previewRequestIdRef = useRef(0);
   const PREVIEW_RENDER_SIZE = 1200;
   const PREVIEW_EXPORT_MULTIPLIER = 2;
+  const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
@@ -353,6 +354,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   // Option configurations
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
+  const [showAllTemplateColors, setShowAllTemplateColors] = useState(false);
   const [activeTab, setActiveTab] = useState<'product' | 'upload' | 'text' | 'ai'>('product');
   
   // Issue 3 Fix: Add view/position state for multi-image support
@@ -543,24 +545,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
       return undefined;
     }
 
-    const isBp95 = activeTemplate?.id === 'bp_95';
     const syncColorCodes = activeTemplate?.syncDetails?.colorCodes;
-    let syncMatch: string | undefined;
-    let syncMatchedKey: string | undefined;
     if (syncColorCodes && typeof syncColorCodes === 'object') {
       const directSyncHex = syncColorCodes[normalizedTitle];
       if (isHexColorString(directSyncHex)) {
-        syncMatch = String(directSyncHex).trim();
-        syncMatchedKey = normalizedTitle;
-        if (isBp95) {
-          console.log('[Color Debug][bp_95] sync-color-codes direct hit', {
-            title: normalizedTitle,
-            matchedKey: syncMatchedKey,
-            matchedHex: syncMatch,
-            syncKeys: Object.keys(syncColorCodes),
-          });
-        }
-        return syncMatch;
+        return String(directSyncHex).trim();
       }
 
       const matchedSyncEntry = Object.entries(syncColorCodes).find(([entryTitle, entryHex]) => (
@@ -568,17 +557,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         isHexColorString(entryHex)
       ));
       if (matchedSyncEntry) {
-        syncMatchedKey = matchedSyncEntry[0];
-        syncMatch = String(matchedSyncEntry[1]).trim();
-        if (isBp95) {
-          console.log('[Color Debug][bp_95] sync-color-codes normalized hit', {
-            title: normalizedTitle,
-            matchedKey: syncMatchedKey,
-            matchedHex: syncMatch,
-            syncKeys: Object.keys(syncColorCodes),
-          });
-        }
-        return syncMatch;
+        return String(matchedSyncEntry[1]).trim();
       }
     }
 
@@ -592,34 +571,10 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
         isHexColorString(entry?.hex)
       ));
 
-    if (isBp95) {
-      console.log('[Color Debug][bp_95] variant-scan candidates', {
-        title: normalizedTitle,
-        syncColorCodes: syncColorCodes && typeof syncColorCodes === 'object' ? syncColorCodes : null,
-        variantMatches,
-      });
-    }
-
     for (const match of variantMatches) {
       if (isHexColorString(match.hex)) {
-        if (isBp95) {
-          console.log('[Color Debug][bp_95] variant-scan hit', {
-            title: normalizedTitle,
-            resolvedHex: String(match.hex).trim(),
-            match,
-          });
-        }
         return String(match.hex).trim();
       }
-    }
-
-    if (isBp95) {
-      console.log('[Color Debug][bp_95] unresolved', {
-        title: normalizedTitle,
-        syncMatch: syncMatch || null,
-        syncMatchedKey: syncMatchedKey || null,
-        variantMatches,
-      });
     }
 
     return undefined;
@@ -742,6 +697,23 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const activeColorOptions = useMemo(() => (
     activeColorOptionDetails.map(detail => detail.title)
   ), [activeColorOptionDetails]);
+
+  const visibleTemplateColorOptions = useMemo(() => {
+    if (showAllTemplateColors || activeColorOptionDetails.length <= TEMPLATE_COLOR_VISIBLE_COUNT) {
+      return activeColorOptionDetails;
+    }
+
+    const initialColors = activeColorOptionDetails.slice(0, TEMPLATE_COLOR_VISIBLE_COUNT);
+    const selectedColorDetail = activeColorOptionDetails.find((detail) => detail.title === selectedColor);
+
+    if (selectedColorDetail && !initialColors.some((detail) => detail.title === selectedColorDetail.title)) {
+      return [...initialColors, selectedColorDetail];
+    }
+
+    return initialColors;
+  }, [activeColorOptionDetails, selectedColor, showAllTemplateColors]);
+
+  const hiddenTemplateColorCount = Math.max(0, activeColorOptionDetails.length - visibleTemplateColorOptions.length);
 
   const activeSizeOptions = useMemo(() => (
     uniqueOptionValues(activePrintifyVariants.map(getVariantSize))
@@ -2332,7 +2304,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                       )}
                     </Label>
                     <div className="flex flex-wrap gap-2">
-                      {activeColorOptionDetails.map(({ title, hex }) => {
+                      {visibleTemplateColorOptions.map(({ title, hex }) => {
                         const isActive = selectedColor === title;
                         return hex ? (
                           <button
@@ -2363,6 +2335,15 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
                           </button>
                         );
                       })}
+                      {activeColorOptionDetails.length > TEMPLATE_COLOR_VISIBLE_COUNT && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllTemplateColors((current) => !current)}
+                          className="px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 border-gray-200 bg-gray-50 text-gray-600 transition-all hover:border-gray-300 hover:text-black"
+                        >
+                          {showAllTemplateColors ? 'Show Less' : `More +${hiddenTemplateColorCount}`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
