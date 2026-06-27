@@ -10,6 +10,23 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
+const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
+
+const getVariantColorTitle = (variant: any) => {
+  if (!variant || typeof variant !== 'object') return '';
+
+  const options = Array.isArray(variant.options) ? variant.options : [];
+  for (const option of options) {
+    const optionName = String(option?.name || option?.type || option?.key || option?.label || '').toLowerCase();
+    const optionTitle = String(option?.title || option?.value || option?.name || '').trim();
+    if (optionTitle && (optionName.includes('color') || optionName.includes('colour'))) {
+      return optionTitle;
+    }
+  }
+
+  return String(variant?.color || variant?.colour || variant?.name || '').trim();
+};
+
 export const ProductPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { products, settings, addToCart, categories, reviews, addReview, wishlist, toggleWishlist, orders } = useShop();
@@ -61,6 +78,90 @@ export const ProductPage: React.FC = () => {
 
   const [selectedColor, setSelectedColor] = useState(product?.colors?.[0]);
   const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0]);
+  const [showAllColors, setShowAllColors] = useState(false);
+
+  const colorOptionDetails = React.useMemo(() => {
+    if (!product?.colors || !Array.isArray(product.colors) || product.colors.length === 0) {
+      return [];
+    }
+
+    const uniqueColors = Array.from(new Set(product.colors.map((color) => String(color).trim()).filter(Boolean)));
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    const variantImages = product.variantImages || {};
+    const hasStructuredCoverageData = variants.length > 0 && Object.keys(variantImages).length > 0;
+
+    const resolved = uniqueColors.map((title) => {
+      const matchingVariants = variants.filter((variant: any) => getVariantColorTitle(variant) === title);
+      const imageUrls = Array.from(new Set(
+        matchingVariants.flatMap((variant: any) => {
+          const variantId = String(variant?.id || variant?.variant_id || variant?.printify_variant_id || '');
+          const mappedImages = variantImages[variantId] || [];
+          if (mappedImages.length > 0) {
+            return mappedImages;
+          }
+          return variant?.image_url ? [variant.image_url] : [];
+        }).filter(Boolean),
+      ));
+
+      return {
+        title,
+        imageUrls,
+      };
+    });
+
+    const covered = resolved.filter((detail) => detail.imageUrls.length > 0);
+    return hasStructuredCoverageData && covered.length > 0 ? covered : resolved;
+  }, [product]);
+
+  const visibleColorOptions = React.useMemo(() => {
+    if (showAllColors || colorOptionDetails.length <= TEMPLATE_COLOR_VISIBLE_COUNT) {
+      return colorOptionDetails;
+    }
+
+    const initialColors = colorOptionDetails.slice(0, TEMPLATE_COLOR_VISIBLE_COUNT);
+    const selectedColorDetail = colorOptionDetails.find((detail) => detail.title === selectedColor);
+
+    if (selectedColorDetail && !initialColors.some((detail) => detail.title === selectedColorDetail.title)) {
+      return [...initialColors, selectedColorDetail];
+    }
+
+    return initialColors;
+  }, [colorOptionDetails, selectedColor, showAllColors]);
+
+  const hiddenColorCount = Math.max(0, colorOptionDetails.length - visibleColorOptions.length);
+
+  React.useEffect(() => {
+    if (!visibleColorOptions.length) {
+      return;
+    }
+
+    if (!selectedColor || !visibleColorOptions.some((detail) => detail.title === selectedColor)) {
+      setSelectedColor(visibleColorOptions[0].title);
+    }
+  }, [selectedColor, visibleColorOptions]);
+
+  React.useEffect(() => {
+    setShowAllColors(false);
+  }, [product?.id]);
+
+  React.useEffect(() => {
+    if (!product || !selectedColor) {
+      return;
+    }
+
+    const selectedDetail = colorOptionDetails.find((detail) => detail.title === selectedColor);
+    if (!selectedDetail) {
+      return;
+    }
+
+    const matchingImageIndex = selectedDetail.imageUrls
+      .map((url) => product.images.findIndex((image) => image === url))
+      .find((index) => index >= 0);
+
+    if (matchingImageIndex !== undefined && matchingImageIndex >= 0 && matchingImageIndex !== activeImage) {
+      setActiveImage(matchingImageIndex);
+    }
+  }, [colorOptionDetails, product, selectedColor]);
 
   if (!product) {
     return (
@@ -264,19 +365,47 @@ export const ProductPage: React.FC = () => {
               {product.description}
             </p>
 
-            {product.colors && product.colors.length > 0 && (
+            {visibleColorOptions.length > 0 && (
               <div className={`${isDevsFolk && device === 'mobile' ? 'mb-3 space-y-1' : 'mb-6 space-y-3'}`}>
                 <span className="text-[8px] md:text-sm font-black uppercase tracking-widest text-gray-400 opacity-60">Color</span>
-                <div className="flex gap-1.5 md:gap-3">
-                  {product.colors.map(color => (
+                <div className="flex flex-wrap gap-1.5 md:gap-3">
+                  {visibleColorOptions.map((colorDetail) => {
+                    const { title } = colorDetail;
+                    const isActive = selectedColor === title;
+                    const handleSelectColor = () => {
+                      setSelectedColor(title);
+
+                      const nextImageIndex = colorDetail.imageUrls
+                        .map((url) => product.images.findIndex((image) => image === url))
+                        .find((index) => index >= 0);
+
+                      if (nextImageIndex !== undefined && nextImageIndex >= 0) {
+                        setActiveImage(nextImageIndex);
+                      }
+                    };
+
+                    return (
                     <button
-                      key={color}
-                      onClick={() => setSelectedColor(color)}
-                      className={`${isDevsFolk && device === 'mobile' ? 'w-5 h-5' : 'w-10 h-10'} rounded-full border-2 transition-all flex items-center justify-center ${selectedColor === color ? 'border-black scale-110 shadow-sm' : 'border-transparent'}`}
+                      key={title}
+                      onClick={handleSelectColor}
+                      className={`${isDevsFolk && device === 'mobile' ? 'w-5 h-5' : 'w-10 h-10'} rounded-full border-2 transition-all flex items-center justify-center ${isActive ? 'border-black scale-110 shadow-sm' : 'border-transparent'}`}
+                      title={title}
+                      aria-label={title}
+                      aria-pressed={isActive}
                     >
-                      <div className={`${isDevsFolk && device === 'mobile' ? 'w-3 h-3' : 'w-7 h-7'} rounded-full`} style={{ backgroundColor: color }} />
+                      <div className={`${isDevsFolk && device === 'mobile' ? 'w-3 h-3' : 'w-7 h-7'} rounded-full`} style={{ backgroundColor: title }} />
                     </button>
-                  ))}
+                    );
+                  })}
+                  {colorOptionDetails.length > TEMPLATE_COLOR_VISIBLE_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllColors((current) => !current)}
+                      className="px-4 py-2 text-xs rounded-xl font-black uppercase tracking-wider border-2 border-gray-200 bg-gray-50 text-gray-600 transition-all hover:border-gray-300 hover:text-black"
+                    >
+                      {showAllColors ? 'Show Less' : `More +${hiddenColorCount}`}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
