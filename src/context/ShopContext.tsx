@@ -500,6 +500,7 @@ const mapProductRow = (row: any): Product => {
     colors: row.colors || [],
     sizes: row.sizes || [],
     variants: Array.isArray(variants) ? variants.filter((variant: any) => variant?.id !== '__printify_meta') : [],
+    variantImages: row.variant_images || {},
     createdAt: row.created_at ?? Date.now(),
     isPrintify: Boolean(row.is_printify) || Boolean(printifyData.isPrintify),
     printifyProductId: row.printify_product_id ?? printifyData.printifyProductId ?? undefined,
@@ -685,6 +686,7 @@ const toProductRow = (product: Product) => ({
   colors: product.colors || [],
   sizes: product.sizes || [],
   variants: product.variants || [],
+  variant_images: product.variantImages || {},
   created_at: product.createdAt,
   is_printify: product.isPrintify ?? false,
   printify_product_id: product.printifyProductId ?? null,
@@ -724,6 +726,7 @@ const toLegacyProductRow = (product: Product) => {
           },
         ]
       : variants,
+    variant_images: product.variantImages || {},
     created_at: product.createdAt,
   };
 };
