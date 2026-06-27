@@ -266,6 +266,7 @@ export interface Product {
   colors?: string[];
   sizes?: string[];
   variants?: ProductVariant[];
+  variantImages?: Record<string, string[]>;
   createdAt: number;
   isPrintify?: boolean;
   printifyProductId?: string;

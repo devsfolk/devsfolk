@@ -775,6 +775,7 @@ export const PrintifySettings: React.FC = () => {
       for (const p of printifyProducts) {
         const colors: string[] = [];
         const sizes: string[] = [];
+        const variantImages: Record<string, string[]> = {};
 
         if (Array.isArray(p.options)) {
           const colorOption = p.options.find((opt: any) => 
@@ -807,6 +808,42 @@ export const PrintifySettings: React.FC = () => {
 
         if (colors.length === 0) colors.push('#FFFFFF', '#111827');
         if (sizes.length === 0) sizes.push('S', 'M', 'L', 'XL');
+
+        if (Array.isArray(p.images)) {
+          for (const img of p.images) {
+            const imgSrc = normalizeTemplateImage(img);
+            const imgVariantIds = Array.isArray(img?.variant_ids) ? img.variant_ids : [];
+            if (!imgSrc || imgVariantIds.length === 0) {
+              continue;
+            }
+
+            for (const vid of imgVariantIds) {
+              const variantId = String(vid);
+              if (!variantImages[variantId]) {
+                variantImages[variantId] = [];
+              }
+              if (!variantImages[variantId].includes(imgSrc)) {
+                variantImages[variantId].push(imgSrc);
+              }
+            }
+          }
+        }
+
+        const variants = Array.isArray(p.variants)
+          ? p.variants.map((variant: any) => {
+              const variantId = getVariantId(variant);
+              const mappedImages = variantImages[variantId] || [];
+
+              return {
+                id: variantId,
+                name: getVariantLabel(variant),
+                price: getVariantCostDollars(variant),
+                stock: variant?.is_enabled !== false && variant?.is_available !== false ? 1 : 0,
+                options: Array.isArray(variant?.options) ? variant.options : [],
+                ...(mappedImages[0] ? { image_url: mappedImages[0] } : {}),
+              };
+            })
+          : [];
 
         const images = Array.isArray(p.images) 
           ? p.images.map((img: any) => img.src)
@@ -841,6 +878,8 @@ export const PrintifySettings: React.FC = () => {
           isFeatured: true,
           colors,
           sizes,
+          variants,
+          variantImages,
           isPrintify: true,
           printifyProductId: String(p.id),
           printifyCatalogId: String(p.blueprint_id || '')
