@@ -27,6 +27,13 @@ const getVariantColorTitle = (variant: any) => {
   return String(variant?.color || variant?.colour || variant?.name || '').trim();
 };
 
+const getVariantId = (variant: any) => String(variant?.id || variant?.variant_id || variant?.printify_variant_id || '');
+
+const getVariantImages = (variant: any, variantImages: Record<string, string[]>) => {
+  const variantId = getVariantId(variant);
+  return variantImages[variantId] || [];
+};
+
 export const ProductPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { products, settings, addToCart, categories, reviews, addReview, wishlist, toggleWishlist, orders } = useShop();
@@ -88,19 +95,11 @@ export const ProductPage: React.FC = () => {
     const uniqueColors = Array.from(new Set(product.colors.map((color) => String(color).trim()).filter(Boolean)));
     const variants = Array.isArray(product.variants) ? product.variants : [];
     const variantImages = product.variantImages || {};
-    const hasStructuredCoverageData = variants.length > 0 && Object.keys(variantImages).length > 0;
 
     const resolved = uniqueColors.map((title) => {
       const matchingVariants = variants.filter((variant: any) => getVariantColorTitle(variant) === title);
       const imageUrls = Array.from(new Set(
-        matchingVariants.flatMap((variant: any) => {
-          const variantId = String(variant?.id || variant?.variant_id || variant?.printify_variant_id || '');
-          const mappedImages = variantImages[variantId] || [];
-          if (mappedImages.length > 0) {
-            return mappedImages;
-          }
-          return variant?.image_url ? [variant.image_url] : [];
-        }).filter(Boolean),
+        matchingVariants.flatMap((variant: any) => getVariantImages(variant, variantImages)).filter(Boolean),
       ));
 
       return {
@@ -110,7 +109,7 @@ export const ProductPage: React.FC = () => {
     });
 
     const covered = resolved.filter((detail) => detail.imageUrls.length > 0);
-    return hasStructuredCoverageData && covered.length > 0 ? covered : resolved;
+    return Object.keys(variantImages).length > 0 && covered.length > 0 ? covered : resolved;
   }, [product]);
 
   const visibleColorOptions = React.useMemo(() => {
@@ -145,23 +144,17 @@ export const ProductPage: React.FC = () => {
   }, [product?.id]);
 
   React.useEffect(() => {
-    if (!product || !selectedColor) {
+    if (!product) {
       return;
     }
 
-    const selectedDetail = colorOptionDetails.find((detail) => detail.title === selectedColor);
-    if (!selectedDetail) {
+    const selectedFromImage = colorOptionDetails.find((detail) => detail.imageUrls.some((url) => product.images[activeImage] === url));
+    if (!selectedFromImage || selectedFromImage.title === selectedColor) {
       return;
     }
 
-    const matchingImageIndex = selectedDetail.imageUrls
-      .map((url) => product.images.findIndex((image) => image === url))
-      .find((index) => index >= 0);
-
-    if (matchingImageIndex !== undefined && matchingImageIndex >= 0 && matchingImageIndex !== activeImage) {
-      setActiveImage(matchingImageIndex);
-    }
-  }, [colorOptionDetails, product, selectedColor]);
+    setSelectedColor(selectedFromImage.title);
+  }, [activeImage, colorOptionDetails, product, selectedColor]);
 
   if (!product) {
     return (
@@ -321,7 +314,13 @@ export const ProductPage: React.FC = () => {
               {product.images.map((img, i) => (
                 <button 
                   key={i}
-                  onClick={() => setActiveImage(i)}
+                  onClick={() => {
+                    setActiveImage(i);
+                    const matchingColor = colorOptionDetails.find((detail) => detail.imageUrls.includes(img));
+                    if (matchingColor && matchingColor.title !== selectedColor) {
+                      setSelectedColor(matchingColor.title);
+                    }
+                  }}
                   className={`relative ${isDevsFolk && device === 'mobile' ? 'w-10 h-10 rounded-md' : 'w-20 h-20 rounded-xl'} overflow-hidden flex-shrink-0 border-2 transition-all ${activeImage === i ? 'border-black' : 'border-transparent'}`}
                 >
                   <img src={img} loading="lazy" alt="" className="w-full h-full object-cover" />
