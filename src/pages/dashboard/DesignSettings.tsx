@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Palette, Type, Smartphone, Globe, Monitor, Tablet, Layers, Plus, Trash2, ArrowUp, ArrowDown, Settings2, Layout, Image as ImageIcon, Code, ShoppingBag, Sparkles, Check, Upload, Loader2, X, ChevronLeft } from 'lucide-react';
+import { Palette, Type, Smartphone, Globe, Monitor, Tablet, Layers, Plus, Trash2, ArrowUp, ArrowDown, Settings2, Layout, Image as ImageIcon, Code, ShoppingBag, Sparkles, Check, Upload, Loader2, X, ChevronLeft, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StoreSection, SectionType } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -15,12 +15,85 @@ import { Textarea } from '@/components/ui/textarea';
 import { TEMPLATES } from '@/lib/templates';
 import { optimizeImage } from '@/lib/imageUtils';
 
+const HERO_SECTION_DEFAULT_CONFIG = {
+  height: 'medium',
+  textAlign: 'center',
+  buttonText: 'Shop Collection',
+  buttonLink: '/products',
+  buttonStyle: 'filled',
+  buttonSize: 'medium',
+  overlayOpacity: 60,
+  overlayColor: '#000000',
+} as const;
+
+const HERO_PREVIEW_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2000';
+
+const getHeroPreviewHeightClass = (height?: 'small' | 'medium' | 'large' | 'viewport' | 'thin') => {
+  switch (height) {
+    case 'small':
+      return 'h-48 md:h-56';
+    case 'large':
+      return 'h-72 md:h-80';
+    case 'viewport':
+      return 'h-80 md:h-[32rem]';
+    case 'thin':
+      return 'h-36 md:h-40';
+    case 'medium':
+    default:
+      return 'h-56 md:h-64';
+  }
+};
+
+const hexToRgb = (hex: string) => {
+  const normalized = hex.trim().replace('#', '');
+  if (normalized.length !== 3 && normalized.length !== 6) return null;
+  const expanded = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized;
+  const int = Number.parseInt(expanded, 16);
+  if (Number.isNaN(int)) return null;
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+};
+
+const buildOverlayBackground = (overlayColor = '#000000', overlayOpacity = 60) => {
+  const rgb = hexToRgb(overlayColor) || { r: 0, g: 0, b: 0 };
+  const baseAlpha = Math.max(0, Math.min(1, overlayOpacity / 100));
+  const midAlpha = Math.max(0, Math.min(1, baseAlpha * 0.6));
+  return `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${baseAlpha}), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${midAlpha}), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0))`;
+};
+
+const getHeroButtonVariant = (buttonStyle?: 'filled' | 'outline' | 'ghost') => {
+  if (buttonStyle === 'outline') return 'outline' as const;
+  if (buttonStyle === 'ghost') return 'ghost' as const;
+  return 'default' as const;
+};
+
+const getHeroButtonSizeClass = (buttonSize?: 'small' | 'medium' | 'large') => {
+  switch (buttonSize) {
+    case 'small':
+      return 'h-10 px-5 text-[10px] md:text-xs';
+    case 'large':
+      return 'h-16 px-12 text-xs md:text-base';
+    case 'medium':
+    default:
+      return 'h-12 md:h-14 px-6 md:px-10 text-[10px] md:text-lg';
+  }
+};
+
 export const DesignSettings: React.FC = () => {
   const { settings, updateSettings, applyTemplate } = useShop();
   const [editingSection, setEditingSection] = useState<StoreSection | null>(null);
   const [isOptimizingLogo, setIsOptimizingLogo] = useState(false);
   const [isOptimizingFavicon, setIsOptimizingFavicon] = useState(false);
   const [isOptimizingSection, setIsOptimizingSection] = useState(false);
+  const heroConfig = (editingSection?.config || {}) as NonNullable<StoreSection['config']>;
+  const isHeroSection = editingSection?.type === 'HERO';
+  const heroPreviewImage = heroConfig.gallery?.[0] || heroConfig.imageUrl || HERO_PREVIEW_FALLBACK_IMAGE;
+  const heroPreviewGallery = Array.isArray(heroConfig.gallery) ? heroConfig.gallery : [];
 
   const handleUpdate = (path: string, value: any) => {
     updateSettings({ [path]: value });
@@ -67,7 +140,7 @@ export const DesignSettings: React.FC = () => {
       title: `New ${type.replace('_', ' ')} Section`,
       enabled: true,
       order: settings.sections.length,
-      config: type === 'HERO' ? { height: 'medium', textAlign: 'center', buttonText: 'View More' } : {}
+      config: type === 'HERO' ? { ...HERO_SECTION_DEFAULT_CONFIG } : {}
     };
     handleUpdate('sections', [...settings.sections, newSection]);
   };
@@ -380,12 +453,13 @@ export const DesignSettings: React.FC = () => {
                                 </Button>
                               }
                             />
-                          <DialogContent className="max-w-2xl rounded-[2.5rem] p-6 md:p-10">
+                          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-6 md:p-10">
                             <DialogHeader>
                               <DialogTitle className="text-2xl md:text-3xl font-black">{section.type} Customization</DialogTitle>
                             </DialogHeader>
                             {editingSection && (
-                              <div className="space-y-4 md:space-y-6 pt-4 md:pt-6">
+                              <div className={`${isHeroSection ? 'grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]' : 'space-y-4 md:space-y-6'} pt-4 md:pt-6`}>
+                                <div className="space-y-4 md:space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                   <div className="space-y-2">
                                     <Label>Section Title</Label>
@@ -572,32 +646,146 @@ export const DesignSettings: React.FC = () => {
                                   </div>
                                 )}
 
-                                <div className="grid grid-cols-2 gap-6">
-                                  <div className="space-y-2">
-                                    <Label>Button Text</Label>
-                                    <Input 
-                                      value={editingSection.config?.buttonText || ''} 
-                                      onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), buttonText: e.target.value}})}
-                                      className="h-12 rounded-xl"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Background Color</Label>
-                                    <div className="flex gap-2">
-                                      <Input 
-                                        type="color"
-                                        value={editingSection.config?.backgroundColor || '#ffffff'} 
-                                        onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), backgroundColor: e.target.value}})}
-                                        className="w-12 h-12 p-1 rounded-xl"
-                                      />
-                                      <Input 
-                                        value={editingSection.config?.backgroundColor || '#ffffff'} 
-                                        onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), backgroundColor: e.target.value}})}
-                                        className="h-12 rounded-xl flex-1"
-                                      />
+                                {isHeroSection ? (
+                                  <div className="space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-4 md:p-5">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label>Button Text</Label>
+                                        <Input 
+                                          value={heroConfig.buttonText || ''}
+                                          onChange={(e) => setEditingSection({
+                                            ...editingSection,
+                                            config: { ...(editingSection.config || {}), buttonText: e.target.value }
+                                          })}
+                                          className="h-12 rounded-xl"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Button Link</Label>
+                                        <Input 
+                                          value={heroConfig.buttonLink || '/products'}
+                                          onChange={(e) => setEditingSection({
+                                            ...editingSection,
+                                            config: { ...(editingSection.config || {}), buttonLink: e.target.value }
+                                          })}
+                                          placeholder="/products"
+                                          className="h-12 rounded-xl"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label>Button Style</Label>
+                                        <Select
+                                          value={heroConfig.buttonStyle || 'filled'}
+                                          onValueChange={(v) => setEditingSection({
+                                            ...editingSection,
+                                            config: { ...(editingSection.config || {}), buttonStyle: v as any }
+                                          })}
+                                        >
+                                          <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="filled">Filled</SelectItem>
+                                            <SelectItem value="outline">Outline</SelectItem>
+                                            <SelectItem value="ghost">Ghost</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Button Size</Label>
+                                        <Select
+                                          value={heroConfig.buttonSize || 'medium'}
+                                          onValueChange={(v) => setEditingSection({
+                                            ...editingSection,
+                                            config: { ...(editingSection.config || {}), buttonSize: v as any }
+                                          })}
+                                        >
+                                          <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="small">Small</SelectItem>
+                                            <SelectItem value="medium">Medium</SelectItem>
+                                            <SelectItem value="large">Large</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4 items-end">
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <Label>Overlay Opacity</Label>
+                                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{heroConfig.overlayOpacity ?? 60}%</span>
+                                        </div>
+                                        <Input
+                                          type="range"
+                                          min="0"
+                                          max="100"
+                                          step="1"
+                                          value={heroConfig.overlayOpacity ?? 60}
+                                          onChange={(e) => setEditingSection({
+                                            ...editingSection,
+                                            config: { ...(editingSection.config || {}), overlayOpacity: Number(e.target.value) }
+                                          })}
+                                          className="w-full accent-primary"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Overlay Color</Label>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            type="color"
+                                            value={heroConfig.overlayColor || '#000000'}
+                                            onChange={(e) => setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), overlayColor: e.target.value }
+                                            })}
+                                            className="w-12 h-12 p-1 rounded-xl"
+                                          />
+                                          <Input
+                                            value={heroConfig.overlayColor || '#000000'}
+                                            onChange={(e) => setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), overlayColor: e.target.value }
+                                            })}
+                                            className="h-12 rounded-xl flex-1"
+                                          />
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                      <Label>Button Text</Label>
+                                      <Input 
+                                        value={editingSection.config?.buttonText || ''} 
+                                        onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), buttonText: e.target.value}})}
+                                        className="h-12 rounded-xl"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Background Color</Label>
+                                      <div className="flex gap-2">
+                                        <Input 
+                                          type="color"
+                                          value={editingSection.config?.backgroundColor || '#ffffff'} 
+                                          onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), backgroundColor: e.target.value}})}
+                                          className="w-12 h-12 p-1 rounded-xl"
+                                        />
+                                        <Input 
+                                          value={editingSection.config?.backgroundColor || '#ffffff'} 
+                                          onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), backgroundColor: e.target.value}})}
+                                          className="h-12 rounded-xl flex-1"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
 
                                 <DialogFooter className="pt-6">
                                   <Button 
@@ -608,6 +796,75 @@ export const DesignSettings: React.FC = () => {
                                     Save Changes
                                   </Button>
                                 </DialogFooter>
+                              </div>
+                                {isHeroSection && (
+                                  <div className="rounded-[2rem] border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3 mb-4">
+                                      <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Live Preview</p>
+                                        <h3 className="text-lg font-black uppercase tracking-tight">{editingSection.title}</h3>
+                                      </div>
+                                      <Badge className="rounded-full bg-gray-100 text-gray-600 text-[10px] uppercase font-black tracking-widest px-3 py-1">
+                                        {heroConfig.buttonStyle || 'filled'}
+                                      </Badge>
+                                    </div>
+                                    <div className={`relative overflow-hidden rounded-[1.75rem] border border-gray-100 bg-black text-white shadow-lg ${getHeroPreviewHeightClass(heroConfig.height)}`}>
+                                      <img
+                                        src={heroPreviewImage}
+                                        alt={editingSection.title}
+                                        className="absolute inset-0 h-full w-full object-cover"
+                                      />
+                                      <div
+                                        className="absolute inset-0 z-10"
+                                        style={{ backgroundImage: buildOverlayBackground(heroConfig.overlayColor || '#000000', heroConfig.overlayOpacity ?? 60) }}
+                                      />
+                                      <div className={`relative z-20 flex h-full w-full items-center px-5 py-6 ${heroConfig.textAlign === 'center' ? 'justify-center text-center' : heroConfig.textAlign === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
+                                        <div className="max-w-sm space-y-3">
+                                          <h4 className="text-2xl md:text-4xl font-black uppercase tracking-tighter leading-[1.05]" style={{ fontFamily: settings.fontDisplay }}>
+                                            {editingSection.title}
+                                          </h4>
+                                          <p className="text-xs md:text-sm opacity-90">
+                                            {editingSection.subtitle || settings.shopDescription || 'A hero banner preview will appear here.'}
+                                          </p>
+                                          <div className={`${heroConfig.textAlign === 'center' ? 'flex justify-center' : heroConfig.textAlign === 'right' ? 'flex justify-end' : 'flex justify-start'}`}>
+                                            <Button
+                                              variant={getHeroButtonVariant(heroConfig.buttonStyle)}
+                                              size="default"
+                                              className={`${getHeroButtonSizeClass(heroConfig.buttonSize)} rounded-full font-black uppercase tracking-widest shadow-xl ${
+                                                heroConfig.buttonStyle === 'filled'
+                                                  ? ''
+                                                  : heroConfig.buttonStyle === 'outline'
+                                                    ? 'text-white border-white/30 hover:bg-white/10'
+                                                    : 'text-white bg-transparent border-transparent shadow-none hover:bg-white/10'
+                                              }`}
+                                              style={heroConfig.buttonStyle === 'filled'
+                                                ? {
+                                                    backgroundColor: settings.primaryColor,
+                                                    color: 'var(--primary-foreground)',
+                                                    borderColor: 'var(--primary-border)',
+                                                  }
+                                                : undefined}
+                                            >
+                                              {heroConfig.buttonText || 'Shop Collection'} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                                            </Button>
+                                          </div>
+                                          <p className="text-[10px] uppercase tracking-[0.2em] opacity-70 break-all">
+                                            {heroConfig.buttonLink || '/products'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {heroPreviewGallery.length > 1 && (
+                                      <div className="mt-4 grid grid-cols-4 gap-2">
+                                        {heroPreviewGallery.slice(0, 4).map((img, idx) => (
+                                          <div key={`${img}-${idx}`} className="aspect-[4/3] overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+                                            <img src={img} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </DialogContent>

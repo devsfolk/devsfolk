@@ -9,6 +9,46 @@ import { ArrowRight, ShoppingBag, Zap, ShieldCheck, Truck, Mail, ChevronLeft, Ch
 import { BespokeCustomizer } from '@/components/printify/BespokeCustomizer';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 
+const hexToRgb = (hex: string) => {
+  const normalized = hex.trim().replace('#', '');
+  if (normalized.length !== 3 && normalized.length !== 6) return null;
+  const expanded = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized;
+  const int = Number.parseInt(expanded, 16);
+  if (Number.isNaN(int)) return null;
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+};
+
+const buildOverlayBackground = (overlayColor = '#000000', overlayOpacity = 60) => {
+  const rgb = hexToRgb(overlayColor) || { r: 0, g: 0, b: 0 };
+  const baseAlpha = Math.max(0, Math.min(1, overlayOpacity / 100));
+  const midAlpha = Math.max(0, Math.min(1, baseAlpha * 0.6));
+  return `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${baseAlpha}), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${midAlpha}), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0))`;
+};
+
+const heroButtonVariant = (buttonStyle?: 'filled' | 'outline' | 'ghost') => {
+  if (buttonStyle === 'outline') return 'outline' as const;
+  if (buttonStyle === 'ghost') return 'ghost' as const;
+  return 'default' as const;
+};
+
+const heroButtonSizeClass = (buttonSize?: 'small' | 'medium' | 'large') => {
+  switch (buttonSize) {
+    case 'small':
+      return 'h-10 px-5 text-[10px] md:text-xs';
+    case 'large':
+      return 'h-16 px-12 text-xs md:text-base';
+    case 'medium':
+    default:
+      return 'h-12 md:h-14 px-6 md:px-10 text-[10px] md:text-lg';
+  }
+};
+
 export const Home: React.FC = () => {
   const { settings, products, categories, addToCart, loading } = useShop();
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -116,6 +156,12 @@ export const Home: React.FC = () => {
     const gallery = config.gallery || [];
     const currentSlide = gallery.length > 0 ? gallery[activeSlideIndex % gallery.length] : null;
     const mainImage = config.imageUrl || currentSlide || (gallery.length > 0 ? gallery[0] : null);
+    const buttonLink = config.buttonLink?.trim() || '/products';
+    const isExternalButtonLink = /^https?:\/\//i.test(buttonLink) || buttonLink.startsWith('mailto:') || buttonLink.startsWith('tel:');
+    const buttonVariant = heroButtonVariant(config.buttonStyle);
+    const buttonSizeClass = heroButtonSizeClass(config.buttonSize);
+    const overlayOpacity = config.overlayOpacity ?? 60;
+    const overlayColor = config.overlayColor || '#000000';
 
     switch (section.type) {
       case 'CATEGORY_SLIDER':
@@ -219,7 +265,10 @@ export const Home: React.FC = () => {
           <section key={section.id} className={`relative flex items-center overflow-hidden w-full ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height} ${deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50'}`}>
             {deviceConfig.heroStyle === 'banner' && (
               <div className="absolute inset-0 z-0">
-                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-10" />
+                <div
+                  className="absolute inset-0 z-10"
+                  style={{ backgroundImage: buildOverlayBackground(overlayColor, overlayOpacity) }}
+                />
                 {gallery.length > 1 ? (
                   <div className="w-full h-full relative">
                     <AnimatePresence mode="wait">
@@ -262,17 +311,61 @@ export const Home: React.FC = () => {
                   {section.subtitle || settings.shopDescription}
                 </p>
                 <div className={`flex flex-wrap gap-4 ${textAlign === 'center' ? 'justify-center' : textAlign === 'right' ? 'justify-end' : ''}`}>
-                  <Button 
-                    size={device === 'mobile' ? 'sm' : 'lg'} 
-                    className={`${device === 'mobile' ? 'h-10 px-6 text-[10px]' : 'h-14 px-10 text-lg'} rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform`}
-                    style={{
-                      backgroundColor: settings.primaryColor,
-                      color: 'var(--primary-foreground)',
-                      borderColor: 'var(--primary-border)',
-                    }}
-                  >
-                    {config.buttonText || "Shop Collection"} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
-                  </Button>
+                  {isExternalButtonLink ? (
+                    <a href={buttonLink} target="_blank" rel="noreferrer">
+                      <Button 
+                        variant={buttonVariant}
+                        size="default"
+                        className={`${buttonSizeClass} rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform ${
+                          buttonVariant === 'filled'
+                            ? ''
+                            : buttonVariant === 'outline'
+                              ? deviceConfig.heroStyle === 'banner'
+                                ? 'text-white border-white/30 hover:bg-white/10'
+                                : 'text-black border-black/20 hover:bg-black/5'
+                              : deviceConfig.heroStyle === 'banner'
+                                ? 'text-white bg-transparent border-transparent shadow-none hover:bg-white/10'
+                                : 'text-black bg-transparent border-transparent shadow-none hover:bg-black/5'
+                        }`}
+                        style={buttonVariant === 'filled'
+                          ? {
+                              backgroundColor: settings.primaryColor,
+                              color: 'var(--primary-foreground)',
+                              borderColor: 'var(--primary-border)',
+                            }
+                          : undefined}
+                      >
+                        {config.buttonText || "Shop Collection"} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                      </Button>
+                    </a>
+                  ) : (
+                    <Link to={buttonLink}>
+                      <Button 
+                        variant={buttonVariant}
+                        size="default"
+                        className={`${buttonSizeClass} rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform ${
+                          buttonVariant === 'filled'
+                            ? ''
+                            : buttonVariant === 'outline'
+                              ? deviceConfig.heroStyle === 'banner'
+                                ? 'text-white border-white/30 hover:bg-white/10'
+                                : 'text-black border-black/20 hover:bg-black/5'
+                              : deviceConfig.heroStyle === 'banner'
+                                ? 'text-white bg-transparent border-transparent shadow-none hover:bg-white/10'
+                                : 'text-black bg-transparent border-transparent shadow-none hover:bg-black/5'
+                        }`}
+                        style={buttonVariant === 'filled'
+                          ? {
+                              backgroundColor: settings.primaryColor,
+                              color: 'var(--primary-foreground)',
+                              borderColor: 'var(--primary-border)',
+                            }
+                          : undefined}
+                      >
+                        {config.buttonText || "Shop Collection"} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </motion.div>
             </div>

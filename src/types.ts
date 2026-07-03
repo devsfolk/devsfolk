@@ -71,8 +71,13 @@ export interface StoreSection {
     height?: 'small' | 'medium' | 'large' | 'viewport' | 'thin';
     textAlign?: 'left' | 'center' | 'right';
     buttonText?: string;
+    buttonLink?: string;
+    buttonStyle?: 'filled' | 'outline' | 'ghost';
+    buttonSize?: 'small' | 'medium' | 'large';
     imageUrl?: string;
     gallery?: string[];
+    overlayOpacity?: number;
+    overlayColor?: string;
     backgroundColor?: string;
     textColor?: string;
     padding?: 'none' | 'small' | 'medium' | 'large';
