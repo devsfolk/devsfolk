@@ -95,8 +95,6 @@ export const ProductPage: React.FC = () => {
     const uniqueColors = Array.from(new Set(product.colors.map((color) => String(color).trim()).filter(Boolean)));
     const variants = Array.isArray(product.variants) ? product.variants : [];
     const variantImages = product.variantImages || {};
-    console.log('[DEBUG] product.variantImages:', JSON.stringify(product.variantImages));
-    console.log('[DEBUG] product.id:', product.id);
 
     const resolved = uniqueColors.map((title) => {
       const matchingVariants = variants.filter((variant: any) => getVariantColorTitle(variant) === title);
