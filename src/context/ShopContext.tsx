@@ -283,6 +283,39 @@ const readLocalJson = <T,>(key: string, fallback: T): T => {
   return fallback;
 };
 
+const normalizeProductForStorage = (product: Product): Product => ({
+  ...product,
+  variantImages: product.variantImages || {},
+});
+
+const saveProductsLocally = (products: Product[]) => {
+  localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products.map(normalizeProductForStorage)));
+};
+
+const readCompatibleProductsFromLocalStorage = (): Product[] | null => {
+  const saved = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+  if (!saved) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+
+    const hasVariantImagesShape = parsed.every((product) => (
+      product &&
+      typeof product === 'object' &&
+      Object.prototype.hasOwnProperty.call(product, 'variantImages')
+    ));
+
+    return hasVariantImagesShape ? (parsed as Product[]) : null;
+  } catch {
+    return null;
+  }
+};
+
 const normalizeHexColor = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed.startsWith('#')) {
@@ -1110,7 +1143,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const localSettings = mergeSettings(hasLocalSettings ? readLocalJson<Partial<ThemeSettings> | null>(SETTINGS_STORAGE_KEY, null) : null);
       let localProducts = hasLocalProducts
-        ? readLocalJson<Product[]>(PRODUCTS_STORAGE_KEY, [])
+        ? (readCompatibleProductsFromLocalStorage() ?? SAMPLE_PRODUCTS)
         : SAMPLE_PRODUCTS;
 
       // Auto-migrate or ensure custom Printify product exists in the list
@@ -1118,7 +1151,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const samplePrintifyTee = SAMPLE_PRODUCTS.find(p => p.isPrintify);
         if (samplePrintifyTee) {
           localProducts = [...localProducts, samplePrintifyTee];
-          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(localProducts));
+          saveProductsLocally(localProducts);
         }
       }
       const localCategories = hasLocalCategories
@@ -1284,7 +1317,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (event.key === PRODUCTS_STORAGE_KEY) {
-        setProducts(readLocalJson<Product[]>(PRODUCTS_STORAGE_KEY, SAMPLE_PRODUCTS));
+        const compatibleProducts = readCompatibleProductsFromLocalStorage();
+        if (compatibleProducts) {
+          setProducts(compatibleProducts);
+        }
       }
 
       if (event.key === PRINTIFY_CATALOG_STORAGE_KEY) {
@@ -1415,7 +1451,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = [newProduct, ...products];
     setProducts(updated);
     if (!supabase) {
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updated));
+      saveProductsLocally(updated);
     }
 
     if (supabase) {
@@ -1435,7 +1471,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const product = updated.find((item) => item.id === id);
     setProducts(updated);
     if (!supabase) {
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updated));
+      saveProductsLocally(updated);
     }
 
     if (supabase && product) {
@@ -1454,7 +1490,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = products.filter((product) => product.id !== id);
     setProducts(updated);
     if (!supabase) {
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updated));
+      saveProductsLocally(updated);
       return;
     }
 
@@ -1525,7 +1561,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProducts(nextProducts);
 
     if (!supabase) {
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(nextProducts));
+      saveProductsLocally(nextProducts);
     } else {
       const slugsToUpsert = [...new Set(rowsToUpsert.map((product) => product.slug).filter(Boolean))];
       if (slugsToUpsert.length > 0) {
@@ -1720,7 +1756,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       !(blueprintId && (p.printifyCatalogId === String(blueprintId) || p.printifyProductId === `template_${blueprintId}`))
     );
     setProducts(updatedProducts);
-    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+    saveProductsLocally(updatedProducts);
 
     if (supabase) {
       const { error: catalogErr } = await supabase.from('printify_catalog').delete().eq('id', templateId);
@@ -1755,7 +1791,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (p) => !p.id.startsWith('printify_template_') && !p.printifyProductId?.startsWith('template_')
     );
     setProducts(updatedProducts);
-    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+    saveProductsLocally(updatedProducts);
 
     if (supabase) {
       const { error: catalogErr } = await supabase.from('printify_catalog').delete().neq('id', '_none_');
@@ -2164,7 +2200,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setOrders(updatedOrders);
     setProducts(updatedProducts);
     localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updatedOrders));
-    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(updatedProducts));
+    saveProductsLocally(updatedProducts);
     localStorage.setItem(
       PENDING_ORDERS_STORAGE_KEY,
       JSON.stringify([
