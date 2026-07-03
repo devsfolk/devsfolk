@@ -20,13 +20,43 @@ const HERO_SECTION_DEFAULT_CONFIG = {
   textAlign: 'center',
   buttonText: 'Shop Collection',
   buttonLink: '/products',
+  buttonTextColor: '#ffffff',
+  buttonAlignment: 'center',
   buttonStyle: 'filled',
   buttonSize: 'medium',
   overlayOpacity: 60,
   overlayColor: '#000000',
 } as const;
 
-const HERO_PREVIEW_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2000';
+const getHeroLinkTarget = (section: StoreSection) => {
+  switch (section.type) {
+    case 'CATEGORY_SLIDER':
+      return '#category-slider';
+    case 'CATEGORIES':
+      return '#categories';
+    case 'FEATURED_PRODUCTS':
+      return '/products';
+    case 'NEWSLETTER':
+      return '#newsletter';
+    case 'ABOUT':
+      return '#about';
+    case 'SALE_BANNER':
+      return '#sale-banner';
+    case 'CUSTOMIZER':
+      return '#customizer';
+    case 'HERO':
+      return '#hero';
+    default:
+      return null;
+  }
+};
+
+const EmptyHeroImageState: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`flex h-full w-full flex-col items-center justify-center gap-2 bg-gray-100 text-gray-300 ${className}`}>
+    <Upload className="h-6 w-6 md:h-8 md:w-8" />
+    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-center">No image uploaded</p>
+  </div>
+);
 
 const getHeroPreviewHeightClass = (height?: 'small' | 'medium' | 'large' | 'viewport' | 'thin') => {
   switch (height) {
@@ -92,8 +122,24 @@ export const DesignSettings: React.FC = () => {
   const [isOptimizingSection, setIsOptimizingSection] = useState(false);
   const heroConfig = (editingSection?.config || {}) as NonNullable<StoreSection['config']>;
   const isHeroSection = editingSection?.type === 'HERO';
-  const heroPreviewImage = heroConfig.gallery?.[0] || heroConfig.imageUrl || HERO_PREVIEW_FALLBACK_IMAGE;
+  const heroPreviewImage = heroConfig.gallery?.[0] || heroConfig.imageUrl || null;
   const heroPreviewGallery = Array.isArray(heroConfig.gallery) ? heroConfig.gallery : [];
+  const heroLinkOptions = settings.sections
+    .filter((section) => section.enabled)
+    .map((section) => {
+      const target = getHeroLinkTarget(section);
+      if (!target) return null;
+      return {
+        label: section.title,
+        value: target,
+      };
+    })
+    .filter((item): item is { label: string; value: string } => Boolean(item));
+  const heroLinkValue = heroConfig.buttonLink?.trim() || '/products';
+  const heroLinkHasPreset = heroLinkOptions.some((option) => option.value === heroLinkValue);
+  const heroLinkSelectValue = heroLinkHasPreset ? heroLinkValue : '__custom__';
+  const heroButtonTextColor = heroConfig.buttonTextColor?.trim() || (heroConfig.buttonStyle === 'filled' ? '#ffffff' : '');
+  const heroButtonAlignment = heroConfig.buttonAlignment || heroConfig.textAlign || 'center';
 
   const handleUpdate = (path: string, value: any) => {
     updateSettings({ [path]: value });
@@ -453,12 +499,13 @@ export const DesignSettings: React.FC = () => {
                                 </Button>
                               }
                             />
-                          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-6 md:p-10">
+                          <DialogContent className={`${isHeroSection ? 'max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-0' : 'max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-6 md:p-10'}`}>
                             <DialogHeader>
                               <DialogTitle className="text-2xl md:text-3xl font-black">{section.type} Customization</DialogTitle>
                             </DialogHeader>
                             {editingSection && (
-                              <div className={`${isHeroSection ? 'grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]' : 'space-y-4 md:space-y-6'} pt-4 md:pt-6`}>
+                              <>
+                              <div className={`${isHeroSection ? 'grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] p-6 md:p-10' : 'space-y-4 md:space-y-6 pt-4 md:pt-6'}`}>
                                 <div className="space-y-4 md:space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                   <div className="space-y-2">
@@ -517,14 +564,19 @@ export const DesignSettings: React.FC = () => {
 
                                  {(editingSection.type === 'HERO' || editingSection.type === 'BANNER' || editingSection.type === 'SALE_BANNER') && (
                                   <div className="space-y-2 pb-2">
-                                    <Label className="text-[10px] font-black uppercase text-gray-400">Banner Image</Label>
-                                    <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-200">
-                                      <div className="w-24 h-16 rounded-xl overflow-hidden bg-white border shrink-0">
-                                        <img 
-                                          src={editingSection.config?.imageUrl || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2000'} 
-                                          className="w-full h-full object-cover" 
-                                        />
-                                      </div>
+                                      <Label className="text-[10px] font-black uppercase text-gray-400">Banner Image</Label>
+                                      <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-200">
+                                        <div className="w-24 h-16 rounded-xl overflow-hidden bg-white border shrink-0">
+                                          {editingSection.config?.imageUrl ? (
+                                            <img 
+                                              src={editingSection.config.imageUrl} 
+                                              className="w-full h-full object-cover" 
+                                              alt={editingSection.title}
+                                            />
+                                          ) : (
+                                            <EmptyHeroImageState className="rounded-xl" />
+                                          )}
+                                        </div>
                                       <div className="flex-1 space-y-2">
                                         <div className="flex gap-2">
                                           <Input 
@@ -662,15 +714,41 @@ export const DesignSettings: React.FC = () => {
                                       </div>
                                       <div className="space-y-2">
                                         <Label>Button Link</Label>
-                                        <Input 
-                                          value={heroConfig.buttonLink || '/products'}
-                                          onChange={(e) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), buttonLink: e.target.value }
-                                          })}
-                                          placeholder="/products"
-                                          className="h-12 rounded-xl"
-                                        />
+                                        <Select
+                                          value={heroLinkSelectValue}
+                                          onValueChange={(v) => {
+                                            if (v === '__custom__') return;
+                                            setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), buttonLink: v }
+                                            });
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Custom URL" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="__custom__">Custom URL</SelectItem>
+                                            {heroLinkOptions.map((option) => (
+                                              <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        {heroLinkSelectValue === '__custom__' && (
+                                          <div className="mt-2 space-y-2">
+                                            <Input 
+                                              value={heroConfig.buttonLink || ''}
+                                              onChange={(e) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), buttonLink: e.target.value }
+                                              })}
+                                              placeholder="/products or https://..."
+                                              className="h-11 rounded-xl"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
 
@@ -710,6 +788,64 @@ export const DesignSettings: React.FC = () => {
                                             <SelectItem value="small">Small</SelectItem>
                                             <SelectItem value="medium">Medium</SelectItem>
                                             <SelectItem value="large">Large</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <Label>Button Text Color</Label>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            className="h-7 px-3 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-700"
+                                            onClick={() => setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), buttonTextColor: undefined }
+                                            })}
+                                          >
+                                            Default
+                                          </Button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            type="color"
+                                            value={heroConfig.buttonTextColor || (heroConfig.buttonStyle === 'filled' ? '#ffffff' : '#000000')}
+                                            onChange={(e) => setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), buttonTextColor: e.target.value }
+                                            })}
+                                            className="w-12 h-12 p-1 rounded-xl"
+                                          />
+                                          <Input
+                                            value={heroConfig.buttonTextColor || ''}
+                                            onChange={(e) => setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), buttonTextColor: e.target.value }
+                                            })}
+                                            placeholder={heroConfig.buttonStyle === 'filled' ? '#ffffff' : 'inherit'}
+                                            className="h-12 rounded-xl flex-1"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Button Alignment</Label>
+                                        <Select
+                                          value={heroConfig.buttonAlignment || heroConfig.textAlign || 'center'}
+                                          onValueChange={(v) => setEditingSection({
+                                            ...editingSection,
+                                            config: { ...(editingSection.config || {}), buttonAlignment: v as any }
+                                          })}
+                                        >
+                                          <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="left">Left</SelectItem>
+                                            <SelectItem value="center">Center</SelectItem>
+                                            <SelectItem value="right">Right</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       </div>
@@ -784,18 +920,18 @@ export const DesignSettings: React.FC = () => {
                                         />
                                       </div>
                                     </div>
+                                    <DialogFooter className="pt-6 col-span-full">
+                                      <Button 
+                                        onClick={() => updateSectionDetails(editingSection.id, editingSection)}
+                                        className="h-14 px-10 rounded-full font-bold shadow-xl"
+                                        style={{ backgroundColor: settings.primaryColor }}
+                                      >
+                                        Save Changes
+                                      </Button>
+                                    </DialogFooter>
                                   </div>
                                 )}
 
-                                <DialogFooter className="pt-6">
-                                  <Button 
-                                    onClick={() => updateSectionDetails(editingSection.id, editingSection)}
-                                    className="h-14 px-10 rounded-full font-bold shadow-xl"
-                                    style={{ backgroundColor: settings.primaryColor }}
-                                  >
-                                    Save Changes
-                                  </Button>
-                                </DialogFooter>
                               </div>
                                 {isHeroSection && (
                                   <div className="rounded-[2rem] border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
@@ -809,11 +945,15 @@ export const DesignSettings: React.FC = () => {
                                       </Badge>
                                     </div>
                                     <div className={`relative overflow-hidden rounded-[1.75rem] border border-gray-100 bg-black text-white shadow-lg ${getHeroPreviewHeightClass(heroConfig.height)}`}>
-                                      <img
-                                        src={heroPreviewImage}
-                                        alt={editingSection.title}
-                                        className="absolute inset-0 h-full w-full object-cover"
-                                      />
+                                      {heroPreviewImage ? (
+                                        <img
+                                          src={heroPreviewImage}
+                                          alt={editingSection.title}
+                                          className="absolute inset-0 h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        <EmptyHeroImageState className="absolute inset-0 rounded-[1.75rem]" />
+                                      )}
                                       <div
                                         className="absolute inset-0 z-10"
                                         style={{ backgroundImage: buildOverlayBackground(heroConfig.overlayColor || '#000000', heroConfig.overlayOpacity ?? 60) }}
@@ -826,7 +966,7 @@ export const DesignSettings: React.FC = () => {
                                           <p className="text-xs md:text-sm opacity-90">
                                             {editingSection.subtitle || settings.shopDescription || 'A hero banner preview will appear here.'}
                                           </p>
-                                          <div className={`${heroConfig.textAlign === 'center' ? 'flex justify-center' : heroConfig.textAlign === 'right' ? 'flex justify-end' : 'flex justify-start'}`}>
+                                          <div className={`${heroButtonAlignment === 'center' ? 'flex justify-center' : heroButtonAlignment === 'right' ? 'flex justify-end' : 'flex justify-start'}`}>
                                             <Button
                                               variant={getHeroButtonVariant(heroConfig.buttonStyle)}
                                               size="default"
@@ -837,13 +977,15 @@ export const DesignSettings: React.FC = () => {
                                                     ? 'text-white border-white/30 hover:bg-white/10'
                                                     : 'text-white bg-transparent border-transparent shadow-none hover:bg-white/10'
                                               }`}
-                                              style={heroConfig.buttonStyle === 'filled'
-                                                ? {
-                                                    backgroundColor: settings.primaryColor,
-                                                    color: 'var(--primary-foreground)',
-                                                    borderColor: 'var(--primary-border)',
-                                                  }
-                                                : undefined}
+                                              style={{
+                                                ...(heroConfig.buttonStyle === 'filled'
+                                                  ? {
+                                                      backgroundColor: settings.primaryColor,
+                                                      borderColor: 'var(--primary-border)',
+                                                    }
+                                                  : {}),
+                                                color: heroButtonTextColor || undefined,
+                                              }}
                                             >
                                               {heroConfig.buttonText || 'Shop Collection'} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
                                             </Button>
@@ -866,6 +1008,18 @@ export const DesignSettings: React.FC = () => {
                                   </div>
                                 )}
                               </div>
+                              {isHeroSection && (
+                                <DialogFooter className="pt-2 md:pt-4">
+                                  <Button 
+                                    onClick={() => updateSectionDetails(editingSection.id, editingSection)}
+                                    className="h-14 px-10 rounded-full font-bold shadow-xl"
+                                    style={{ backgroundColor: settings.primaryColor }}
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </DialogFooter>
+                              )}
+                              </>
                             )}
                           </DialogContent>
                         </Dialog>

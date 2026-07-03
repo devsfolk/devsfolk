@@ -74,6 +74,8 @@ export interface StoreSection {
     buttonLink?: string;
     buttonStyle?: 'filled' | 'outline' | 'ghost';
     buttonSize?: 'small' | 'medium' | 'large';
+    buttonTextColor?: string;
+    buttonAlignment?: 'left' | 'center' | 'right';
     imageUrl?: string;
     gallery?: string[];
     overlayOpacity?: number;

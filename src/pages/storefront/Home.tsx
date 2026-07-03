@@ -49,6 +49,29 @@ const heroButtonSizeClass = (buttonSize?: 'small' | 'medium' | 'large') => {
   }
 };
 
+const getSectionLinkTarget = (type: string) => {
+  switch (type) {
+    case 'CATEGORY_SLIDER':
+      return '#category-slider';
+    case 'CATEGORIES':
+      return '#categories';
+    case 'FEATURED_PRODUCTS':
+      return '/products';
+    case 'NEWSLETTER':
+      return '#newsletter';
+    case 'ABOUT':
+      return '#about';
+    case 'SALE_BANNER':
+      return '#sale-banner';
+    case 'CUSTOMIZER':
+      return '#customizer';
+    case 'HERO':
+      return '#hero';
+    default:
+      return null;
+  }
+};
+
 export const Home: React.FC = () => {
   const { settings, products, categories, addToCart, loading } = useShop();
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -158,17 +181,21 @@ export const Home: React.FC = () => {
     const mainImage = config.imageUrl || currentSlide || (gallery.length > 0 ? gallery[0] : null);
     const buttonLink = config.buttonLink?.trim() || '/products';
     const isExternalButtonLink = /^https?:\/\//i.test(buttonLink) || buttonLink.startsWith('mailto:') || buttonLink.startsWith('tel:');
+    const isAnchorButtonLink = buttonLink.startsWith('#');
     const buttonVariant = heroButtonVariant(config.buttonStyle);
     const buttonSizeClass = heroButtonSizeClass(config.buttonSize);
     const overlayOpacity = config.overlayOpacity ?? 60;
     const overlayColor = config.overlayColor || '#000000';
+    const buttonAlignment = config.buttonAlignment || textAlign;
+    const buttonTextColor = config.buttonTextColor?.trim() || (buttonVariant === 'default' ? '#ffffff' : '');
 
     switch (section.type) {
       case 'CATEGORY_SLIDER':
-        return (
-          <motion.section 
-            key={section.id} 
-            initial={{ opacity: 0, y: 20 }}
+          return (
+            <motion.section 
+              key={section.id} 
+              id="category-slider"
+              initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-12'} relative group overflow-hidden`}
@@ -234,6 +261,7 @@ export const Home: React.FC = () => {
         return (
           <motion.section 
             key={section.id} 
+            id="sale-banner"
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
@@ -262,7 +290,7 @@ export const Home: React.FC = () => {
       case 'HERO':
         if (deviceConfig.heroStyle === 'hidden') return null;
         return (
-          <section key={section.id} className={`relative flex items-center overflow-hidden w-full ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height} ${deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50'}`}>
+          <section key={section.id} id="hero" className={`relative flex items-center overflow-hidden w-full ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height} ${deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50'}`}>
             {deviceConfig.heroStyle === 'banner' && (
               <div className="absolute inset-0 z-0">
                 <div
@@ -310,9 +338,9 @@ export const Home: React.FC = () => {
                 <p className={`${device === 'mobile' ? 'text-xs mb-6' : 'text-lg mb-10'} opacity-90 max-w-xl ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`}>
                   {section.subtitle || settings.shopDescription}
                 </p>
-                <div className={`flex flex-wrap gap-4 ${textAlign === 'center' ? 'justify-center' : textAlign === 'right' ? 'justify-end' : ''}`}>
-                  {isExternalButtonLink ? (
-                    <a href={buttonLink} target="_blank" rel="noreferrer">
+                <div className={`flex flex-wrap gap-4 ${buttonAlignment === 'center' ? 'justify-center' : buttonAlignment === 'right' ? 'justify-end' : 'justify-start'}`}>
+                  {isExternalButtonLink || isAnchorButtonLink ? (
+                    <a href={buttonLink} target={isExternalButtonLink ? '_blank' : undefined} rel={isExternalButtonLink ? 'noreferrer' : undefined}>
                       <Button 
                         variant={buttonVariant}
                         size="default"
@@ -327,13 +355,15 @@ export const Home: React.FC = () => {
                                 ? 'text-white bg-transparent border-transparent shadow-none hover:bg-white/10'
                                 : 'text-black bg-transparent border-transparent shadow-none hover:bg-black/5'
                         }`}
-                        style={buttonVariant === 'filled'
-                          ? {
-                              backgroundColor: settings.primaryColor,
-                              color: 'var(--primary-foreground)',
-                              borderColor: 'var(--primary-border)',
-                            }
-                          : undefined}
+                        style={{
+                          ...(buttonVariant === 'filled'
+                            ? {
+                                backgroundColor: settings.primaryColor,
+                                borderColor: 'var(--primary-border)',
+                              }
+                            : {}),
+                          color: buttonTextColor || undefined,
+                        }}
                       >
                         {config.buttonText || "Shop Collection"} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
                       </Button>
@@ -354,13 +384,15 @@ export const Home: React.FC = () => {
                                 ? 'text-white bg-transparent border-transparent shadow-none hover:bg-white/10'
                                 : 'text-black bg-transparent border-transparent shadow-none hover:bg-black/5'
                         }`}
-                        style={buttonVariant === 'filled'
-                          ? {
-                              backgroundColor: settings.primaryColor,
-                              color: 'var(--primary-foreground)',
-                              borderColor: 'var(--primary-border)',
-                            }
-                          : undefined}
+                        style={{
+                          ...(buttonVariant === 'filled'
+                            ? {
+                                backgroundColor: settings.primaryColor,
+                                borderColor: 'var(--primary-border)',
+                              }
+                            : {}),
+                          color: buttonTextColor || undefined,
+                        }}
                       >
                         {config.buttonText || "Shop Collection"} <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
                       </Button>
@@ -379,7 +411,7 @@ export const Home: React.FC = () => {
           : `group relative block ${device === 'mobile' ? 'h-48 rounded-2xl' : 'h-72 md:h-[450px] rounded-[2rem]'} overflow-hidden shadow-lg transition-all hover:shadow-2xl`;
 
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-6 px-2' : 'py-24'} bg-gray-50`} style={devsfolkBgStyle}>
+          <section key={section.id} id="categories" className={`${isDevsFolk && device === 'mobile' ? 'py-6 px-2' : 'py-24'} bg-gray-50`} style={devsfolkBgStyle}>
             <div className="container mx-auto px-4 md:px-6">
               <div className={`text-center ${isDevsFolk && device === 'mobile' ? 'mb-6' : 'mb-16'}`}>
                 <h2 className={`${isDevsFolk && device === 'mobile' ? 'text-lg' : 'text-4xl'} font-black uppercase tracking-tight mb-2`} style={{ fontFamily: settings.fontDisplay }}>{section.title}</h2>
@@ -417,7 +449,7 @@ export const Home: React.FC = () => {
       case 'FEATURED_PRODUCTS':
         if (!deviceConfig.showFeatured) return null;
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'} bg-white`} style={devsfolkBgStyle}>
+          <section key={section.id} id="products" className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'} bg-white`} style={devsfolkBgStyle}>
             <div className="container mx-auto px-6">
               <div className={`flex ${isDevsFolk && device === 'mobile' ? 'justify-start' : 'flex-col md:flex-row justify-between items-end'} gap-6 ${isDevsFolk && device === 'mobile' ? 'mb-4' : 'mb-16'}`}>
                 {!isDevsFolk && (
@@ -499,7 +531,7 @@ export const Home: React.FC = () => {
       case 'NEWSLETTER':
         if (!deviceConfig.showNewsletter) return null;
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'}`}>
+          <section key={section.id} id="newsletter" className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'}`}>
             <div className="container mx-auto px-6">
               <div className={`bg-gray-100 ${isDevsFolk && device === 'mobile' ? 'rounded-2xl p-6' : 'rounded-[3.5rem] p-12 md:p-24'} text-center relative overflow-hidden`}>
                 <div className="relative z-10 max-w-3xl mx-auto">
@@ -532,7 +564,7 @@ export const Home: React.FC = () => {
 
       case 'ABOUT':
         return (
-          <section key={section.id} className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'}`} style={devsfolkBgStyle}>
+          <section key={section.id} id="about" className={`${isDevsFolk && device === 'mobile' ? 'py-4' : 'py-24'}`} style={devsfolkBgStyle}>
             <div className="container mx-auto px-6">
               <div className={`grid grid-cols-1 md:grid-cols-2 ${isDevsFolk && device === 'mobile' ? 'gap-6' : 'gap-16'} items-center`}>
                 <div className={`${isDevsFolk && device === 'mobile' ? 'space-y-4' : 'space-y-8'}`}>
@@ -587,6 +619,7 @@ export const Home: React.FC = () => {
         return (
           <motion.section 
             key={section.id}
+            id="customizer"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
