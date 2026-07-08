@@ -76,6 +76,11 @@ export interface StoreSection {
     buttonSize?: 'small' | 'medium' | 'large';
     buttonTextColor?: string;
     buttonAlignment?: 'left' | 'center' | 'right';
+    headingColor?: string;
+    subtitleColor?: string;
+    transitionStyle?: 'fade' | 'slide' | 'zoom';
+    transitionSpeed?: 'slow' | 'normal' | 'fast';
+    slideInterval?: number;
     imageUrl?: string;
     gallery?: string[];
     overlayOpacity?: number;

@@ -49,6 +49,42 @@ const heroButtonSizeClass = (buttonSize?: 'small' | 'medium' | 'large') => {
   }
 };
 
+const getHeroTransitionDuration = (transitionSpeed?: 'slow' | 'normal' | 'fast') => {
+  switch (transitionSpeed) {
+    case 'slow':
+      return 2;
+    case 'fast':
+      return 0.4;
+    case 'normal':
+    default:
+      return 1;
+  }
+};
+
+const getHeroTransitionVariants = (transitionStyle?: 'fade' | 'slide' | 'zoom') => {
+  switch (transitionStyle) {
+    case 'slide':
+      return {
+        initial: { opacity: 0, x: 40 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: -40 },
+      };
+    case 'zoom':
+      return {
+        initial: { opacity: 0, scale: 1.08 },
+        animate: { opacity: 1, scale: 1 },
+        exit: { opacity: 0, scale: 0.96 },
+      };
+    case 'fade':
+    default:
+      return {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      };
+  }
+};
+
 const getSectionLinkTarget = (type: string) => {
   switch (type) {
     case 'CATEGORY_SLIDER':
@@ -76,6 +112,10 @@ export const Home: React.FC = () => {
   const { settings, products, categories, addToCart, loading } = useShop();
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const heroSectionSettings = React.useMemo(
+    () => settings.sections.find((section) => section.type === 'HERO' && section.enabled),
+    [settings.sections]
+  );
   const homepageProducts = React.useMemo(() => {
     const orderedProducts = products
       .filter((product) => !isRawPrintifyTemplateProduct(product))
@@ -108,11 +148,15 @@ export const Home: React.FC = () => {
 
   // Simple auto-slider for sections
   useEffect(() => {
+    const heroAutoPlay = heroSectionSettings?.config?.autoPlay !== false;
+    if (!heroAutoPlay) return;
+
+    const heroSlideInterval = Math.max(2, Math.min(15, heroSectionSettings?.config?.slideInterval ?? 5));
     const timer = setInterval(() => {
       setActiveSlideIndex(prev => (prev + 1) % 10); // Cycle up to 10 images
-    }, 5000);
+    }, heroSlideInterval * 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [heroSectionSettings?.config?.autoPlay, heroSectionSettings?.config?.slideInterval]);
 
   React.useEffect(() => {
     if (settings.shopName) {
@@ -190,6 +234,8 @@ export const Home: React.FC = () => {
     const buttonTextColor = config.buttonTextColor?.trim() || (buttonVariant === 'default' ? '#ffffff' : '');
     const hasHeroBackgroundImage = Boolean(mainImage || settings.heroBannerUrl);
     const heroSectionBgClass = hasHeroBackgroundImage || deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50';
+    const heroTransitionDuration = getHeroTransitionDuration(config.transitionSpeed);
+    const heroTransitionVariants = getHeroTransitionVariants(config.transitionStyle);
 
     switch (section.type) {
       case 'CATEGORY_SLIDER':
@@ -301,10 +347,10 @@ export const Home: React.FC = () => {
                       <motion.img 
                         key={currentSlide}
                         src={currentSlide || ''} 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1 }}
+                        initial={heroTransitionVariants.initial}
+                        animate={heroTransitionVariants.animate}
+                        exit={heroTransitionVariants.exit}
+                        transition={{ duration: heroTransitionDuration, ease: 'easeOut' }}
                         className="w-full h-full object-cover"
                       />
                     </AnimatePresence>
@@ -333,11 +379,11 @@ export const Home: React.FC = () => {
               >
                 <h1 
                   className={`${device === 'mobile' ? (isDevsFolk ? 'text-4xl' : 'text-5xl') : 'text-7xl'} font-black tracking-tighter mb-4 md:mb-6 leading-[1.05] uppercase`} 
-                  style={{ fontFamily: settings.fontDisplay }}
+                  style={{ fontFamily: settings.fontDisplay, color: config.headingColor || undefined }}
                 >
                   {section.title}
                 </h1>
-                <p className={`${device === 'mobile' ? 'text-xs mb-6' : 'text-lg mb-10'} opacity-90 max-w-xl ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`}>
+                <p className={`${device === 'mobile' ? 'text-xs mb-6' : 'text-lg mb-10'} opacity-90 max-w-xl ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ color: config.subtitleColor || undefined }}>
                   {section.subtitle || settings.shopDescription}
                 </p>
                 <div className={`flex flex-wrap gap-4 ${buttonAlignment === 'center' ? 'justify-center' : buttonAlignment === 'right' ? 'justify-end' : 'justify-start'}`}>
