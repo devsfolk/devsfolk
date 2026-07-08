@@ -188,6 +188,8 @@ export const Home: React.FC = () => {
     const overlayColor = config.overlayColor || '#000000';
     const buttonAlignment = config.buttonAlignment || textAlign;
     const buttonTextColor = config.buttonTextColor?.trim() || (buttonVariant === 'default' ? '#ffffff' : '');
+    const hasHeroBackgroundImage = Boolean(mainImage || settings.heroBannerUrl);
+    const heroSectionBgClass = hasHeroBackgroundImage || deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50';
 
     switch (section.type) {
       case 'CATEGORY_SLIDER':
@@ -290,13 +292,9 @@ export const Home: React.FC = () => {
       case 'HERO':
         if (deviceConfig.heroStyle === 'hidden') return null;
         return (
-          <section key={section.id} id="hero" className={`relative flex items-center overflow-hidden w-full ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height} ${deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50'}`}>
-            {deviceConfig.heroStyle === 'banner' && (
+          <section key={section.id} id="hero" className={`relative flex items-center overflow-hidden w-full ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height} ${heroSectionBgClass}`}>
+            {hasHeroBackgroundImage && (
               <div className="absolute inset-0 z-0">
-                <div
-                  className="absolute inset-0 z-10"
-                  style={{ backgroundImage: buildOverlayBackground(overlayColor, overlayOpacity) }}
-                />
                 {gallery.length > 1 ? (
                   <div className="w-full h-full relative">
                     <AnimatePresence mode="wait">
@@ -313,11 +311,15 @@ export const Home: React.FC = () => {
                   </div>
                 ) : (
                   <img 
-                    src={mainImage || settings.heroBannerUrl || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=2000"} 
+                    src={mainImage || settings.heroBannerUrl || ''} 
                     alt="Hero"
                     className="w-full h-full object-cover"
                   />
                 )}
+                <div
+                  className="absolute inset-0 z-10"
+                  style={{ backgroundImage: buildOverlayBackground(overlayColor, overlayOpacity) }}
+                />
               </div>
             )}
             
