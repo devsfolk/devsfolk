@@ -22,8 +22,16 @@ const HERO_SECTION_DEFAULT_CONFIG = {
   buttonLink: '/products',
   buttonTextColor: '#ffffff',
   buttonAlignment: 'center',
+  buttonBorderRadius: 'full',
   buttonStyle: 'filled',
   buttonSize: 'medium',
+  headingSize: 'xl',
+  headingWeight: '900',
+  subtitleSize: 'md',
+  contentPosition: 'center',
+  contentMaxWidth: 'medium',
+  backgroundColor: '#000000',
+  hideImageOnMobile: false,
   transitionStyle: 'fade',
   transitionSpeed: 'normal',
   slideInterval: 5,
@@ -117,6 +125,96 @@ const getHeroButtonSizeClass = (buttonSize?: 'small' | 'medium' | 'large') => {
   }
 };
 
+const getHeroHeadingSizeClass = (size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl') => {
+  switch (size) {
+    case 'xs':
+      return 'text-2xl md:text-3xl';
+    case 'sm':
+      return 'text-4xl md:text-5xl';
+    case 'md':
+      return 'text-5xl md:text-6xl';
+    case 'lg':
+      return 'text-6xl md:text-7xl';
+    case '2xl':
+      return 'text-8xl md:text-9xl';
+    case 'xl':
+    default:
+      return 'text-7xl md:text-8xl';
+  }
+};
+
+const getHeroHeadingWeightClass = (weight?: '400' | '600' | '700' | '800' | '900') => {
+  switch (weight) {
+    case '400':
+      return 'font-normal';
+    case '600':
+      return 'font-semibold';
+    case '700':
+      return 'font-bold';
+    case '800':
+      return 'font-extrabold';
+    case '900':
+    default:
+      return 'font-black';
+  }
+};
+
+const getHeroSubtitleSizeClass = (size?: 'xs' | 'sm' | 'md' | 'lg') => {
+  switch (size) {
+    case 'xs':
+      return 'text-xs md:text-sm';
+    case 'sm':
+      return 'text-sm md:text-base';
+    case 'lg':
+      return 'text-lg md:text-xl';
+    case 'md':
+    default:
+      return 'text-base md:text-lg';
+  }
+};
+
+const getHeroContentWidthClass = (width?: 'narrow' | 'medium' | 'wide' | 'full') => {
+  switch (width) {
+    case 'narrow':
+      return 'max-w-xl';
+    case 'wide':
+      return 'max-w-5xl';
+    case 'full':
+      return 'max-w-none';
+    case 'medium':
+    default:
+      return 'max-w-3xl';
+  }
+};
+
+const getHeroContentPositionClass = (position?: 'top' | 'center' | 'bottom') => {
+  switch (position) {
+    case 'top':
+      return 'items-start';
+    case 'bottom':
+      return 'items-end';
+    case 'center':
+    default:
+      return 'items-center';
+  }
+};
+
+const getHeroButtonRadiusClass = (radius?: 'none' | 'sm' | 'md' | 'lg' | 'full') => {
+  switch (radius) {
+    case 'none':
+      return 'rounded-none';
+    case 'sm':
+      return 'rounded-md';
+    case 'md':
+      return 'rounded-lg';
+    case 'lg':
+      return 'rounded-2xl';
+    case 'full':
+    default:
+      return 'rounded-full';
+  }
+};
+
 export const DesignSettings: React.FC = () => {
   const { settings, updateSettings, applyTemplate } = useShop();
   const [editingSection, setEditingSection] = useState<StoreSection | null>(null);
@@ -143,6 +241,14 @@ export const DesignSettings: React.FC = () => {
   const heroLinkSelectValue = heroLinkHasPreset ? heroLinkValue : '__custom__';
   const heroButtonTextColor = heroConfig.buttonTextColor?.trim() || (heroConfig.buttonStyle === 'filled' ? '#ffffff' : '');
   const heroButtonAlignment = heroConfig.buttonAlignment || heroConfig.textAlign || 'center';
+  const heroContentPosition = heroConfig.contentPosition || 'center';
+  const heroContentWidthClass = getHeroContentWidthClass(heroConfig.contentMaxWidth);
+  const heroPreviewMinHeightStyle = heroConfig.minHeight ? { minHeight: `${heroConfig.minHeight}px` } : undefined;
+  const heroPreviewBaseColor = heroConfig.backgroundColor || '#000000';
+  const heroPreviewHeadingClass = `${getHeroHeadingSizeClass(heroConfig.headingSize)} ${getHeroHeadingWeightClass(heroConfig.headingWeight)}`;
+  const heroPreviewSubtitleClass = getHeroSubtitleSizeClass(heroConfig.subtitleSize);
+  const heroPreviewButtonRadiusClass = getHeroButtonRadiusClass(heroConfig.buttonBorderRadius);
+  const heroPreviewContentPositionClass = getHeroContentPositionClass(heroContentPosition);
 
   const handleUpdate = (path: string, value: any) => {
     updateSettings({ [path]: value });
@@ -703,308 +809,668 @@ export const DesignSettings: React.FC = () => {
 
                                 {isHeroSection ? (
                                   <div className="space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-4 md:p-5">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Button Text</Label>
-                                        <Input 
-                                          value={heroConfig.buttonText || ''}
-                                          onChange={(e) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), buttonText: e.target.value }
-                                          })}
-                                          className="h-12 rounded-xl"
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label>Button Link</Label>
-                                        <Select
-                                          value={heroLinkSelectValue}
-                                          onValueChange={(v) => {
-                                            if (v === '__custom__') return;
-                                            setEditingSection({
+                                    <Tabs defaultValue="typography" className="w-full">
+                                      <TabsList className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-white p-1 md:grid-cols-5">
+                                        <TabsTrigger value="typography" className="rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest">Typography</TabsTrigger>
+                                        <TabsTrigger value="layout" className="rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest">Layout</TabsTrigger>
+                                        <TabsTrigger value="background" className="rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest">Background</TabsTrigger>
+                                        <TabsTrigger value="button" className="rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest">Button</TabsTrigger>
+                                        <TabsTrigger value="slideshow" className="rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest">Slideshow</TabsTrigger>
+                                      </TabsList>
+
+                                      <TabsContent value="typography" className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Heading Size</Label>
+                                            <Select
+                                              value={heroConfig.headingSize || 'xl'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), headingSize: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="xs">Extra Small</SelectItem>
+                                                <SelectItem value="sm">Small</SelectItem>
+                                                <SelectItem value="md">Medium</SelectItem>
+                                                <SelectItem value="lg">Large</SelectItem>
+                                                <SelectItem value="xl">Extra Large</SelectItem>
+                                                <SelectItem value="2xl">Ultra Large</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Heading Weight</Label>
+                                            <Select
+                                              value={heroConfig.headingWeight || '900'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), headingWeight: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="400">Regular</SelectItem>
+                                                <SelectItem value="600">Semibold</SelectItem>
+                                                <SelectItem value="700">Bold</SelectItem>
+                                                <SelectItem value="800">Extrabold</SelectItem>
+                                                <SelectItem value="900">Black</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Subtitle Size</Label>
+                                            <Select
+                                              value={heroConfig.subtitleSize || 'md'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), subtitleSize: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="xs">Extra Small</SelectItem>
+                                                <SelectItem value="sm">Small</SelectItem>
+                                                <SelectItem value="md">Medium</SelectItem>
+                                                <SelectItem value="lg">Large</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Heading Color</Label>
+                                            <div className="flex gap-2">
+                                              <Input
+                                                type="color"
+                                                value={heroConfig.headingColor || '#ffffff'}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), headingColor: e.target.value }
+                                                })}
+                                                className="w-12 h-12 p-1 rounded-xl"
+                                              />
+                                              <Input
+                                                value={heroConfig.headingColor || ''}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), headingColor: e.target.value }
+                                                })}
+                                                placeholder="inherit"
+                                                className="h-12 rounded-xl flex-1"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Subtitle Color</Label>
+                                            <div className="flex gap-2">
+                                              <Input
+                                                type="color"
+                                                value={heroConfig.subtitleColor || '#ffffff'}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), subtitleColor: e.target.value }
+                                                })}
+                                                className="w-12 h-12 p-1 rounded-xl"
+                                              />
+                                              <Input
+                                                value={heroConfig.subtitleColor || ''}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), subtitleColor: e.target.value }
+                                                })}
+                                                placeholder="inherit"
+                                                className="h-12 rounded-xl flex-1"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </TabsContent>
+
+                                      <TabsContent value="layout" className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Text Alignment</Label>
+                                            <Select
+                                              value={heroConfig.textAlign || 'center'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), textAlign: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="left">Left</SelectItem>
+                                                <SelectItem value="center">Center</SelectItem>
+                                                <SelectItem value="right">Right</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Content Position</Label>
+                                            <Select
+                                              value={heroConfig.contentPosition || 'center'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), contentPosition: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="top">Top</SelectItem>
+                                                <SelectItem value="center">Center</SelectItem>
+                                                <SelectItem value="bottom">Bottom</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Content Width</Label>
+                                            <Select
+                                              value={heroConfig.contentMaxWidth || 'medium'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), contentMaxWidth: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="narrow">Narrow</SelectItem>
+                                                <SelectItem value="medium">Medium</SelectItem>
+                                                <SelectItem value="wide">Wide</SelectItem>
+                                                <SelectItem value="full">Full</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label>Minimum Height</Label>
+                                          <Input
+                                            type="number"
+                                            min="200"
+                                            max="1200"
+                                            step="10"
+                                            value={heroConfig.minHeight ?? ''}
+                                            placeholder="Use section height"
+                                            onChange={(e) => setEditingSection({
                                               ...editingSection,
-                                              config: { ...(editingSection.config || {}), buttonLink: v }
-                                            });
-                                          }}
-                                        >
-                                          <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Custom URL" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="__custom__">Custom URL</SelectItem>
-                                            {heroLinkOptions.map((option) => (
-                                              <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                              </SelectItem>
+                                              config: { ...(editingSection.config || {}), minHeight: e.target.value ? Number(e.target.value) : undefined }
+                                            })}
+                                            className="h-12 rounded-xl"
+                                          />
+                                        </div>
+                                      </TabsContent>
+
+                                      <TabsContent value="background" className="space-y-4 pt-4">
+                                        <div className="space-y-2 pb-2">
+                                          <Label className="text-[10px] font-black uppercase text-gray-400">Banner Image</Label>
+                                          <div className="flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-200">
+                                            <div className="w-24 h-16 rounded-xl overflow-hidden bg-white border shrink-0">
+                                              {editingSection.config?.imageUrl ? (
+                                                <img 
+                                                  src={editingSection.config.imageUrl} 
+                                                  className="w-full h-full object-cover" 
+                                                  alt={editingSection.title}
+                                                />
+                                              ) : (
+                                                <EmptyHeroImageState className="rounded-xl" />
+                                              )}
+                                            </div>
+                                            <div className="flex-1 space-y-2">
+                                              <div className="flex gap-2">
+                                                <Input 
+                                                  value={editingSection.config?.imageUrl || ''} 
+                                                  onChange={(e) => setEditingSection({...editingSection, config: {...(editingSection.config || {}), imageUrl: e.target.value}})}
+                                                  placeholder="Image URL"
+                                                  className="h-10 text-xs rounded-xl"
+                                                />
+                                                <label className="flex items-center justify-center w-10 h-10 rounded-xl bg-black text-white cursor-pointer hover:scale-105 transition-transform shrink-0">
+                                                  {isOptimizingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                                  <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept="image/*" 
+                                                    onChange={async (e) => {
+                                                      const file = e.target.files?.[0];
+                                                      if (!file) return;
+                                                      setIsOptimizingSection(true);
+                                                      try {
+                                                        const optimized = await optimizeImage(file, 1920, 1080);
+                                                        setEditingSection({
+                                                          ...editingSection,
+                                                          config: { ...(editingSection.config || {}), imageUrl: optimized }
+                                                        });
+                                                      } finally {
+                                                        setIsOptimizingSection(false);
+                                                      }
+                                                    }} 
+                                                  />
+                                                </label>
+                                              </div>
+                                              <p className="text-[9px] text-gray-400">Recommended size: 1920x300px for Season Sale banners.</p>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Background Color</Label>
+                                            <div className="flex gap-2">
+                                              <Input
+                                                type="color"
+                                                value={heroConfig.backgroundColor || '#000000'}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), backgroundColor: e.target.value }
+                                                })}
+                                                className="w-12 h-12 p-1 rounded-xl"
+                                              />
+                                              <Input
+                                                value={heroConfig.backgroundColor || ''}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), backgroundColor: e.target.value }
+                                                })}
+                                                placeholder="#000000"
+                                                className="h-12 rounded-xl flex-1"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <div className="flex items-center justify-between gap-3">
+                                              <Label>Hide Image on Mobile</Label>
+                                              <Switch
+                                                checked={Boolean(heroConfig.hideImageOnMobile)}
+                                                onCheckedChange={(checked) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), hideImageOnMobile: checked }
+                                                })}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                          <div className="flex justify-between items-center">
+                                            <Label className="text-[10px] font-black uppercase text-gray-400">Gallery / Images</Label>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[10px] text-gray-400">Add multiple images for sliders</span>
+                                              <label className="flex items-center justify-center w-6 h-6 rounded-md bg-gray-100 hover:bg-gray-200 cursor-pointer transition-colors">
+                                                {isOptimizingSection ? (
+                                                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                                ) : (
+                                                  <Plus className="h-3 w-3 text-gray-600" />
+                                                )}
+                                                <input 
+                                                  type="file" 
+                                                  className="hidden" 
+                                                  multiple 
+                                                  accept="image/*" 
+                                                  onChange={async (e) => {
+                                                    const files = e.target.files;
+                                                    if (!files || !editingSection) return;
+                                                    setIsOptimizingSection(true);
+                                                    try {
+                                                      const newImages: string[] = [];
+                                                      for (let i = 0; i < files.length; i++) {
+                                                        const optimized = await optimizeImage(files[i], 1600, 1600);
+                                                        newImages.push(optimized);
+                                                      }
+                                                      const currentGallery = editingSection.config?.gallery || [];
+                                                      setEditingSection({
+                                                        ...editingSection,
+                                                        config: { 
+                                                          ...(editingSection.config || {}), 
+                                                          gallery: [...currentGallery, ...newImages],
+                                                          imageUrl: newImages[0] || editingSection.config?.imageUrl || ''
+                                                        }
+                                                      });
+                                                    } catch (err) {
+                                                      console.error(err);
+                                                    } finally {
+                                                      setIsOptimizingSection(false);
+                                                    }
+                                                  }} 
+                                                />
+                                              </label>
+                                            </div>
+                                          </div>
+                                          
+                                          <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                                            {(editingSection.config?.gallery || []).map((img, idx) => (
+                                              <div key={idx} className="relative aspect-square group rounded-xl overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
+                                                <img src={img} className="w-full h-full object-cover" />
+                                                <button 
+                                                  onClick={() => {
+                                                    const newGallery = (editingSection.config?.gallery || []).filter((_, i) => i !== idx);
+                                                    setEditingSection({
+                                                      ...editingSection,
+                                                      config: { ...(editingSection.config || {}), gallery: newGallery }
+                                                    });
+                                                  }}
+                                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                  <X className="h-2 w-2" />
+                                                </button>
+                                              </div>
                                             ))}
-                                          </SelectContent>
-                                        </Select>
-                                        {heroLinkSelectValue === '__custom__' && (
-                                          <div className="mt-2 space-y-2">
+                                            {!(editingSection.config?.gallery?.length) && (
+                                              <div className="col-span-full border-2 border-dashed border-gray-100 rounded-2xl py-8 flex flex-col items-center justify-center text-gray-300">
+                                                <ImageIcon className="h-8 w-8 mb-2 opacity-20" />
+                                                <p className="text-[10px] font-bold uppercase tracking-widest">No images in gallery</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Overlay Opacity</Label>
+                                            <div className="flex items-center justify-between gap-3">
+                                              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{heroConfig.overlayOpacity ?? 60}%</span>
+                                              <Input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                step="1"
+                                                value={heroConfig.overlayOpacity ?? 60}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), overlayOpacity: Number(e.target.value) }
+                                                })}
+                                                className="w-full accent-primary"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Overlay Color</Label>
+                                            <div className="flex gap-2">
+                                              <Input
+                                                type="color"
+                                                value={heroConfig.overlayColor || '#000000'}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), overlayColor: e.target.value }
+                                                })}
+                                                className="w-12 h-12 p-1 rounded-xl"
+                                              />
+                                              <Input
+                                                value={heroConfig.overlayColor || '#000000'}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), overlayColor: e.target.value }
+                                                })}
+                                                className="h-12 rounded-xl flex-1"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </TabsContent>
+
+                                      <TabsContent value="button" className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Button Text</Label>
                                             <Input 
-                                              value={heroConfig.buttonLink || ''}
+                                              value={heroConfig.buttonText || ''}
                                               onChange={(e) => setEditingSection({
                                                 ...editingSection,
-                                                config: { ...(editingSection.config || {}), buttonLink: e.target.value }
+                                                config: { ...(editingSection.config || {}), buttonText: e.target.value }
                                               })}
-                                              placeholder="/products or https://..."
-                                              className="h-11 rounded-xl"
+                                              className="h-12 rounded-xl"
                                             />
                                           </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                          <div className="space-y-2">
+                                            <Label>Button Link</Label>
+                                            <Select
+                                              value={heroLinkSelectValue}
+                                              onValueChange={(v) => {
+                                                if (v === '__custom__') return;
+                                                setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), buttonLink: v }
+                                                });
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue placeholder="Custom URL" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="__custom__">Custom URL</SelectItem>
+                                                {heroLinkOptions.map((option) => (
+                                                  <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                            {heroLinkSelectValue === '__custom__' && (
+                                              <div className="mt-2 space-y-2">
+                                                <Input 
+                                                  value={heroConfig.buttonLink || ''}
+                                                  onChange={(e) => setEditingSection({
+                                                    ...editingSection,
+                                                    config: { ...(editingSection.config || {}), buttonLink: e.target.value }
+                                                  })}
+                                                  placeholder="/products or https://..."
+                                                  className="h-11 rounded-xl"
+                                                />
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Button Style</Label>
-                                        <Select
-                                          value={heroConfig.buttonStyle || 'filled'}
-                                          onValueChange={(v) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), buttonStyle: v as any }
-                                          })}
-                                        >
-                                          <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="filled">Filled</SelectItem>
-                                            <SelectItem value="outline">Outline</SelectItem>
-                                            <SelectItem value="ghost">Ghost</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label>Button Size</Label>
-                                        <Select
-                                          value={heroConfig.buttonSize || 'medium'}
-                                          onValueChange={(v) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), buttonSize: v as any }
-                                          })}
-                                        >
-                                          <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="small">Small</SelectItem>
-                                            <SelectItem value="medium">Medium</SelectItem>
-                                            <SelectItem value="large">Large</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                    </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Button Style</Label>
+                                            <Select
+                                              value={heroConfig.buttonStyle || 'filled'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), buttonStyle: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="filled">Filled</SelectItem>
+                                                <SelectItem value="outline">Outline</SelectItem>
+                                                <SelectItem value="ghost">Ghost</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Button Size</Label>
+                                            <Select
+                                              value={heroConfig.buttonSize || 'medium'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), buttonSize: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="small">Small</SelectItem>
+                                                <SelectItem value="medium">Medium</SelectItem>
+                                                <SelectItem value="large">Large</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <div className="flex items-center justify-between gap-3">
-                                          <Label>Button Text Color</Label>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            className="h-7 px-3 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-700"
-                                            onClick={() => setEditingSection({
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Button Border Radius</Label>
+                                            <Select
+                                              value={heroConfig.buttonBorderRadius || 'full'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), buttonBorderRadius: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="none">None</SelectItem>
+                                                <SelectItem value="sm">Small</SelectItem>
+                                                <SelectItem value="md">Medium</SelectItem>
+                                                <SelectItem value="lg">Large</SelectItem>
+                                                <SelectItem value="full">Full</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <div className="flex items-center justify-between gap-3">
+                                              <Label>Button Text Color</Label>
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                className="h-7 px-3 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-700"
+                                                onClick={() => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), buttonTextColor: undefined }
+                                                })}
+                                              >
+                                                Default
+                                              </Button>
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <Input
+                                                type="color"
+                                                value={heroConfig.buttonTextColor || (heroConfig.buttonStyle === 'filled' ? '#ffffff' : '#000000')}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), buttonTextColor: e.target.value }
+                                                })}
+                                                className="w-12 h-12 p-1 rounded-xl"
+                                              />
+                                              <Input
+                                                value={heroConfig.buttonTextColor || ''}
+                                                onChange={(e) => setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), buttonTextColor: e.target.value }
+                                                })}
+                                                placeholder={heroConfig.buttonStyle === 'filled' ? '#ffffff' : 'inherit'}
+                                                className="h-12 rounded-xl flex-1"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                          <Label>Button Alignment</Label>
+                                          <Select
+                                            value={heroConfig.buttonAlignment || heroConfig.textAlign || 'center'}
+                                            onValueChange={(v) => setEditingSection({
                                               ...editingSection,
-                                              config: { ...(editingSection.config || {}), buttonTextColor: undefined }
+                                              config: { ...(editingSection.config || {}), buttonAlignment: v as any }
                                             })}
                                           >
-                                            Default
-                                          </Button>
+                                            <SelectTrigger className="h-12 rounded-xl">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="left">Left</SelectItem>
+                                              <SelectItem value="center">Center</SelectItem>
+                                              <SelectItem value="right">Right</SelectItem>
+                                            </SelectContent>
+                                          </Select>
                                         </div>
-                                        <div className="flex gap-2">
-                                          <Input
-                                            type="color"
-                                            value={heroConfig.buttonTextColor || (heroConfig.buttonStyle === 'filled' ? '#ffffff' : '#000000')}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), buttonTextColor: e.target.value }
-                                            })}
-                                            className="w-12 h-12 p-1 rounded-xl"
-                                          />
-                                          <Input
-                                            value={heroConfig.buttonTextColor || ''}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), buttonTextColor: e.target.value }
-                                            })}
-                                            placeholder={heroConfig.buttonStyle === 'filled' ? '#ffffff' : 'inherit'}
-                                            className="h-12 rounded-xl flex-1"
-                                          />
-                                        </div>
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label>Button Alignment</Label>
-                                        <Select
-                                          value={heroConfig.buttonAlignment || heroConfig.textAlign || 'center'}
-                                          onValueChange={(v) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), buttonAlignment: v as any }
-                                          })}
-                                        >
-                                          <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="left">Left</SelectItem>
-                                            <SelectItem value="center">Center</SelectItem>
-                                            <SelectItem value="right">Right</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                    </div>
+                                      </TabsContent>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Heading Color</Label>
-                                        <div className="flex gap-2">
-                                          <Input
-                                            type="color"
-                                            value={heroConfig.headingColor || '#ffffff'}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), headingColor: e.target.value }
-                                            })}
-                                            className="w-12 h-12 p-1 rounded-xl"
-                                          />
-                                          <Input
-                                            value={heroConfig.headingColor || ''}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), headingColor: e.target.value }
-                                            })}
-                                            placeholder="inherit"
-                                            className="h-12 rounded-xl flex-1"
-                                          />
+                                      <TabsContent value="slideshow" className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Transition Style</Label>
+                                            <Select
+                                              value={heroConfig.transitionStyle || 'fade'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), transitionStyle: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="fade">Fade</SelectItem>
+                                                <SelectItem value="slide">Slide</SelectItem>
+                                                <SelectItem value="zoom">Zoom</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Transition Speed</Label>
+                                            <Select
+                                              value={heroConfig.transitionSpeed || 'normal'}
+                                              onValueChange={(v) => setEditingSection({
+                                                ...editingSection,
+                                                config: { ...(editingSection.config || {}), transitionSpeed: v as any }
+                                              })}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="slow">Slow</SelectItem>
+                                                <SelectItem value="normal">Normal</SelectItem>
+                                                <SelectItem value="fast">Fast</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
                                         </div>
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label>Subtitle Color</Label>
-                                        <div className="flex gap-2">
-                                          <Input
-                                            type="color"
-                                            value={heroConfig.subtitleColor || '#ffffff'}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), subtitleColor: e.target.value }
-                                            })}
-                                            className="w-12 h-12 p-1 rounded-xl"
-                                          />
-                                          <Input
-                                            value={heroConfig.subtitleColor || ''}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), subtitleColor: e.target.value }
-                                            })}
-                                            placeholder="inherit"
-                                            className="h-12 rounded-xl flex-1"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Transition Style</Label>
-                                        <Select
-                                          value={heroConfig.transitionStyle || 'fade'}
-                                          onValueChange={(v) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), transitionStyle: v as any }
-                                          })}
-                                        >
-                                          <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="fade">Fade</SelectItem>
-                                            <SelectItem value="slide">Slide</SelectItem>
-                                            <SelectItem value="zoom">Zoom</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label>Transition Speed</Label>
-                                        <Select
-                                          value={heroConfig.transitionSpeed || 'normal'}
-                                          onValueChange={(v) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), transitionSpeed: v as any }
-                                          })}
-                                        >
-                                          <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="slow">Slow</SelectItem>
-                                            <SelectItem value="normal">Normal</SelectItem>
-                                            <SelectItem value="fast">Fast</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <div className="flex items-center justify-between gap-3">
-                                        <Label>Slide Interval</Label>
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{heroConfig.slideInterval ?? 5}s</span>
-                                      </div>
-                                      <Input
-                                        type="range"
-                                        min="2"
-                                        max="15"
-                                        step="1"
-                                        value={heroConfig.slideInterval ?? 5}
-                                        onChange={(e) => setEditingSection({
-                                          ...editingSection,
-                                          config: { ...(editingSection.config || {}), slideInterval: Number(e.target.value) }
-                                        })}
-                                        className="w-full accent-primary"
-                                      />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4 items-end">
-                                      <div className="space-y-2">
-                                        <div className="flex items-center justify-between gap-3">
-                                          <Label>Overlay Opacity</Label>
-                                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{heroConfig.overlayOpacity ?? 60}%</span>
-                                        </div>
-                                        <Input
-                                          type="range"
-                                          min="0"
-                                          max="100"
-                                          step="1"
-                                          value={heroConfig.overlayOpacity ?? 60}
-                                          onChange={(e) => setEditingSection({
-                                            ...editingSection,
-                                            config: { ...(editingSection.config || {}), overlayOpacity: Number(e.target.value) }
-                                          })}
-                                          className="w-full accent-primary"
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label>Overlay Color</Label>
-                                        <div className="flex gap-2">
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between gap-3">
+                                            <Label>Slide Interval</Label>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{heroConfig.slideInterval ?? 5}s</span>
+                                          </div>
                                           <Input
-                                            type="color"
-                                            value={heroConfig.overlayColor || '#000000'}
+                                            type="range"
+                                            min="2"
+                                            max="15"
+                                            step="1"
+                                            value={heroConfig.slideInterval ?? 5}
                                             onChange={(e) => setEditingSection({
                                               ...editingSection,
-                                              config: { ...(editingSection.config || {}), overlayColor: e.target.value }
+                                              config: { ...(editingSection.config || {}), slideInterval: Number(e.target.value) }
                                             })}
-                                            className="w-12 h-12 p-1 rounded-xl"
-                                          />
-                                          <Input
-                                            value={heroConfig.overlayColor || '#000000'}
-                                            onChange={(e) => setEditingSection({
-                                              ...editingSection,
-                                              config: { ...(editingSection.config || {}), overlayColor: e.target.value }
-                                            })}
-                                            className="h-12 rounded-xl flex-1"
+                                            className="w-full accent-primary"
                                           />
                                         </div>
-                                      </div>
-                                    </div>
+
+                                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                                          <div>
+                                            <Label>Auto Play</Label>
+                                            <p className="text-[10px] text-gray-400">Slide images automatically on the storefront.</p>
+                                          </div>
+                                          <Switch
+                                            checked={heroConfig.autoPlay !== false}
+                                            onCheckedChange={(checked) => setEditingSection({
+                                              ...editingSection,
+                                              config: { ...(editingSection.config || {}), autoPlay: checked }
+                                            })}
+                                          />
+                                        </div>
+                                      </TabsContent>
+                                    </Tabs>
+
                                   </div>
                                 ) : (
                                   <div className="grid grid-cols-2 gap-6">
@@ -1056,7 +1522,10 @@ export const DesignSettings: React.FC = () => {
                                         {heroConfig.transitionStyle || 'fade'} / {heroConfig.transitionSpeed || 'normal'}
                                       </Badge>
                                     </div>
-                                    <div className={`relative overflow-hidden rounded-[1.75rem] border border-gray-100 bg-black text-white shadow-lg ${getHeroPreviewHeightClass(heroConfig.height)}`}>
+                                    <div
+                                      className={`relative overflow-hidden rounded-[1.75rem] border border-gray-100 text-white shadow-lg ${getHeroPreviewHeightClass(heroConfig.height)}`}
+                                      style={{ backgroundColor: heroPreviewBaseColor, ...heroPreviewMinHeightStyle }}
+                                    >
                                       {heroPreviewImage ? (
                                         <img
                                           src={heroPreviewImage}
@@ -1070,19 +1539,19 @@ export const DesignSettings: React.FC = () => {
                                         className="absolute inset-0 z-10"
                                         style={{ backgroundImage: buildOverlayBackground(heroConfig.overlayColor || '#000000', heroConfig.overlayOpacity ?? 60) }}
                                       />
-                                      <div className={`relative z-20 flex h-full w-full items-center px-5 py-6 ${heroConfig.textAlign === 'center' ? 'justify-center text-center' : heroConfig.textAlign === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
-                                        <div className="max-w-sm space-y-3">
-                                          <h4 className="text-2xl md:text-4xl font-black uppercase tracking-tighter leading-[1.05]" style={{ fontFamily: settings.fontDisplay, color: heroConfig.headingColor || undefined }}>
+                                      <div className={`relative z-20 flex h-full w-full ${heroPreviewContentPositionClass} px-5 py-6 ${heroConfig.textAlign === 'center' ? 'justify-center text-center' : heroConfig.textAlign === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
+                                        <div className={`${heroContentWidthClass} space-y-3`}>
+                                          <h4 className={`${heroPreviewHeadingClass} uppercase tracking-tighter leading-[1.05]`} style={{ fontFamily: settings.fontDisplay, color: heroConfig.headingColor || undefined }}>
                                             {editingSection.title}
                                           </h4>
-                                          <p className="text-xs md:text-sm opacity-90" style={{ color: heroConfig.subtitleColor || undefined }}>
+                                          <p className={`${heroPreviewSubtitleClass} opacity-90`} style={{ color: heroConfig.subtitleColor || undefined }}>
                                             {editingSection.subtitle || settings.shopDescription || 'A hero banner preview will appear here.'}
                                           </p>
                                           <div className={`${heroButtonAlignment === 'center' ? 'flex justify-center' : heroButtonAlignment === 'right' ? 'flex justify-end' : 'flex justify-start'}`}>
                                             <Button
                                               variant={getHeroButtonVariant(heroConfig.buttonStyle)}
                                               size="default"
-                                              className={`${getHeroButtonSizeClass(heroConfig.buttonSize)} rounded-full font-black uppercase tracking-widest shadow-xl ${
+                                              className={`${getHeroButtonSizeClass(heroConfig.buttonSize)} ${heroPreviewButtonRadiusClass} font-black uppercase tracking-widest shadow-xl ${
                                                 heroConfig.buttonStyle === 'filled'
                                                   ? ''
                                                   : heroConfig.buttonStyle === 'outline'

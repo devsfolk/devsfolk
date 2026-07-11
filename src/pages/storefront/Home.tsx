@@ -49,6 +49,96 @@ const heroButtonSizeClass = (buttonSize?: 'small' | 'medium' | 'large') => {
   }
 };
 
+const getHeroHeadingSizeClass = (size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl') => {
+  switch (size) {
+    case 'xs':
+      return 'text-2xl md:text-3xl';
+    case 'sm':
+      return 'text-4xl md:text-5xl';
+    case 'md':
+      return 'text-5xl md:text-6xl';
+    case 'lg':
+      return 'text-6xl md:text-7xl';
+    case '2xl':
+      return 'text-8xl md:text-9xl';
+    case 'xl':
+    default:
+      return 'text-7xl md:text-8xl';
+  }
+};
+
+const getHeroHeadingWeightClass = (weight?: '400' | '600' | '700' | '800' | '900') => {
+  switch (weight) {
+    case '400':
+      return 'font-normal';
+    case '600':
+      return 'font-semibold';
+    case '700':
+      return 'font-bold';
+    case '800':
+      return 'font-extrabold';
+    case '900':
+    default:
+      return 'font-black';
+  }
+};
+
+const getHeroSubtitleSizeClass = (size?: 'xs' | 'sm' | 'md' | 'lg') => {
+  switch (size) {
+    case 'xs':
+      return 'text-xs md:text-sm';
+    case 'sm':
+      return 'text-sm md:text-base';
+    case 'lg':
+      return 'text-lg md:text-xl';
+    case 'md':
+    default:
+      return 'text-base md:text-lg';
+  }
+};
+
+const getHeroContentWidthClass = (width?: 'narrow' | 'medium' | 'wide' | 'full') => {
+  switch (width) {
+    case 'narrow':
+      return 'max-w-xl';
+    case 'wide':
+      return 'max-w-5xl';
+    case 'full':
+      return 'max-w-none';
+    case 'medium':
+    default:
+      return 'max-w-3xl';
+  }
+};
+
+const getHeroContentPositionClass = (position?: 'top' | 'center' | 'bottom') => {
+  switch (position) {
+    case 'top':
+      return 'items-start';
+    case 'bottom':
+      return 'items-end';
+    case 'center':
+    default:
+      return 'items-center';
+  }
+};
+
+const getHeroButtonRadiusClass = (radius?: 'none' | 'sm' | 'md' | 'lg' | 'full') => {
+  switch (radius) {
+    case 'none':
+      return 'rounded-none';
+    case 'sm':
+      return 'rounded-md';
+    case 'md':
+      return 'rounded-lg';
+    case 'lg':
+      return 'rounded-2xl';
+    case 'full':
+    default:
+      return 'rounded-full';
+  }
+};
+
 const getHeroTransitionDuration = (transitionSpeed?: 'slow' | 'normal' | 'fast') => {
   switch (transitionSpeed) {
     case 'slow':
@@ -233,7 +323,18 @@ export const Home: React.FC = () => {
     const buttonAlignment = config.buttonAlignment || textAlign;
     const buttonTextColor = config.buttonTextColor?.trim() || (buttonVariant === 'default' ? '#ffffff' : '');
     const hasHeroBackgroundImage = Boolean(mainImage || settings.heroBannerUrl);
-    const heroSectionBgClass = hasHeroBackgroundImage || deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50';
+    const showHeroImage = hasHeroBackgroundImage && !(device === 'mobile' && config.hideImageOnMobile);
+    const showHeroOverlay = showHeroImage || deviceConfig.heroStyle === 'banner';
+    const heroContentPosition = config.contentPosition || 'center';
+    const heroContentWidthClass = getHeroContentWidthClass(config.contentMaxWidth);
+    const heroContentPositionClass = getHeroContentPositionClass(heroContentPosition);
+    const heroButtonRadiusClass = getHeroButtonRadiusClass(config.buttonBorderRadius);
+    const heroHeadingClass = `${getHeroHeadingSizeClass(config.headingSize)} ${getHeroHeadingWeightClass(config.headingWeight)}`;
+    const heroSubtitleClass = getHeroSubtitleSizeClass(config.subtitleSize);
+    const heroSectionStyle = {
+      ...(config.minHeight ? { minHeight: `${config.minHeight}px` } : {}),
+      backgroundColor: config.backgroundColor || (hasHeroBackgroundImage || deviceConfig.heroStyle === 'banner' ? '#000000' : '#ffffff'),
+    };
     const heroTransitionDuration = getHeroTransitionDuration(config.transitionSpeed);
     const heroTransitionVariants = getHeroTransitionVariants(config.transitionStyle);
     const heroDefaultTextClass = deviceConfig.heroStyle === 'banner' ? 'text-white' : 'text-black';
@@ -339,8 +440,13 @@ export const Home: React.FC = () => {
       case 'HERO':
         if (deviceConfig.heroStyle === 'hidden') return null;
         return (
-          <section key={section.id} id="hero" className={`relative flex items-center overflow-hidden w-full ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height} ${heroSectionBgClass}`}>
-            {hasHeroBackgroundImage && (
+          <section
+            key={section.id}
+            id="hero"
+            className={`relative flex overflow-hidden w-full ${heroContentPositionClass} ${isDevsFolk && device === 'mobile' ? 'min-h-[400px]' : height}`}
+            style={heroSectionStyle}
+          >
+            {showHeroImage && (
               <div className="absolute inset-0 z-0">
                 {gallery.length > 1 ? (
                   <div className="w-full h-full relative">
@@ -363,28 +469,30 @@ export const Home: React.FC = () => {
                     className="w-full h-full object-cover"
                   />
                 )}
-                <div
-                  className="absolute inset-0 z-10"
-                  style={{ backgroundImage: buildOverlayBackground(overlayColor, overlayOpacity) }}
-                />
+                {showHeroOverlay && (
+                  <div
+                    className="absolute inset-0 z-10"
+                    style={{ backgroundImage: buildOverlayBackground(overlayColor, overlayOpacity) }}
+                  />
+                )}
               </div>
             )}
             
-            <div className={`container mx-auto ${isDevsFolk && device === 'mobile' ? 'px-4' : 'px-6'} relative z-20`}>
+            <div className={`container mx-auto ${isDevsFolk && device === 'mobile' ? 'px-4' : 'px-6'} relative z-20 w-full`}>
               <motion.div 
                 initial={{ opacity: 0, x: -30 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className={`max-w-3xl ${textAlign === 'center' ? 'mx-auto text-center' : textAlign === 'right' ? 'ml-auto text-right' : ''}`}
+                className={`${heroContentWidthClass} ${textAlign === 'center' ? 'mx-auto text-center' : textAlign === 'right' ? 'ml-auto text-right' : ''}`}
               >
                 <h1 
-                  className={`${device === 'mobile' ? (isDevsFolk ? 'text-4xl' : 'text-5xl') : 'text-7xl'} font-black tracking-tighter mb-4 md:mb-6 leading-[1.05] uppercase ${config.headingColor ? '' : heroDefaultTextClass}`} 
+                  className={`${heroHeadingClass} tracking-tighter mb-4 md:mb-6 leading-[1.05] uppercase ${config.headingColor ? '' : heroDefaultTextClass}`} 
                   style={{ fontFamily: settings.fontDisplay, color: config.headingColor || undefined }}
                 >
                   {section.title}
                 </h1>
-                <p className={`${device === 'mobile' ? 'text-xs mb-6' : 'text-lg mb-10'} opacity-90 max-w-xl ${config.subtitleColor ? '' : heroDefaultTextClass} ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ color: config.subtitleColor || undefined }}>
+                <p className={`${heroSubtitleClass} mb-6 md:mb-10 opacity-90 max-w-xl ${config.subtitleColor ? '' : heroDefaultTextClass} ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ color: config.subtitleColor || undefined }}>
                   {section.subtitle || settings.shopDescription}
                 </p>
                 <div className={`flex flex-wrap gap-4 ${buttonAlignment === 'center' ? 'justify-center' : buttonAlignment === 'right' ? 'justify-end' : 'justify-start'}`}>
@@ -393,7 +501,7 @@ export const Home: React.FC = () => {
                       <Button 
                         variant={buttonVariant}
                         size="default"
-                        className={`${buttonSizeClass} rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform ${
+                        className={`${buttonSizeClass} ${heroButtonRadiusClass} font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform ${
                           buttonVariant === 'filled'
                             ? ''
                             : buttonVariant === 'outline'
@@ -422,7 +530,7 @@ export const Home: React.FC = () => {
                       <Button 
                         variant={buttonVariant}
                         size="default"
-                        className={`${buttonSizeClass} rounded-full font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform ${
+                        className={`${buttonSizeClass} ${heroButtonRadiusClass} font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform ${
                           buttonVariant === 'filled'
                             ? ''
                             : buttonVariant === 'outline'
