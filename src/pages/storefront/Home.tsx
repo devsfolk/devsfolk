@@ -236,6 +236,7 @@ export const Home: React.FC = () => {
     const heroSectionBgClass = hasHeroBackgroundImage || deviceConfig.heroStyle === 'banner' ? 'bg-black' : 'bg-gray-50';
     const heroTransitionDuration = getHeroTransitionDuration(config.transitionSpeed);
     const heroTransitionVariants = getHeroTransitionVariants(config.transitionStyle);
+    const heroDefaultTextClass = deviceConfig.heroStyle === 'banner' ? 'text-white' : 'text-black';
 
     switch (section.type) {
       case 'CATEGORY_SLIDER':
@@ -375,15 +376,15 @@ export const Home: React.FC = () => {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className={`max-w-3xl ${deviceConfig.heroStyle === 'banner' ? 'text-white' : 'text-black'} ${textAlign === 'center' ? 'mx-auto text-center' : textAlign === 'right' ? 'ml-auto text-right' : ''}`}
+                className={`max-w-3xl ${textAlign === 'center' ? 'mx-auto text-center' : textAlign === 'right' ? 'ml-auto text-right' : ''}`}
               >
                 <h1 
-                  className={`${device === 'mobile' ? (isDevsFolk ? 'text-4xl' : 'text-5xl') : 'text-7xl'} font-black tracking-tighter mb-4 md:mb-6 leading-[1.05] uppercase`} 
+                  className={`${device === 'mobile' ? (isDevsFolk ? 'text-4xl' : 'text-5xl') : 'text-7xl'} font-black tracking-tighter mb-4 md:mb-6 leading-[1.05] uppercase ${config.headingColor ? '' : heroDefaultTextClass}`} 
                   style={{ fontFamily: settings.fontDisplay, color: config.headingColor || undefined }}
                 >
                   {section.title}
                 </h1>
-                <p className={`${device === 'mobile' ? 'text-xs mb-6' : 'text-lg mb-10'} opacity-90 max-w-xl ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ color: config.subtitleColor || undefined }}>
+                <p className={`${device === 'mobile' ? 'text-xs mb-6' : 'text-lg mb-10'} opacity-90 max-w-xl ${config.subtitleColor ? '' : heroDefaultTextClass} ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ color: config.subtitleColor || undefined }}>
                   {section.subtitle || settings.shopDescription}
                 </p>
                 <div className={`flex flex-wrap gap-4 ${buttonAlignment === 'center' ? 'justify-center' : buttonAlignment === 'right' ? 'justify-end' : 'justify-start'}`}>
