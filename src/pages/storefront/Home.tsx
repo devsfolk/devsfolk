@@ -337,7 +337,7 @@ export const Home: React.FC = () => {
     };
     const heroTransitionDuration = getHeroTransitionDuration(config.transitionSpeed);
     const heroTransitionVariants = getHeroTransitionVariants(config.transitionStyle);
-    const heroDefaultTextClass = deviceConfig.heroStyle === 'banner' ? 'text-white' : 'text-black';
+    const heroDefaultTextClass = hasHeroBackgroundImage ? 'text-white' : 'text-black';
 
     switch (section.type) {
       case 'CATEGORY_SLIDER':
