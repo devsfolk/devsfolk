@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ShoppingBag, Zap, ShieldCheck, Truck, Mail, ChevronLeft, ChevronRight, MessageCircle, RotateCcw, CreditCard, Gift, BadgeCheck } from 'lucide-react';
 import { BespokeCustomizer } from '@/components/printify/BespokeCustomizer';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
+import { loadGoogleFont } from '@/lib/googleFonts';
 
 const hexToRgb = (hex: string) => {
   const normalized = hex.trim().replace('#', '');
@@ -248,6 +249,15 @@ export const Home: React.FC = () => {
     return () => clearInterval(timer);
   }, [heroSectionSettings?.config?.autoPlay, heroSectionSettings?.config?.slideInterval]);
 
+  useEffect(() => {
+    const heroFontFamilies = [
+      heroSectionSettings?.config?.fontFamily,
+      heroSectionSettings?.config?.subtitleFontFamily,
+    ].filter(Boolean) as string[];
+
+    heroFontFamilies.forEach((family) => loadGoogleFont(family));
+  }, [heroSectionSettings?.config?.fontFamily, heroSectionSettings?.config?.subtitleFontFamily]);
+
   React.useEffect(() => {
     if (settings.shopName) {
       document.title = `${settings.shopName} | ${settings.shopDescription}`;
@@ -331,6 +341,8 @@ export const Home: React.FC = () => {
     const heroButtonRadiusClass = getHeroButtonRadiusClass(config.buttonBorderRadius);
     const heroHeadingClass = `${getHeroHeadingSizeClass(config.headingSize)} ${getHeroHeadingWeightClass(config.headingWeight)}`;
     const heroSubtitleClass = getHeroSubtitleSizeClass(config.subtitleSize);
+    const heroHeadingFontFamily = config.fontFamily || settings.fontDisplay;
+    const heroSubtitleFontFamily = config.subtitleFontFamily || config.fontFamily || settings.fontDisplay;
     const heroSectionStyle = {
       ...(config.minHeight ? { minHeight: `${config.minHeight}px` } : {}),
       backgroundColor: config.backgroundColor || (hasHeroBackgroundImage || deviceConfig.heroStyle === 'banner' ? '#000000' : '#ffffff'),
@@ -488,11 +500,11 @@ export const Home: React.FC = () => {
               >
                 <h1 
                   className={`${heroHeadingClass} tracking-tighter mb-4 md:mb-6 leading-[1.05] uppercase ${config.headingColor ? '' : heroDefaultTextClass}`} 
-                  style={{ fontFamily: settings.fontDisplay, color: config.headingColor || undefined }}
+                  style={{ fontFamily: heroHeadingFontFamily, color: config.headingColor || undefined }}
                 >
                   {section.title}
                 </h1>
-                <p className={`${heroSubtitleClass} mb-6 md:mb-10 opacity-90 max-w-xl ${config.subtitleColor ? '' : heroDefaultTextClass} ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ color: config.subtitleColor || undefined }}>
+                <p className={`${heroSubtitleClass} mb-6 md:mb-10 opacity-90 max-w-xl ${config.subtitleColor ? '' : heroDefaultTextClass} ${textAlign === 'center' ? 'mx-auto' : textAlign === 'right' ? 'ml-auto' : ''}`} style={{ fontFamily: heroSubtitleFontFamily, color: config.subtitleColor || undefined }}>
                   {section.subtitle || settings.shopDescription}
                 </p>
                 <div className={`flex flex-wrap gap-4 ${buttonAlignment === 'center' ? 'justify-center' : buttonAlignment === 'right' ? 'justify-end' : 'justify-start'}`}>

@@ -78,9 +78,11 @@ export interface StoreSection {
     buttonTextColor?: string;
     buttonAlignment?: 'left' | 'center' | 'right';
     headingColor?: string;
+    fontFamily?: string;
     headingSize?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
     headingWeight?: '400' | '600' | '700' | '800' | '900';
     subtitleColor?: string;
+    subtitleFontFamily?: string;
     subtitleSize?: 'xs' | 'sm' | 'md' | 'lg';
     contentPosition?: 'top' | 'center' | 'bottom';
     contentMaxWidth?: 'narrow' | 'medium' | 'wide' | 'full';

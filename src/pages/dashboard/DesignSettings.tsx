@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useShop } from '@/context/ShopContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Textarea } from '@/components/ui/textarea';
 import { TEMPLATES } from '@/lib/templates';
 import { optimizeImage } from '@/lib/imageUtils';
+import { GOOGLE_HERO_FONTS, loadGoogleFont, loadGoogleFonts } from '@/lib/googleFonts';
 
 const HERO_SECTION_DEFAULT_CONFIG = {
   height: 'medium',
@@ -241,6 +242,8 @@ export const DesignSettings: React.FC = () => {
   const heroLinkSelectValue = heroLinkHasPreset ? heroLinkValue : '__custom__';
   const heroButtonTextColor = heroConfig.buttonTextColor?.trim() || (heroConfig.buttonStyle === 'filled' ? '#ffffff' : '');
   const heroButtonAlignment = heroConfig.buttonAlignment || heroConfig.textAlign || 'center';
+  const heroHeadingFontValue = heroConfig.fontFamily?.trim() || '__default__';
+  const heroSubtitleFontValue = heroConfig.subtitleFontFamily?.trim() || '__default__';
   const heroContentPosition = heroConfig.contentPosition || 'center';
   const heroContentWidthClass = getHeroContentWidthClass(heroConfig.contentMaxWidth);
   const heroPreviewMinHeightStyle = heroConfig.minHeight ? { minHeight: `${heroConfig.minHeight}px` } : undefined;
@@ -249,6 +252,13 @@ export const DesignSettings: React.FC = () => {
   const heroPreviewSubtitleClass = getHeroSubtitleSizeClass(heroConfig.subtitleSize);
   const heroPreviewButtonRadiusClass = getHeroButtonRadiusClass(heroConfig.buttonBorderRadius);
   const heroPreviewContentPositionClass = getHeroContentPositionClass(heroContentPosition);
+  const heroPreviewHeadingFontFamily = heroConfig.fontFamily || settings.fontDisplay;
+  const heroPreviewSubtitleFontFamily = heroConfig.subtitleFontFamily || heroConfig.fontFamily || settings.fontDisplay;
+
+  useEffect(() => {
+    if (!isHeroSection) return;
+    loadGoogleFonts(GOOGLE_HERO_FONTS.map((font) => font.family));
+  }, [isHeroSection]);
 
   const handleUpdate = (path: string, value: any) => {
     updateSettings({ [path]: value });
@@ -819,6 +829,60 @@ export const DesignSettings: React.FC = () => {
                                       </TabsList>
 
                                       <TabsContent value="typography" className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label>Heading Font</Label>
+                                            <Select
+                                              value={heroHeadingFontValue}
+                                              onValueChange={(v) => {
+                                                const nextFont = v === '__default__' ? undefined : v;
+                                                if (nextFont) loadGoogleFont(nextFont);
+                                                setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), fontFamily: nextFont }
+                                                });
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue placeholder="Default (Store Font)" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="__default__">Default (Store Font)</SelectItem>
+                                                {GOOGLE_HERO_FONTS.map((font) => (
+                                                  <SelectItem key={font.family} value={font.name}>
+                                                    <span style={{ fontFamily: `'${font.name}', sans-serif` }}>{font.name}</span>
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label>Subtitle Font</Label>
+                                            <Select
+                                              value={heroSubtitleFontValue}
+                                              onValueChange={(v) => {
+                                                const nextFont = v === '__default__' ? undefined : v;
+                                                if (nextFont) loadGoogleFont(nextFont);
+                                                setEditingSection({
+                                                  ...editingSection,
+                                                  config: { ...(editingSection.config || {}), subtitleFontFamily: nextFont }
+                                                });
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-12 rounded-xl">
+                                                <SelectValue placeholder="Default (Store Font)" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="__default__">Default (Store Font)</SelectItem>
+                                                {GOOGLE_HERO_FONTS.map((font) => (
+                                                  <SelectItem key={font.family} value={font.name}>
+                                                    <span style={{ fontFamily: `'${font.name}', sans-serif` }}>{font.name}</span>
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                           <div className="space-y-2">
                                             <Label>Heading Size</Label>
@@ -1541,10 +1605,10 @@ export const DesignSettings: React.FC = () => {
                                       />
                                       <div className={`relative z-20 flex h-full w-full ${heroPreviewContentPositionClass} px-5 py-6 ${heroConfig.textAlign === 'center' ? 'justify-center text-center' : heroConfig.textAlign === 'right' ? 'justify-end text-right' : 'justify-start text-left'}`}>
                                         <div className={`${heroContentWidthClass} space-y-3`}>
-                                          <h4 className={`${heroPreviewHeadingClass} uppercase tracking-tighter leading-[1.05]`} style={{ fontFamily: settings.fontDisplay, color: heroConfig.headingColor || undefined }}>
+                                          <h4 className={`${heroPreviewHeadingClass} uppercase tracking-tighter leading-[1.05]`} style={{ fontFamily: heroPreviewHeadingFontFamily, color: heroConfig.headingColor || undefined }}>
                                             {editingSection.title}
                                           </h4>
-                                          <p className={`${heroPreviewSubtitleClass} opacity-90`} style={{ color: heroConfig.subtitleColor || undefined }}>
+                                          <p className={`${heroPreviewSubtitleClass} opacity-90`} style={{ fontFamily: heroPreviewSubtitleFontFamily, color: heroConfig.subtitleColor || undefined }}>
                                             {editingSection.subtitle || settings.shopDescription || 'A hero banner preview will appear here.'}
                                           </p>
                                           <div className={`${heroButtonAlignment === 'center' ? 'flex justify-center' : heroButtonAlignment === 'right' ? 'flex justify-end' : 'flex justify-start'}`}>
