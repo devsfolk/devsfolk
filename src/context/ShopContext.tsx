@@ -536,6 +536,7 @@ const mapProductRow = (row: any): Product => {
     variantImages: row.variant_images || {},
     createdAt: row.created_at ?? Date.now(),
     isPrintify: Boolean(row.is_printify) || Boolean(printifyData.isPrintify),
+    source: row.source ?? (Boolean(row.is_printify) || Boolean(printifyData.isPrintify) ? 'printify' : undefined),
     printifyProductId: row.printify_product_id ?? printifyData.printifyProductId ?? undefined,
     printifyCatalogId: row.printify_catalog_id ?? printifyData.printifyCatalogId ?? undefined,
   };
@@ -678,6 +679,7 @@ const mapOrderRow = (row: any): Order => {
 
   return {
     id: row.id,
+    source: row.source ?? undefined,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
@@ -722,6 +724,7 @@ const toProductRow = (product: Product) => ({
   variant_images: product.variantImages || {},
   created_at: product.createdAt,
   is_printify: product.isPrintify ?? false,
+  source: product.source ?? 'printify',
   printify_product_id: product.printifyProductId ?? null,
   printify_catalog_id: product.printifyCatalogId ?? null,
 });
@@ -833,6 +836,7 @@ const templateToProduct = (template: PrintifyCatalogTemplate): Product => {
     variants: templateVariants,
     createdAt: Date.now(),
     isPrintify: true,
+    source: 'printify',
     printifyProductId: `template_${template.blueprintId}`,
     printifyCatalogId: String(template.blueprintId),
   };
@@ -872,6 +876,7 @@ const toOrderRow = (order: Order, paymentMethod?: string) => ({
   printify_order_id: order.printifyOrderId ?? null,
   printify_sync_status: order.printifySyncStatus ?? 'NOT_REQUIRED',
   printify_error_log: order.printifyErrorLog ?? null,
+  source: order.source ?? 'printify',
 });
 
 const toLegacyOrderRow = (order: Order, paymentMethod?: string) => ({

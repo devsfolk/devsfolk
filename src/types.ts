@@ -291,6 +291,7 @@ export interface Product {
   variantImages?: Record<string, string[]>;
   createdAt: number;
   isPrintify?: boolean;
+  source?: 'printify' | 'etsy';
   printifyProductId?: string;
   printifyCatalogId?: string;
 }
@@ -350,10 +351,12 @@ export interface OrderItem {
   printifyPrintProviderId?: number;
   printifyVariantId?: number;
   printifyPrintAreas?: any;
+  source?: 'printify' | 'etsy';
 }
 
 export interface Order {
   id: string;
+  source?: 'printify' | 'etsy';
   customerName: string;
   customerEmail: string;
   customerPhone: string;

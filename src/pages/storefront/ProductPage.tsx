@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
+import { EtsyProductDetail } from '@/components/etsy/EtsyProductDetail';
 
 const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
 
@@ -165,6 +166,10 @@ export const ProductPage: React.FC = () => {
         </Link>
       </div>
     );
+  }
+
+  if (product.source === 'etsy') {
+    return <EtsyProductDetail product={product} />;
   }
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
