@@ -36,6 +36,7 @@ Notes:
 - Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Do not expose it in client code.
 - Orders are insertable from the storefront and readable by authenticated admins only.
 - The schema includes a `track_order(order_id, phone)` RPC for safer public tracking later.
+- If you are preparing for Etsy integration phases, the only new deployment-level variable is `ETSY_TOKEN_ENCRYPTION_KEY` in `.env.example`. Etsy app keystring/shared secret are entered per-admin in Dashboard -> Settings -> Etsy and stored in Supabase alongside the existing Printify credential flow.
 
 ## Available Scripts
 

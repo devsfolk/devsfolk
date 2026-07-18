@@ -31,6 +31,7 @@ create table if not exists public.products (
   colors jsonb not null default '[]'::jsonb,
   sizes jsonb not null default '[]'::jsonb,
   variants jsonb not null default '[]'::jsonb,
+  source text not null default 'printify',
   created_at bigint not null
 );
 
@@ -53,6 +54,7 @@ create table if not exists public.orders (
   total numeric(12, 2) not null,
   status text not null check (status in ('PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'ABANDONED')),
   payment_method text,
+  source text not null default 'printify',
   created_at bigint not null
 );
 
@@ -61,6 +63,8 @@ alter table public.categories enable row level security;
 alter table public.products enable row level security;
 alter table public.reviews enable row level security;
 alter table public.orders enable row level security;
+
+create extension if not exists pgcrypto;
 
 drop policy if exists "Public can read store settings" on public.store_settings;
 create policy "Public can read store settings"
@@ -243,9 +247,17 @@ create table if not exists public.printify_credentials (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.etsy_credentials (
+  id text primary key,
+  keystring text not null default '',
+  shared_secret text not null default '',
+  updated_at timestamptz not null default now()
+);
+
 alter table public.printify_catalog enable row level security;
 alter table public.printify_designs enable row level security;
 alter table public.printify_credentials enable row level security;
+alter table public.etsy_credentials enable row level security;
 
 drop policy if exists "Public can read printify catalog" on public.printify_catalog;
 create policy "Public can read printify catalog"
@@ -285,6 +297,14 @@ to authenticated
 using (true)
 with check (true);
 
+drop policy if exists "Authenticated can manage Etsy credentials" on public.etsy_credentials;
+create policy "Authenticated can manage Etsy credentials"
+on public.etsy_credentials
+for all
+to authenticated
+using (true)
+with check (true);
+
 alter table public.orders add column if not exists printify_order_id text;
 alter table public.orders add column if not exists printify_sync_status text;
 alter table public.orders add column if not exists printify_error_log text;
@@ -292,5 +312,191 @@ alter table public.orders add column if not exists printify_error_log text;
 alter table public.products add column if not exists is_printify boolean not null default false;
 alter table public.products add column if not exists printify_product_id text;
 alter table public.products add column if not exists printify_catalog_id text;
+alter table public.products add column if not exists source text not null default 'printify';
+alter table public.orders add column if not exists source text not null default 'printify';
+
+create table if not exists public.etsy_shop_tokens (
+  id uuid primary key default gen_random_uuid(),
+  shop_id text not null,
+  access_token text not null,
+  refresh_token text not null,
+  token_iv text not null,
+  granted_scopes text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.etsy_shops (
+  id uuid primary key default gen_random_uuid(),
+  shop_token_id uuid references public.etsy_shop_tokens(id) on delete cascade,
+  shop_id text not null unique,
+  shop_name text,
+  connected_at timestamptz not null default now(),
+  status text not null default 'connected',
+  last_synced_at timestamptz,
+  is_enabled boolean not null default false
+);
+
+create table if not exists public.etsy_listings (
+  id uuid primary key default gen_random_uuid(),
+  shop_id text not null references public.etsy_shops(shop_id),
+  listing_id text not null,
+  product_id text references public.products(id),
+  title text,
+  description text,
+  price numeric,
+  images jsonb,
+  shop_section_id text,
+  taxonomy_id text,
+  sync_status text not null default 'pending',
+  last_synced_at timestamptz,
+  unique (shop_id, listing_id)
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'etsy_listings_listing_id_key'
+      and conrelid = 'public.etsy_listings'::regclass
+  ) then
+    alter table public.etsy_listings
+      add constraint etsy_listings_listing_id_key unique (listing_id);
+  end if;
+end $$;
+
+create table if not exists public.etsy_listing_variations (
+  id uuid primary key default gen_random_uuid(),
+  listing_id text not null,
+  sku text,
+  properties jsonb not null,
+  price numeric,
+  quantity integer
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'etsy_listing_variations_listing_id_fkey'
+      and conrelid = 'public.etsy_listing_variations'::regclass
+  ) then
+    alter table public.etsy_listing_variations
+      add constraint etsy_listing_variations_listing_id_fkey
+      foreign key (listing_id)
+      references public.etsy_listings(listing_id)
+      on delete cascade;
+  end if;
+end $$;
+
+create table if not exists public.etsy_personalization_questions (
+  id uuid primary key default gen_random_uuid(),
+  listing_id text not null,
+  question_type text not null,
+  prompt text,
+  is_required boolean default false,
+  max_length integer,
+  choices jsonb
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'etsy_personalization_questions_listing_id_fkey'
+      and conrelid = 'public.etsy_personalization_questions'::regclass
+  ) then
+    alter table public.etsy_personalization_questions
+      add constraint etsy_personalization_questions_listing_id_fkey
+      foreign key (listing_id)
+      references public.etsy_listings(listing_id)
+      on delete cascade;
+  end if;
+end $$;
+
+create table if not exists public.etsy_orders (
+  id uuid primary key default gen_random_uuid(),
+  shop_id text not null references public.etsy_shops(shop_id),
+  etsy_receipt_id text not null,
+  order_id text references public.orders(id),
+  buyer_name text,
+  shipping_address jsonb,
+  line_items jsonb,
+  status text,
+  fulfillment_status text default 'not_pushed',
+  unique (shop_id, etsy_receipt_id)
+);
+
+alter table public.etsy_shop_tokens enable row level security;
+alter table public.etsy_shops enable row level security;
+alter table public.etsy_listings enable row level security;
+alter table public.etsy_listing_variations enable row level security;
+alter table public.etsy_personalization_questions enable row level security;
+alter table public.etsy_orders enable row level security;
+
+drop policy if exists "Authenticated can manage Etsy shops" on public.etsy_shops;
+create policy "Authenticated can manage Etsy shops"
+on public.etsy_shops
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Public can read Etsy listings" on public.etsy_listings;
+create policy "Public can read Etsy listings"
+on public.etsy_listings
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Authenticated can manage Etsy listings" on public.etsy_listings;
+create policy "Authenticated can manage Etsy listings"
+on public.etsy_listings
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Public can read Etsy listing variations" on public.etsy_listing_variations;
+create policy "Public can read Etsy listing variations"
+on public.etsy_listing_variations
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Authenticated can manage Etsy listing variations" on public.etsy_listing_variations;
+create policy "Authenticated can manage Etsy listing variations"
+on public.etsy_listing_variations
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Public can read Etsy personalization questions" on public.etsy_personalization_questions;
+create policy "Public can read Etsy personalization questions"
+on public.etsy_personalization_questions
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Authenticated can manage Etsy personalization questions" on public.etsy_personalization_questions;
+create policy "Authenticated can manage Etsy personalization questions"
+on public.etsy_personalization_questions
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "Authenticated can manage Etsy orders" on public.etsy_orders;
+create policy "Authenticated can manage Etsy orders"
+on public.etsy_orders
+for all
+to authenticated
+using (true)
+with check (true);
 
 commit;
