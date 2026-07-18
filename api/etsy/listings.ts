@@ -11,7 +11,7 @@ import {
 } from './_shared.js';
 
 const REQUIRED_SCOPES = ['listings_r', 'shops_r'];
-const DEFAULT_CATEGORY_ID = 'cat_printify';
+const DEFAULT_CATEGORY_ID = 'cat_etsy';
 
 const normalizeEtsyImageUrl = (image: any) => {
   if (!image) return '';

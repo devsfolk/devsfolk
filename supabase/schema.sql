@@ -16,6 +16,18 @@ create table if not exists public.categories (
   created_at bigint not null
 );
 
+insert into public.categories (id, name, slug, description, image_url, display_order, created_at)
+values (
+  'cat_etsy',
+  'Etsy Listings',
+  'etsy',
+  'Imported Etsy marketplace listings.',
+  '/custom-tee-mockup.png',
+  11,
+  (extract(epoch from now()) * 1000)::bigint
+)
+on conflict (id) do nothing;
+
 create table if not exists public.products (
   id text primary key,
   category_id text not null references public.categories(id) on delete cascade,
