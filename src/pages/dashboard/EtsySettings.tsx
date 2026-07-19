@@ -32,7 +32,15 @@ export const EtsySettings: React.FC = () => {
   const [statusMessage, setStatusMessage] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState('');
 
-  const callbackUrl = React.useMemo(() => `${window.location.origin}/etsy/callback`, []);
+  const callbackUrl = React.useMemo(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const url = new URL(window.location.href);
+    url.hostname = url.hostname.replace(/^www\./i, '');
+    return `${url.origin}/etsy/callback`;
+  }, []);
   const hasSavedCredentials = Boolean(savedCredentials?.keystring && savedCredentials?.shared_secret);
   const hasPendingCredentials = Boolean(credentials.keystring.trim() && credentials.shared_secret.trim());
   const credentialsAreSaved = Boolean(
