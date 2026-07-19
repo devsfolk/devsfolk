@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Shield, Store, Key } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Shield, Store, Key, XCircle } from 'lucide-react';
 
 type EtsyCredentials = {
   keystring: string;
@@ -21,6 +21,16 @@ type EtsyShopRow = {
   last_synced_at: string | null;
 };
 
+type EtsyDebugEnvResult = {
+  hasSupabaseUrl: boolean;
+  hasSupabaseServiceRoleKey: boolean;
+  hasEtsyEncryptionKey: boolean;
+  supabaseUrlLength: number;
+  serviceRoleKeyLength: number;
+  nodeEnv: string;
+  vercelEnv: string;
+};
+
 export const EtsySettings: React.FC = () => {
   const [credentials, setCredentials] = React.useState<EtsyCredentials>({ keystring: '', shared_secret: '' });
   const [savedCredentials, setSavedCredentials] = React.useState<EtsyCredentials | null>(null);
@@ -31,6 +41,9 @@ export const EtsySettings: React.FC = () => {
   const [syncing, setSyncing] = React.useState(false);
   const [statusMessage, setStatusMessage] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState('');
+  const [diagnosticsLoading, setDiagnosticsLoading] = React.useState(false);
+  const [diagnosticsError, setDiagnosticsError] = React.useState('');
+  const [diagnostics, setDiagnostics] = React.useState<EtsyDebugEnvResult | null>(null);
 
   const callbackUrl = React.useMemo(() => {
     if (typeof window === 'undefined') {
@@ -105,6 +118,35 @@ export const EtsySettings: React.FC = () => {
       setErrorMessage(oauthError);
     }
   }, []);
+
+  const loadDiagnostics = React.useCallback(async () => {
+    setDiagnosticsLoading(true);
+    setDiagnosticsError('');
+
+    try {
+      const sessionResult = await supabase.auth.getSession();
+      const accessToken = sessionResult.data.session?.access_token || '';
+
+      const response = await fetch('/api/etsy/debug-env', {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || `Debug endpoint returned ${response.status}.`);
+      }
+
+      setDiagnostics(payload as EtsyDebugEnvResult);
+    } catch (diagnosticsLoadError: any) {
+      setDiagnosticsError(String(diagnosticsLoadError?.message || diagnosticsLoadError));
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadDiagnostics();
+  }, [loadDiagnostics]);
 
   const handleSaveCredentials = async () => {
     setSaving(true);
@@ -349,6 +391,74 @@ export const EtsySettings: React.FC = () => {
         </CardHeader>
         <CardContent className="p-5 md:p-6 pt-0 text-sm text-gray-600 leading-relaxed">
           Etsy reads from the linked shop using the synced `etsy_shops` and `etsy_listings` tables. Printify settings and routes remain untouched in this phase.
+        </CardContent>
+      </Card>
+
+      <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
+        <CardHeader className="p-5 md:p-6">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-gray-400" />
+            <CardTitle className="text-lg md:text-xl font-black uppercase tracking-tight">Diagnostics</CardTitle>
+          </div>
+          <CardDescription className="text-xs">
+            Quick environment check for Etsy auth and server-side credentials. This reads booleans only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 p-5 md:p-6 pt-0">
+          {diagnosticsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Checking server environment...
+            </div>
+          ) : diagnosticsError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {diagnosticsError}
+            </div>
+          ) : diagnostics ? (
+            <>
+              <div className="flex items-center justify-between rounded-2xl border bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  {diagnostics.hasSupabaseUrl ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                  Supabase URL present
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{diagnostics.hasSupabaseUrl ? 'Yes' : 'No'}</span>
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  {diagnostics.hasSupabaseServiceRoleKey ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                  Service role key present
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                  {diagnostics.hasSupabaseServiceRoleKey ? `Yes (${diagnostics.serviceRoleKeyLength})` : 'No'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  {diagnostics.hasEtsyEncryptionKey ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                  Etsy encryption key present
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{diagnostics.hasEtsyEncryptionKey ? 'Yes' : 'No'}</span>
+              </div>
+
+              <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-600">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-gray-700">Environment</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    node: {diagnostics.nodeEnv || 'unknown'} · vercel: {diagnostics.vercelEnv || 'unknown'}
+                  </span>
+                </div>
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  URL length: {diagnostics.supabaseUrlLength}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+              Diagnostics have not loaded yet.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
