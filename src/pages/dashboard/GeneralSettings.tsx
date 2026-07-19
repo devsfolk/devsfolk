@@ -819,6 +819,30 @@ export const GeneralSettings: React.FC = () => {
                   </Button>
                 </div>
               )}
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                <div>
+                  <h4 className="font-bold">Etsy Integration</h4>
+                  <p className="text-xs text-gray-500">Connect an Etsy Seller App and import marketplace listings.</p>
+                </div>
+                <Switch
+                  checked={settings.etsySettings?.enabled || false}
+                  onCheckedChange={(checked) => handleUpdate({
+                    etsySettings: { ...settings.etsySettings, enabled: checked },
+                  })}
+                />
+              </div>
+              {settings.etsySettings?.enabled && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    className="rounded-xl w-full h-10 text-[10px] font-black uppercase tracking-widest border-black text-black hover:bg-neutral-50"
+                    onClick={() => navigate('/dashboard/etsy')}
+                  >
+                    Configure Etsy settings
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

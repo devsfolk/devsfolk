@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ShopProvider } from '@/context/ShopContext';
+import { useShop } from '@/context/ShopContext';
 import { AnalyticsTracker } from '@/components/analytics/AnalyticsTracker';
 
 const StoreLayout = lazy(() =>
@@ -53,6 +54,14 @@ const PrintifySettings = lazy(() => import('@/pages/dashboard/PrintifySettings')
 const EtsySettings = lazy(() => import('@/pages/dashboard/EtsySettings').then((module) => ({ default: module.EtsySettings })));
 
 const RouteFallback = () => <div className="min-h-screen bg-white" />;
+const EtsyRouteGuard = () => {
+  const { settings } = useShop();
+  if (!settings.etsySettings?.enabled) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <DashboardLayout><EtsySettings /></DashboardLayout>;
+};
 
 export default function App() {
   return (
@@ -84,8 +93,8 @@ export default function App() {
             <Route path="/dashboard/design" element={<DashboardLayout><DesignSettings /></DashboardLayout>} />
             <Route path="/dashboard/settings" element={<DashboardLayout><GeneralSettings /></DashboardLayout>} />
             <Route path="/dashboard/printify" element={<DashboardLayout><PrintifySettings /></DashboardLayout>} />
-            <Route path="/dashboard/etsy" element={<DashboardLayout><EtsySettings /></DashboardLayout>} />
-            <Route path="/dashboard/settings/etsy" element={<DashboardLayout><EtsySettings /></DashboardLayout>} />
+            <Route path="/dashboard/etsy" element={<EtsyRouteGuard />} />
+            <Route path="/dashboard/settings/etsy" element={<EtsyRouteGuard />} />
 
             {/* Developer Central Orchestration */}
             <Route path="/devstool" element={<DevsTool />} />

@@ -2,10 +2,10 @@ import {
   clearCookie,
   callEtsy,
   getEtsyApiKeyHeader,
-  getSavedEtsyCredentials,
   normalizeEtsyList,
   parseCookies,
   parseEtsyUserIdFromAccessToken,
+  readSavedEtsyCredentials,
   persistEtsyTokenRow,
   sendJson,
   upsertEtsyShop,
@@ -70,7 +70,12 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
-  const credentials = await getSavedEtsyCredentials();
+  const { credentials, error: credentialsError } = await readSavedEtsyCredentials();
+  if (credentialsError) {
+    redirect(response, buildErrorRedirect(credentialsError), clearFlowCookie);
+    return;
+  }
+
   if (!credentials?.keystring) {
     redirect(response, buildErrorRedirect('Etsy credentials were not found.'), clearFlowCookie);
     return;

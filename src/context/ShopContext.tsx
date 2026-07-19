@@ -146,6 +146,9 @@ const DEFAULT_SETTINGS: ThemeSettings = {
     },
     sync: { mode: 'scheduled', scheduleInterval: 'daily', autoSyncEnabled: true },
   },
+  etsySettings: {
+    enabled: false,
+  },
 };
 
 const SAMPLE_CATEGORIES: Category[] = [
@@ -478,6 +481,9 @@ const mergeSettings = (raw?: Partial<ThemeSettings> | null): ThemeSettings => ({
       ...DEFAULT_SETTINGS.printifySettings!.sync,
       ...(raw?.printifySettings?.sync || {}),
     },
+  },
+  etsySettings: {
+    enabled: raw?.etsySettings?.enabled ?? DEFAULT_SETTINGS.etsySettings!.enabled,
   },
 });
 

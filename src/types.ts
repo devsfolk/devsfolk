@@ -166,6 +166,10 @@ export interface PrintifySettings {
   sync: PrintifySyncSettings;
 }
 
+export interface EtsySettings {
+  enabled: boolean;
+}
+
 export interface SizePrice {
   size: string;
   baseCost: number;
@@ -252,6 +256,8 @@ export interface ThemeSettings {
   sections: StoreSection[];
   // Printify Integration
   printifySettings?: PrintifySettings;
+  // Etsy Integration
+  etsySettings?: EtsySettings;
 }
 
 export interface Category {

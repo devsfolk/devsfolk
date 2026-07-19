@@ -164,9 +164,20 @@ export const buildEtsyAuthorizeUrl = (params: {
 };
 
 export const getSavedEtsyCredentials = async (): Promise<EtsyCredentialsRow | null> => {
+  const result = await readSavedEtsyCredentials();
+  return result.credentials;
+};
+
+export const readSavedEtsyCredentials = async (): Promise<{
+  credentials: EtsyCredentialsRow | null;
+  error: string | null;
+}> => {
   const supabase = getSupabaseServiceClient();
   if (!supabase) {
-    return null;
+    return {
+      credentials: null,
+      error: 'Supabase service role credentials are missing on the server.',
+    };
   }
 
   const { data, error } = await supabase
@@ -175,13 +186,26 @@ export const getSavedEtsyCredentials = async (): Promise<EtsyCredentialsRow | nu
     .eq('id', 'default')
     .maybeSingle();
 
-  if (error || !data) {
-    return null;
+  if (error) {
+    return {
+      credentials: null,
+      error: `Failed to read Etsy credentials: ${error.message}`,
+    };
+  }
+
+  if (!data) {
+    return {
+      credentials: null,
+      error: null,
+    };
   }
 
   return {
-    keystring: String(data.keystring || '').trim(),
-    shared_secret: String(data.shared_secret || '').trim(),
+    credentials: {
+      keystring: String(data.keystring || '').trim(),
+      shared_secret: String(data.shared_secret || '').trim(),
+    },
+    error: null,
   };
 };
 

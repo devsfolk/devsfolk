@@ -58,7 +58,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     { name: 'Design', href: '/dashboard/design', icon: Palette },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
     ...(settings.printifySettings?.enabled ? [{ name: 'Printify', href: '/dashboard/printify', icon: Printer }] : []),
-    { name: 'Etsy', href: '/dashboard/etsy', icon: ShoppingBag },
+    ...(settings.etsySettings?.enabled ? [{ name: 'Etsy', href: '/dashboard/etsy', icon: ShoppingBag }] : []),
   ];
 
   const currentNavItem = navItems.find(item => item.href === location.pathname) || navItems[0];

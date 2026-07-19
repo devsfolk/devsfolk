@@ -1,4 +1,4 @@
-import { buildCookie, buildEtsyAuthorizeUrl, createPkcePair, getSavedEtsyCredentials, requireAdmin, requirePost, sendJson } from './_shared.js';
+import { buildCookie, buildEtsyAuthorizeUrl, createPkcePair, readSavedEtsyCredentials, requireAdmin, requirePost, sendJson } from './_shared.js';
 
 const REQUIRED_SCOPES = ['listings_r', 'shops_r'];
 
@@ -16,7 +16,16 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
-  const credentials = await getSavedEtsyCredentials();
+  const { credentials, error } = await readSavedEtsyCredentials();
+  if (error) {
+    sendJson(response, 500, {
+      error: 'Etsy credentials could not be loaded from the server.',
+      details: error,
+      requiredScopes: REQUIRED_SCOPES,
+    });
+    return;
+  }
+
   if (!credentials?.keystring || !credentials.shared_secret) {
     sendJson(response, 400, {
       error: 'Etsy credentials must be saved before connecting.',

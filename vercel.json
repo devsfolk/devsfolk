@@ -22,6 +22,10 @@
   ],
   "rewrites": [
     {
+      "source": "/etsy/callback",
+      "destination": "/api/etsy/oauth-callback"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/"
     }
