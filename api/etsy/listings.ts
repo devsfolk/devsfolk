@@ -176,14 +176,14 @@ const syncListingRows = async (shopId: string, listing: any, accessToken: string
     choices: question?.choices ?? question?.possible_values ?? null,
   }));
 
-  const { error: listingError } = await supabase.from('etsy_listings').upsert(listingRow, { onConflict: 'listing_id' });
-  if (listingError) {
-    throw new Error(`Failed to save Etsy listing ${listingId}: ${listingError.message}`);
-  }
-
   const { error: productError } = await supabase.from('products').upsert(productRow, { onConflict: 'id' });
   if (productError) {
     throw new Error(`Failed to mirror Etsy listing ${listingId} into products: ${productError.message}`);
+  }
+
+  const { error: listingError } = await supabase.from('etsy_listings').upsert(listingRow, { onConflict: 'listing_id' });
+  if (listingError) {
+    throw new Error(`Failed to save Etsy listing ${listingId}: ${listingError.message}`);
   }
 
   const deleteChildren = await Promise.all([
