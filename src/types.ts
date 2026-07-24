@@ -351,18 +351,21 @@ export interface OrderItem {
   size?: string;
   customization?: PrintifyCustomization;
   isPrintify?: boolean;
+  etsyListingId?: string;
+  etsySelectedVariation?: any;
+  etsyPersonalizationAnswers?: Record<string, string>;
   printifyProductId?: string;
   printifyCatalogId?: string;
   printifyBlueprintId?: number;
   printifyPrintProviderId?: number;
   printifyVariantId?: number;
   printifyPrintAreas?: any;
-  source?: 'printify' | 'etsy';
+  source?: 'printify' | 'etsy' | 'mixed';
 }
 
 export interface Order {
   id: string;
-  source?: 'printify' | 'etsy';
+  source?: 'printify' | 'etsy' | 'mixed';
   customerName: string;
   customerEmail: string;
   customerPhone: string;
