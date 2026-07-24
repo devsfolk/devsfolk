@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, FileText, FileUp, Info, Layers3, Sparkles } from 'lucide-react';
+import { ArrowLeft, FileText, FileUp, Info, Layers3, Loader2, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Product } from '@/types';
+import { Product, ProductVariant } from '@/types';
 import { useShop } from '@/context/ShopContext';
 import { useEtsyListings } from '@/hooks/useEtsyListings';
 
@@ -49,12 +51,46 @@ const flattenProperties = (properties: any) => {
   return [];
 };
 
+const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('Failed to read the selected file.'));
+  reader.readAsDataURL(file);
+});
+
+const getQuestionType = (question: any) => String(question?.question_type || question?.type || '').toLowerCase();
+
+const isDropdownQuestion = (question: any) => {
+  const questionType = getQuestionType(question);
+  return questionType.includes('dropdown') || questionType.includes('select');
+};
+
+const isUploadQuestion = (question: any) => {
+  const questionType = getQuestionType(question);
+  return questionType.includes('upload') || questionType.includes('file');
+};
+
+const getSelectedVariationLabel = (variationGroups: Array<{ label: string; values: string[] }>, selectedValues: Record<string, string>, matchedVariation: any) => {
+  if (variationGroups.length > 0) {
+    return variationGroups
+      .map((group) => selectedValues[group.label] || '')
+      .filter(Boolean)
+      .join(' / ');
+  }
+
+  return String(matchedVariation?.sku || matchedVariation?.title || matchedVariation?.name || '').trim();
+};
+
 export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) => {
-  const { settings } = useShop();
+  const { settings, addToCart } = useShop();
   const { listing, variations, personalizationQuestions, loading, error } = useEtsyListings(product.id);
   const [activeImage, setActiveImage] = React.useState(0);
   const [selectedValues, setSelectedValues] = React.useState<Record<string, string>>({});
   const [selectedPersonalization, setSelectedPersonalization] = React.useState<Record<string, string>>({});
+  const [selectedPersonalizationFiles, setSelectedPersonalizationFiles] = React.useState<Record<string, { name: string; type: string; dataUrl: string }>>({});
+  const [submitError, setSubmitError] = React.useState('');
+  const [isAddingToCart, setIsAddingToCart] = React.useState(false);
+  const fileInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
 
   const imageEntries = React.useMemo(() => {
     const rawImages = Array.isArray(listing?.images) && listing.images.length > 0 ? listing.images : product.images;
@@ -100,6 +136,15 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
     });
   }, [variationGroups]);
 
+  React.useEffect(() => {
+    setActiveImage(0);
+    setSelectedValues({});
+    setSelectedPersonalization({});
+    setSelectedPersonalizationFiles({});
+    setSubmitError('');
+    setIsAddingToCart(false);
+  }, [product.id]);
+
   const matchedVariation = React.useMemo(() => {
     if (variations.length === 0 || variationGroups.length === 0) {
       return null;
@@ -118,14 +163,83 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
     }) || null;
   }, [selectedValues, variationGroups, variations]);
 
-  React.useEffect(() => {
-    setActiveImage(0);
-    setSelectedValues({});
-    setSelectedPersonalization({});
-  }, [product.id]);
+  const selectedVariationLabel = React.useMemo(
+    () => getSelectedVariationLabel(variationGroups, selectedValues, matchedVariation),
+    [matchedVariation, selectedValues, variationGroups],
+  );
 
-  const priceLabel = matchedVariation?.price != null
-    ? `${settings.currencySymbol}${Number(matchedVariation.price).toFixed(2)}`
+  const selectedVariation = React.useMemo<ProductVariant | undefined>(() => {
+    if (variationGroups.length === 0 && !matchedVariation) {
+      return undefined;
+    }
+
+    const variantPrice = matchedVariation?.price != null ? Number(matchedVariation.price) : Number(product.price);
+    const variantStock = matchedVariation?.quantity != null ? Number(matchedVariation.quantity) : Number(product.stock);
+
+    return {
+      id: String(matchedVariation?.sku || selectedVariationLabel || product.id),
+      name: String(selectedVariationLabel || matchedVariation?.sku || 'Selected option'),
+      price: Number.isFinite(variantPrice) ? variantPrice : Number(product.price),
+      stock: Number.isFinite(variantStock) ? variantStock : Number(product.stock),
+    };
+  }, [matchedVariation, product.id, product.price, product.stock, selectedVariationLabel, variationGroups.length]);
+
+  const isOutOfStock = product.stock <= 0;
+
+  const missingRequiredQuestion = React.useMemo(() => {
+    return personalizationQuestions.find((question) => {
+      if (!question.is_required) {
+        return false;
+      }
+
+      const questionType = getQuestionType(question);
+      if (isDropdownQuestion(question) || questionType.includes('choice')) {
+        return !selectedPersonalization[question.id];
+      }
+
+      if (isUploadQuestion(question)) {
+        return !selectedPersonalizationFiles[question.id];
+      }
+
+      return !selectedPersonalization[question.id]?.trim();
+    }) || null;
+  }, [personalizationQuestions, selectedPersonalization, selectedPersonalizationFiles]);
+
+  const canAddToCart = !loading && !isAddingToCart && !isOutOfStock && !missingRequiredQuestion && (variationGroups.length === 0 || Boolean(selectedVariation));
+
+  const handleUploadClick = (questionId: string) => {
+    fileInputRefs.current[questionId]?.click();
+  };
+
+  const handleAddToCart = async () => {
+    setSubmitError('');
+
+    if (missingRequiredQuestion) {
+      setSubmitError(`Please complete "${missingRequiredQuestion.prompt || 'the required personalization'}" before adding to cart.`);
+      return;
+    }
+
+    if (variationGroups.length > 0 && !selectedVariation) {
+      setSubmitError('Please choose the available options before adding to cart.');
+      return;
+    }
+
+    setIsAddingToCart(true);
+
+    try {
+      addToCart(product, selectedVariation, 1, {
+        etsyListingId: listing?.listing_id || product.id.replace(/^etsy_listing_/, ''),
+        etsySelectedVariation: matchedVariation || undefined,
+        etsyPersonalizationAnswers: selectedPersonalization,
+        etsyPersonalizationFiles,
+      });
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const priceLabel = selectedVariation?.price != null
+    ? `${settings.currencySymbol}${Number(selectedVariation.price).toFixed(2)}`
     : `${settings.currencySymbol}${Number(product.price).toFixed(2)}`;
 
   return (
@@ -181,6 +295,11 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
               <span className="text-xl md:text-3xl font-black tracking-tight">
                 {priceLabel}
               </span>
+              {selectedVariationLabel && variationGroups.length > 0 && (
+                <Badge variant="outline" className="text-[10px] uppercase font-black">
+                  {selectedVariationLabel}
+                </Badge>
+              )}
               {matchedVariation?.quantity != null && (
                 <Badge variant="outline" className="text-[10px] uppercase font-black">
                   Qty {matchedVariation.quantity}
@@ -188,6 +307,19 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
               )}
             </div>
           </div>
+
+          {loading && (
+            <div className="flex items-center gap-2 rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading listing details...
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              We could not load every listing detail right now, but the product is still available.
+            </div>
+          )}
 
           <div className="space-y-4 rounded-3xl border bg-white p-4 md:p-6">
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
@@ -204,7 +336,10 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
                     </Label>
                     <Select
                       value={selectedValues[group.label] || group.values[0] || ''}
-                      onValueChange={(value) => setSelectedValues((current) => ({ ...current, [group.label]: value }))}
+                      onValueChange={(value) => {
+                        setSubmitError('');
+                        setSelectedValues((current) => ({ ...current, [group.label]: value }));
+                      }}
                     >
                       <SelectTrigger className="w-full rounded-xl h-11">
                         <SelectValue placeholder={`Choose ${group.label}`} />
@@ -237,47 +372,100 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
               <div className="grid gap-4">
                 {personalizationQuestions.map((question, index) => {
                   const label = question.prompt || `Question ${index + 1}`;
+                  const questionType = getQuestionType(question);
 
-                  if (String(question.question_type).toLowerCase().includes('dropdown') && Array.isArray(question.choices)) {
+                  if (isDropdownQuestion(question)) {
                     return (
                       <div key={question.id} className="grid gap-2">
                         <Label className="text-[10px] font-black uppercase text-gray-400">
-                          {label}
+                          {label}{question.is_required ? ' *' : ''}
                         </Label>
                         <Select
                           value={selectedPersonalization[question.id] || ''}
-                          onValueChange={(value) => setSelectedPersonalization((current) => ({ ...current, [question.id]: value }))}
+                          onValueChange={(value) => {
+                            setSubmitError('');
+                            setSelectedPersonalization((current) => ({ ...current, [question.id]: value }));
+                          }}
                         >
                           <SelectTrigger className="w-full rounded-xl h-11">
                             <SelectValue placeholder="Select an option" />
                           </SelectTrigger>
                           <SelectContent>
-                            {question.choices.map((choice: any, choiceIndex: number) => {
-                              const choiceValue = typeof choice === 'string'
-                                ? choice
-                                : String(choice?.value || choice?.title || choice?.label || choiceIndex);
-                              return (
-                                <SelectItem key={`${question.id}-${choiceValue}`} value={choiceValue}>
-                                  {choiceValue}
-                                </SelectItem>
-                              );
-                            })}
+                            {Array.isArray(question.choices) && question.choices.length > 0 ? (
+                              question.choices.map((choice: any, choiceIndex: number) => {
+                                const choiceValue = typeof choice === 'string'
+                                  ? choice
+                                  : String(choice?.value || choice?.title || choice?.label || choiceIndex);
+                                return (
+                                  <SelectItem key={`${question.id}-${choiceValue}`} value={choiceValue}>
+                                    {choiceValue}
+                                  </SelectItem>
+                                );
+                              })
+                            ) : (
+                              <SelectItem value="default">Select an option</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
                     );
                   }
 
-                  if (String(question.question_type).toLowerCase().includes('upload')) {
+                  if (isUploadQuestion(question)) {
+                    const selectedFile = selectedPersonalizationFiles[question.id];
                     return (
                       <div key={question.id} className="grid gap-2">
                         <Label className="text-[10px] font-black uppercase text-gray-400">
-                          {label}
+                          {label}{question.is_required ? ' *' : ''}
                         </Label>
-                        <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="justify-start gap-2 rounded-xl border-dashed"
+                          onClick={() => handleUploadClick(question.id)}
+                        >
                           <FileUp className="h-4 w-4" />
-                          File upload will be enabled in the checkout phase.
-                        </div>
+                          {selectedFile ? selectedFile.name : 'Upload file'}
+                        </Button>
+                        <Input
+                          ref={(node) => {
+                            fileInputRefs.current[question.id] = node;
+                          }}
+                          type="file"
+                          className="hidden"
+                          onChange={async (event) => {
+                            const file = event.target.files?.[0];
+                            if (!file) {
+                              setSubmitError('');
+                              setSelectedPersonalizationFiles((current) => {
+                                const next = { ...current };
+                                delete next[question.id];
+                                return next;
+                              });
+                              return;
+                            }
+
+                            try {
+                              const dataUrl = await readFileAsDataUrl(file);
+                              setSubmitError('');
+                              setSelectedPersonalizationFiles((current) => ({
+                                ...current,
+                                [question.id]: {
+                                  name: file.name,
+                                  type: file.type,
+                                  dataUrl,
+                                },
+                              }));
+                            } catch {
+                              setSubmitError('Unable to read that file. Please try another file.');
+                            }
+                          }}
+                        />
+                        {selectedFile && (
+                          <p className="text-xs text-gray-500">
+                            {selectedFile.name}
+                          </p>
+                        )}
                       </div>
                     );
                   }
@@ -285,15 +473,27 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
                   return (
                     <div key={question.id} className="grid gap-2">
                       <Label className="text-[10px] font-black uppercase text-gray-400">
-                        {label}
+                        {label}{question.is_required ? ' *' : ''}
                       </Label>
                       <Textarea
-                        readOnly
-                        disabled
                         value={selectedPersonalization[question.id] || ''}
-                        placeholder={question.question_type === 'text_input' ? 'Personalization text placeholder' : 'Enter personalization details'}
-                        className="min-h-[100px] rounded-2xl bg-gray-50"
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setSubmitError('');
+                          setSelectedPersonalization((current) => ({
+                            ...current,
+                            [question.id]: nextValue,
+                          }));
+                        }}
+                        maxLength={question.max_length || undefined}
+                        placeholder={questionType === 'text_input' ? 'Enter personalization text' : 'Enter personalization details'}
+                        className="min-h-[100px] rounded-2xl bg-white"
                       />
+                      {question.max_length ? (
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          Max {question.max_length} characters
+                        </p>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -305,12 +505,52 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
             )}
           </div>
 
-          <div className="rounded-3xl border bg-amber-50 p-4 md:p-6 text-sm text-amber-900">
-            <div className="flex items-center gap-2 font-black uppercase tracking-widest text-amber-700 mb-2">
+          <div className="rounded-3xl border bg-gray-50 p-4 md:p-6 text-sm text-gray-600">
+            <div className="flex items-center gap-2 font-black uppercase tracking-widest text-gray-500 mb-2">
               <Info className="h-4 w-4" />
-              Coming Soon
+              Ready to order
             </div>
-            Checkout is not available yet for this product. This section is read-only while the import and display flow is being verified.
+            Choose your options, add the item to your cart, and continue checkout when you’re ready.
+          </div>
+
+          {submitError && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {submitError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <Button
+              size="lg"
+              className="w-full h-12 md:h-14 rounded-2xl border font-black text-xs md:text-lg uppercase tracking-widest shadow-xl"
+              style={{
+                backgroundColor: settings.primaryColor,
+                color: 'var(--primary-foreground)',
+                borderColor: 'var(--primary-border)',
+              }}
+              disabled={!canAddToCart}
+              onClick={() => void handleAddToCart()}
+            >
+              {isAddingToCart ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Adding...
+                </>
+              ) : isOutOfStock ? (
+                'Out of Stock'
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Add to Cart
+                </>
+              )}
+            </Button>
+
+            {variationGroups.length > 0 && (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Selected option: {selectedVariationLabel || 'Default'}
+              </p>
+            )}
           </div>
         </div>
       </div>

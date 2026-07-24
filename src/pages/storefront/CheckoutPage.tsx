@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, ArrowLeft, ShoppingBag, CheckCircle2, Landmark, Copy, Check, ShieldAlert, ShieldCheck, Loader2, Upload, AlertCircle, QrCode, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { optimizeImage } from '@/lib/imageUtils';
-import { getPrintifyCustomizationSummary } from '@/lib/printifyCustomizationSummary';
+import { getOrderItemSummary } from '@/lib/orderItemSummary';
 
 const loadTesseract = (): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -839,9 +839,9 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-sm line-clamp-1">{item.name}</h4>
-                      {getPrintifyCustomizationSummary(item.customization) && (
+                      {getOrderItemSummary(item) && (
                         <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">
-                          {getPrintifyCustomizationSummary(item.customization)}
+                          {getOrderItemSummary(item)}
                         </p>
                       )}
                       <p className="text-xs text-gray-500">{item.quantity} x {settings.currencySymbol}{item.price.toFixed(2)}</p>

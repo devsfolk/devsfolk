@@ -41,37 +41,40 @@ interface ShopContextType {
     product: Product,
     variant?: ProductVariant,
     quantity?: number,
-    options?: {
-      color?: string;
-      size?: string;
-      customization?: PrintifyCustomization;
-      etsyListingId?: string;
-      etsySelectedVariation?: any;
-      etsyPersonalizationAnswers?: Record<string, string>;
-    },
+      options?: {
+        color?: string;
+        size?: string;
+        customization?: PrintifyCustomization;
+        etsyListingId?: string;
+        etsySelectedVariation?: any;
+        etsyPersonalizationAnswers?: Record<string, string>;
+        etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
+      },
   ) => void;
   removeFromCart: (
     productId: string,
     variantId?: string,
     customization?: PrintifyCustomization,
-    options?: {
-      source?: 'printify' | 'etsy' | 'mixed';
-      etsyListingId?: string;
-      etsySelectedVariation?: any;
-      etsyPersonalizationAnswers?: Record<string, string>;
-    },
+      options?: {
+        source?: 'printify' | 'etsy' | 'mixed';
+        etsyListingId?: string;
+        etsySelectedVariation?: any;
+        etsyPersonalizationAnswers?: Record<string, string>;
+        etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
+      },
   ) => void;
   updateCartQuantity: (
     productId: string,
     variantId: string | undefined,
     quantity: number,
     customization?: PrintifyCustomization,
-    options?: {
-      source?: 'printify' | 'etsy' | 'mixed';
-      etsyListingId?: string;
-      etsySelectedVariation?: any;
-      etsyPersonalizationAnswers?: Record<string, string>;
-    },
+      options?: {
+        source?: 'printify' | 'etsy' | 'mixed';
+        etsyListingId?: string;
+        etsySelectedVariation?: any;
+        etsyPersonalizationAnswers?: Record<string, string>;
+        etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
+      },
   ) => void;
   clearCart: () => void;
   placeOrder: (customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>, mode: 'WHATSAPP' | 'WEBSITE', paymentMethod?: string) => void;
@@ -2033,14 +2036,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     product: Product,
     variant?: ProductVariant,
     quantity = 1,
-    options?: {
-      color?: string;
-      size?: string;
-      customization?: PrintifyCustomization;
-      etsyListingId?: string;
-      etsySelectedVariation?: any;
-      etsyPersonalizationAnswers?: Record<string, string>;
-    },
+      options?: {
+        color?: string;
+        size?: string;
+        customization?: PrintifyCustomization;
+        etsyListingId?: string;
+        etsySelectedVariation?: any;
+        etsyPersonalizationAnswers?: Record<string, string>;
+        etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
+      },
   ) => {
     const inferredProductSource = product.source ?? (
       product.id.startsWith('etsy_listing_')
@@ -2053,6 +2057,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const etsyListingId = options?.etsyListingId ?? (lineItemSource === 'etsy' ? product.id.replace(/^etsy_listing_/, '') : undefined);
     const etsySelectedVariation = lineItemSource === 'etsy' ? options?.etsySelectedVariation : undefined;
     const etsyPersonalizationAnswers = lineItemSource === 'etsy' ? options?.etsyPersonalizationAnswers : undefined;
+    const etsyPersonalizationFiles = lineItemSource === 'etsy' ? options?.etsyPersonalizationFiles : undefined;
 
     setCart((current) => {
       const existingIndex = current.findIndex(
@@ -2065,6 +2070,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           JSON.stringify(item.customization || null) === JSON.stringify(options?.customization || null) &&
           JSON.stringify(item.etsySelectedVariation || null) === JSON.stringify(etsySelectedVariation || null) &&
           JSON.stringify(item.etsyPersonalizationAnswers || null) === JSON.stringify(etsyPersonalizationAnswers || null) &&
+          JSON.stringify(item.etsyPersonalizationFiles || null) === JSON.stringify(etsyPersonalizationFiles || null) &&
           (item.etsyListingId || null) === (etsyListingId || null),
       );
 
@@ -2082,9 +2088,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             + (variant?.name ? ` - ${variant.name}` : '')
             + (options?.color ? ` (${options.color})` : '')
             + (options?.size ? ` - ${options.size}` : '')
-            + (etsySelectedVariation?.title || etsySelectedVariation?.name ? ` - ${etsySelectedVariation.title || etsySelectedVariation.name}` : '')
-            + (options?.customization ? ' (Customized)' : '')
-            + (lineItemSource === 'etsy' && etsyPersonalizationAnswers && Object.keys(etsyPersonalizationAnswers).length > 0 ? ' (Personalized)' : ''),
+          + (etsySelectedVariation?.title || etsySelectedVariation?.name ? ` - ${etsySelectedVariation.title || etsySelectedVariation.name}` : '')
+          + (options?.customization ? ' (Customized)' : '')
+          + (lineItemSource === 'etsy' && etsyPersonalizationAnswers && Object.keys(etsyPersonalizationAnswers).length > 0 ? ' (Personalized)' : ''),
           price: variant?.price || product.discountPrice || product.price,
           quantity,
           image: options?.customization?.previewUrl || product.images[0],
@@ -2096,6 +2102,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           etsyListingId,
           etsySelectedVariation,
           etsyPersonalizationAnswers,
+          etsyPersonalizationFiles,
           printifyProductId: lineItemSource === 'printify' ? product.printifyProductId : undefined,
           printifyCatalogId: lineItemSource === 'printify' ? product.printifyCatalogId : undefined,
           printifyBlueprintId: lineItemSource === 'printify' ? options?.customization?.printifyBlueprintId : undefined,
@@ -2125,6 +2132,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       etsyListingId?: string;
       etsySelectedVariation?: any;
       etsyPersonalizationAnswers?: Record<string, string>;
+      etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
     },
   ) => {
     setCart((current) => {
@@ -2137,6 +2145,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             JSON.stringify(item.customization || null) === JSON.stringify(customization || null) &&
             (!options?.etsySelectedVariation || JSON.stringify(item.etsySelectedVariation || null) === JSON.stringify(options.etsySelectedVariation || null)) &&
             (!options?.etsyPersonalizationAnswers || JSON.stringify(item.etsyPersonalizationAnswers || null) === JSON.stringify(options.etsyPersonalizationAnswers || null)) &&
+            (!options?.etsyPersonalizationFiles || JSON.stringify(item.etsyPersonalizationFiles || null) === JSON.stringify(options.etsyPersonalizationFiles || null)) &&
             (!options?.etsyListingId || (item.etsyListingId || null) === options.etsyListingId)
           ),
       );
@@ -2159,6 +2168,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       etsyListingId?: string;
       etsySelectedVariation?: any;
       etsyPersonalizationAnswers?: Record<string, string>;
+      etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
     },
   ) => {
     setCart((current) => {
@@ -2169,6 +2179,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         JSON.stringify(item.customization || null) === JSON.stringify(customization || null) &&
         (!options?.etsySelectedVariation || JSON.stringify(item.etsySelectedVariation || null) === JSON.stringify(options.etsySelectedVariation || null)) &&
         (!options?.etsyPersonalizationAnswers || JSON.stringify(item.etsyPersonalizationAnswers || null) === JSON.stringify(options.etsyPersonalizationAnswers || null)) &&
+        (!options?.etsyPersonalizationFiles || JSON.stringify(item.etsyPersonalizationFiles || null) === JSON.stringify(options.etsyPersonalizationFiles || null)) &&
         (!options?.etsyListingId || (item.etsyListingId || null) === options.etsyListingId)
           ? { ...item, quantity: Math.max(1, quantity) }
           : item,

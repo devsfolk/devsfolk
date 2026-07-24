@@ -354,6 +354,7 @@ export interface OrderItem {
   etsyListingId?: string;
   etsySelectedVariation?: any;
   etsyPersonalizationAnswers?: Record<string, string>;
+  etsyPersonalizationFiles?: Record<string, { name: string; type: string; dataUrl: string }>;
   printifyProductId?: string;
   printifyCatalogId?: string;
   printifyBlueprintId?: number;

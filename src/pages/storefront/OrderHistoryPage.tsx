@@ -119,7 +119,28 @@ export const OrderHistoryPage: React.FC = () => {
     order.items.forEach(item => {
       const matchedProd = products.find(p => p.id === item.productId);
       if (matchedProd) {
-        addToCart(matchedProd, item.quantity);
+        const matchedVariant = matchedProd.variants?.find((variant) => variant.id === item.variantId);
+        const etsyVariant = item.source === 'etsy' ? {
+          id: item.variantId || item.etsySelectedVariation?.sku || item.etsyListingId || item.productId,
+          name: item.etsySelectedVariation?.title || item.etsySelectedVariation?.name || item.etsySelectedVariation?.sku || 'Selected option',
+          price: item.price,
+          stock: item.quantity,
+        } : undefined;
+
+        addToCart(
+          matchedProd,
+          matchedVariant || etsyVariant,
+          item.quantity,
+          {
+            color: item.color,
+            size: item.size,
+            customization: item.customization,
+            etsyListingId: item.etsyListingId,
+            etsySelectedVariation: item.etsySelectedVariation,
+            etsyPersonalizationAnswers: item.etsyPersonalizationAnswers,
+            etsyPersonalizationFiles: item.etsyPersonalizationFiles,
+          },
+        );
       }
     });
     alert('All items from this order have been added to your cart!');

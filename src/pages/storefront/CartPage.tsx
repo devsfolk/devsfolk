@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useShop } from '@/context/ShopContext';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getPrintifyCustomizationSummary } from '@/lib/printifyCustomizationSummary';
+import { getLineItemMatchOptions, getOrderItemSummary } from '@/lib/orderItemSummary';
 
 export const CartPage: React.FC = () => {
   const { cart, removeFromCart, updateCartQuantity, cartTotal, settings } = useShop();
@@ -51,9 +51,9 @@ export const CartPage: React.FC = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-black text-sm md:text-lg uppercase tracking-tight">{item.name}</h3>
-                    {getPrintifyCustomizationSummary(item.customization) && (
+                    {getOrderItemSummary(item) && (
                       <p className="text-[9px] md:text-[11px] font-bold text-gray-500 uppercase tracking-widest mt-1">
-                        {getPrintifyCustomizationSummary(item.customization)}
+                        {getOrderItemSummary(item)}
                       </p>
                     )}
                     <p className="text-[10px] md:text-sm font-bold text-gray-400 uppercase tracking-widest italic opacity-60 leading-none mt-1">Price: {settings.currencySymbol}{item.price.toFixed(2)}</p>
@@ -62,7 +62,7 @@ export const CartPage: React.FC = () => {
                     variant="ghost" 
                     size="icon" 
                     className="text-gray-400 hover:text-red-500 h-8 w-8 md:h-10 md:w-10"
-                    onClick={() => removeFromCart(item.productId, item.variantId, item.customization)}
+                    onClick={() => removeFromCart(item.productId, item.variantId, item.customization, getLineItemMatchOptions(item))}
                   >
                     <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
@@ -74,7 +74,7 @@ export const CartPage: React.FC = () => {
                       variant="ghost" 
                       size="icon" 
                       className="h-7 w-7 md:h-8 md:w-8"
-                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity - 1, item.customization)}
+                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity - 1, item.customization, getLineItemMatchOptions(item))}
                     >
                       <Minus className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>
@@ -83,7 +83,7 @@ export const CartPage: React.FC = () => {
                       variant="ghost" 
                       size="icon" 
                       className="h-7 w-7 md:h-8 md:w-8"
-                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity + 1, item.customization)}
+                      onClick={() => updateCartQuantity(item.productId, item.variantId, item.quantity + 1, item.customization, getLineItemMatchOptions(item))}
                     >
                       <Plus className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>
