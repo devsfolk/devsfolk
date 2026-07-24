@@ -171,9 +171,6 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
 
         <div className="space-y-6">
           <div className="space-y-3">
-            <Badge variant="secondary" className="text-[10px] font-black uppercase tracking-widest">
-              Etsy Listing
-            </Badge>
             <h1 className="text-2xl md:text-5xl font-black uppercase tracking-tight">
               {listing?.title || product.name}
             </h1>
@@ -311,9 +308,9 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
           <div className="rounded-3xl border bg-amber-50 p-4 md:p-6 text-sm text-amber-900">
             <div className="flex items-center gap-2 font-black uppercase tracking-widest text-amber-700 mb-2">
               <Info className="h-4 w-4" />
-              Phase 1 Preview Only
+              Coming Soon
             </div>
-            Etsy checkout is not wired yet, so there is no Add to Cart button here. This phase is read-only while we verify import and rendering.
+            Checkout is not available yet for this product. This section is read-only while the import and display flow is being verified.
           </div>
         </div>
       </div>

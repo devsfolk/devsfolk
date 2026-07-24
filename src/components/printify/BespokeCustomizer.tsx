@@ -1431,7 +1431,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     return (
       <div className="p-8 text-center bg-gray-50 border border-dashed rounded-3xl">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-          Printify integration is disabled. Enable it in Dashboard → Printify Settings.
+          Customization is currently unavailable. Enable the feature in the dashboard settings.
         </p>
       </div>
     );
@@ -1444,7 +1444,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
           No customizable templates are available yet.
         </p>
         <p className="text-[11px] text-gray-400 max-w-md mx-auto">
-          Sync templates in Dashboard → Printify, then publish or resync any template flagged as incomplete.
+          Sync templates in the dashboard, then publish or resync any template flagged as incomplete.
         </p>
       </div>
     );
