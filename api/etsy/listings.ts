@@ -13,6 +13,37 @@ import {
 const REQUIRED_SCOPES = ['listings_r', 'shops_r'];
 const DEFAULT_CATEGORY_ID = 'cat_etsy';
 
+const decodeHtmlEntities = (value: any) => {
+  const text = String(value ?? '');
+  if (!text) {
+    return '';
+  }
+
+  const namedEntities: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    gt: '>',
+    lt: '<',
+    nbsp: ' ',
+    quot: '"',
+  };
+
+  return text
+    .replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
+      if (entity.startsWith('#x') || entity.startsWith('#X')) {
+        const codePoint = Number.parseInt(entity.slice(2), 16);
+        return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+      }
+
+      if (entity.startsWith('#')) {
+        const codePoint = Number.parseInt(entity.slice(1), 10);
+        return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+      }
+
+      return namedEntities[entity.toLowerCase()] || match;
+    });
+};
+
 const normalizeEtsyImageUrl = (image: any) => {
   if (!image) return '';
   if (typeof image === 'string') return image;
@@ -125,9 +156,9 @@ const syncListingRows = async (shopId: string, listing: any, accessToken: string
   const productRow = {
     id: productId,
     category_id: DEFAULT_CATEGORY_ID,
-    name: String(listing?.title || `Etsy Listing ${listingId}`),
-    slug: `etsy-listing-${listingId}`,
-    description: String(listing?.description || ''),
+    name: decodeHtmlEntities(listing?.title || `Listing ${listingId}`),
+    slug: `listing-${listingId}`,
+    description: decodeHtmlEntities(listing?.description || ''),
     price: Number(priceCandidates[0] ?? extractMoney(listing?.price) ?? 0),
     discount_price: null,
     images: imageUrls.length > 0 ? imageUrls : ['/custom-tee-mockup.png'],

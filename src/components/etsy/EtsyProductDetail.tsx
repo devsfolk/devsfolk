@@ -222,7 +222,7 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
-                This Etsy listing does not expose variation data in the current sync yet.
+                This listing does not expose variation data in the current sync yet.
               </div>
             )}
           </div>

@@ -19,9 +19,9 @@ create table if not exists public.categories (
 insert into public.categories (id, name, slug, description, image_url, display_order, created_at)
 values (
   'cat_etsy',
-  'Etsy Listings',
-  'etsy',
-  'Imported Etsy marketplace listings.',
+  'Imported Listings',
+  'imported-listings',
+  'Products imported from the connected shop.',
   '/custom-tee-mockup.png',
   11,
   (extract(epoch from now()) * 1000)::bigint
