@@ -211,7 +211,7 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = (mode: 'WHATSAPP' | 'WEBSITE') => {
+  const handleSubmit = async (mode: 'WHATSAPP' | 'WEBSITE') => {
     if (!formData.customerName || !formData.customerAddress || !formData.shippingCountry || !formData.shippingCity || !formData.shippingZip) {
       alert('Please fill in all required fields (Name, Shipping Address, Country, City, and ZIP/Postal Code).');
       return;
@@ -310,7 +310,7 @@ export const CheckoutPage: React.FC = () => {
         alert('Please transfer the amount and upload your payment screenshot/receipt first.');
         return;
       }
-      placeOrder({
+      const result = await placeOrder({
         ...formData,
         shippingAddress: {
           firstName: formData.customerName.trim().split(/\s+/)[0] || '',
@@ -324,8 +324,12 @@ export const CheckoutPage: React.FC = () => {
           zip: formData.shippingZip,
         },
       }, mode, JSON.stringify(bankPaymentData));
+      if (!result.success) {
+        alert(result.error || 'We could not place your order right now. Please try again.');
+        return;
+      }
     } else {
-      placeOrder({
+      const result = await placeOrder({
         ...formData,
         shippingAddress: {
           firstName: formData.customerName.trim().split(/\s+/)[0] || '',
@@ -339,6 +343,10 @@ export const CheckoutPage: React.FC = () => {
           zip: formData.shippingZip,
         },
       }, mode, paymentMethod);
+      if (!result.success) {
+        alert(result.error || 'We could not place your order right now. Please try again.');
+        return;
+      }
     }
     setIsSuccess(true);
   };

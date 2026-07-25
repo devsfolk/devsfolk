@@ -14,6 +14,11 @@ interface PendingWebsiteOrder {
   paymentMethod?: string;
 }
 
+interface OrderSyncResult {
+  success: boolean;
+  error?: string;
+}
+
 interface ShopContextType {
   settings: ThemeSettings;
   updateSettings: (newSettings: Partial<ThemeSettings>) => void;
@@ -77,7 +82,11 @@ interface ShopContextType {
       },
   ) => void;
   clearCart: () => void;
-  placeOrder: (customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>, mode: 'WHATSAPP' | 'WEBSITE', paymentMethod?: string) => void;
+  placeOrder: (
+    customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>,
+    mode: 'WHATSAPP' | 'WEBSITE',
+    paymentMethod?: string,
+  ) => Promise<OrderSyncResult>;
   cartTotal: number;
   loading: boolean;
   reviews: Review[];
@@ -980,6 +989,42 @@ const toLegacyOrderRow = (order: Order, paymentMethod?: string) => ({
   created_at: order.createdAt,
   source: order.source ?? getOrderSourceFromItems(order.items) ?? 'printify',
 });
+
+const isLegacyOrderColumnError = (message: string) => (
+  message.includes('printify_order_id') ||
+  message.includes('printify_sync_status') ||
+  message.includes('printify_error_log')
+);
+
+const persistOrderToSupabase = async (order: Order, paymentMethod?: string): Promise<OrderSyncResult> => {
+  if (!supabase) {
+    return {
+      success: false,
+      error: 'Supabase is not configured on this deployment.',
+    };
+  }
+
+  let { error } = await supabase
+    .from('orders')
+    .insert(toOrderRow(order, paymentMethod));
+
+  if (error && isLegacyOrderColumnError(error.message)) {
+    const legacyResult = await supabase
+      .from('orders')
+      .insert(toLegacyOrderRow(order, paymentMethod));
+    error = legacyResult.error;
+  }
+
+  if (error) {
+    console.error(`[DevsFolk Sync] Failed to sync website order ${order.id} to Supabase.`, error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+
+  return { success: true };
+};
 
 const createId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -2302,11 +2347,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.error(`[AutoFulfillment] All ${retries} attempts failed for order ${orderId}. Admin can use Push / Retry in the dashboard.`);
   };
 
-  const placeOrder = (
+  const placeOrder = async (
     customerData: Omit<Order, 'id' | 'items' | 'total' | 'status' | 'createdAt'>,
     mode: 'WHATSAPP' | 'WEBSITE',
     paymentMethod?: string,
-  ) => {
+  ): Promise<OrderSyncResult> => {
     const effectivePaymentMethod = mode === 'WHATSAPP' ? 'WHATSAPP' : paymentMethod;
 
     let initialStatus: Order['status'] = 'PENDING';
@@ -2337,6 +2382,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       printifyErrorLog: hasPrintifyItems ? 'Queued for Printify fulfillment bridge.' : null,
     };
 
+    if (mode === 'WEBSITE') {
+      const persistResult = await persistOrderToSupabase(newOrder, effectivePaymentMethod);
+      if (!persistResult.success) {
+        return persistResult;
+      }
+    }
+
     // Save to local device order history
     try {
       const storedHistory = JSON.parse(localStorage.getItem('customer_order_ids') || '[]');
@@ -2365,13 +2417,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProducts(updatedProducts);
     localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updatedOrders));
     saveProductsLocally(updatedProducts);
-    localStorage.setItem(
-      PENDING_ORDERS_STORAGE_KEY,
-      JSON.stringify([
-        ...readLocalJson<PendingWebsiteOrder[]>(PENDING_ORDERS_STORAGE_KEY, []).filter((entry) => entry.order.id !== newOrder.id),
-        { order: newOrder, paymentMethod: effectivePaymentMethod },
-      ]),
-    );
+
+    const pendingOrders = readLocalJson<PendingWebsiteOrder[]>(PENDING_ORDERS_STORAGE_KEY, [])
+      .filter((entry) => entry.order.id !== newOrder.id);
+    if (mode === 'WHATSAPP') {
+      pendingOrders.push({ order: newOrder, paymentMethod: effectivePaymentMethod });
+    }
+    localStorage.setItem(PENDING_ORDERS_STORAGE_KEY, JSON.stringify(pendingOrders));
 
     if (supabase) {
       void flushPendingOrdersToSupabase().then(() => {
@@ -2401,6 +2453,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     clearCart();
+    return { success: true };
   };
 
   const value = useMemo(
