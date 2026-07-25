@@ -58,6 +58,20 @@ const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) 
   reader.readAsDataURL(file);
 });
 
+const MAX_PERSONALIZATION_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_PERSONALIZATION_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const formatFileSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / (1024 ** index);
+  return `${value >= 10 || index === 0 ? Math.round(value) : value.toFixed(1)} ${units[index]}`;
+};
+
 const getQuestionType = (question: any) => String(question?.question_type || question?.type || '').toLowerCase();
 
 const isDropdownQuestion = (question: any) => {
@@ -209,6 +223,18 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
 
   const handleUploadClick = (questionId: string) => {
     fileInputRefs.current[questionId]?.click();
+  };
+
+  const validatePersonalizationFile = (file: File) => {
+    if (!ALLOWED_PERSONALIZATION_FILE_TYPES.includes(file.type)) {
+      return 'Please upload a JPEG, PNG, or WebP image.';
+    }
+
+    if (file.size > MAX_PERSONALIZATION_FILE_SIZE_BYTES) {
+      return `Please upload an image smaller than ${formatFileSize(MAX_PERSONALIZATION_FILE_SIZE_BYTES)}.`;
+    }
+
+    return '';
   };
 
   const handleAddToCart = async () => {
@@ -432,6 +458,7 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
                             fileInputRefs.current[question.id] = node;
                           }}
                           type="file"
+                          accept="image/jpeg,image/png,image/webp"
                           className="hidden"
                           onChange={async (event) => {
                             const file = event.target.files?.[0];
@@ -442,6 +469,13 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
                                 delete next[question.id];
                                 return next;
                               });
+                              return;
+                            }
+
+                            const validationError = validatePersonalizationFile(file);
+                            if (validationError) {
+                              setSubmitError(validationError);
+                              event.target.value = '';
                               return;
                             }
 
@@ -466,6 +500,9 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
                             {selectedFile.name}
                           </p>
                         )}
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          JPEG, PNG, or WebP. Max {formatFileSize(MAX_PERSONALIZATION_FILE_SIZE_BYTES)}.
+                        </p>
                       </div>
                     );
                   }
