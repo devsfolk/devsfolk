@@ -46,72 +46,81 @@ export const useEtsyListings = (productId?: string) => {
     let cancelled = false;
 
     const load = async () => {
-      if (!productId) {
-        setListing(null);
-        setVariations([]);
-        setPersonalizationQuestions([]);
-        setLoading(false);
-        return;
-      }
-
-      if (!supabase) {
-        setError('Supabase configuration is missing.');
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       setError('');
 
-      const { data: listingRow, error: listingError } = await supabase
-        .from('etsy_listings')
-        .select('*')
-        .eq('product_id', productId)
-        .maybeSingle();
+      try {
+        if (!productId) {
+          setListing(null);
+          setVariations([]);
+          setPersonalizationQuestions([]);
+          return;
+        }
 
-      if (cancelled) {
-        return;
+        if (!supabase) {
+          setError('Supabase configuration is missing.');
+          return;
+        }
+
+        const { data: listingRow, error: listingError } = await supabase
+          .from('etsy_listings')
+          .select('*')
+          .eq('product_id', productId)
+          .maybeSingle();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (listingError) {
+          setError(listingError.message);
+          setListing(null);
+          setVariations([]);
+          setPersonalizationQuestions([]);
+          return;
+        }
+
+        const nextListing = (listingRow as EtsyListingRecord | null) ?? null;
+        setListing(nextListing);
+
+        if (!nextListing?.listing_id) {
+          setVariations([]);
+          setPersonalizationQuestions([]);
+          return;
+        }
+
+        const [variationResult, questionResult] = await Promise.all([
+          supabase.from('etsy_listing_variations').select('*').eq('listing_id', nextListing.listing_id),
+          supabase.from('etsy_personalization_questions').select('*').eq('listing_id', nextListing.listing_id),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (variationResult.error) {
+          setError(variationResult.error.message);
+        }
+
+        if (questionResult.error) {
+          setError(questionResult.error.message);
+        }
+
+        setVariations((variationResult.data || []) as EtsyListingVariationRecord[]);
+        setPersonalizationQuestions((questionResult.data || []) as EtsyPersonalizationQuestionRecord[]);
+      } catch (caught) {
+        if (!cancelled) {
+          const message = caught instanceof Error ? caught.message : 'Failed to load Etsy listing data.';
+          setError(message);
+          setListing(null);
+          setVariations([]);
+          setPersonalizationQuestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      if (listingError) {
-        setError(listingError.message);
-        setListing(null);
-        setVariations([]);
-        setPersonalizationQuestions([]);
-        setLoading(false);
-        return;
-      }
-
-      const nextListing = (listingRow as EtsyListingRecord | null) ?? null;
-      setListing(nextListing);
-
-      if (!nextListing?.listing_id) {
-        setVariations([]);
-        setPersonalizationQuestions([]);
-        setLoading(false);
-        return;
-      }
-
-      const [variationResult, questionResult] = await Promise.all([
-        supabase.from('etsy_listing_variations').select('*').eq('listing_id', nextListing.listing_id),
-        supabase.from('etsy_personalization_questions').select('*').eq('listing_id', nextListing.listing_id),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (variationResult.error) {
-        setError(variationResult.error.message);
-      }
-
-      if (questionResult.error) {
-        setError(questionResult.error.message);
-      }
-
-      setVariations((variationResult.data || []) as EtsyListingVariationRecord[]);
-      setPersonalizationQuestions((questionResult.data || []) as EtsyPersonalizationQuestionRecord[]);
-      setLoading(false);
     };
 
     void load();
