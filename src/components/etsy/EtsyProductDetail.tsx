@@ -257,7 +257,7 @@ export const EtsyProductDetail: React.FC<{ product: Product }> = ({ product }) =
         etsyListingId: listing?.listing_id || product.id.replace(/^etsy_listing_/, ''),
         etsySelectedVariation: matchedVariation || undefined,
         etsyPersonalizationAnswers: selectedPersonalization,
-        etsyPersonalizationFiles,
+        etsyPersonalizationFiles: selectedPersonalizationFiles,
       });
     } finally {
       setIsAddingToCart(false);
