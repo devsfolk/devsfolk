@@ -283,6 +283,8 @@ export const ProductPage: React.FC = () => {
     window.setTimeout(() => setShareMessage(''), 2000);
   };
 
+  const shouldOpenCustomizer = isRawPrintifyTemplateProduct(product) && settings.printifySettings?.enabled;
+
 
   return (
     <motion.div 
@@ -458,7 +460,7 @@ export const ProductPage: React.FC = () => {
 
             <div className={`flex flex-col ${isDevsFolk && device === 'mobile' ? 'gap-2' : 'gap-3'}`}>
                 <div className="flex gap-2">
-                {product.isPrintify && settings.printifySettings?.enabled ? (
+                {shouldOpenCustomizer ? (
                   <Link to={`/product/${product.slug}/customize`} className="flex-1">
                     <Button 
                       size="lg" 
