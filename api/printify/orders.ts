@@ -274,7 +274,9 @@ const buildPrintAreasForItem = async (apiKey: string, item: any, index: number, 
 
 const buildLineItems = async (apiKey: string, order: any, missing: string[]) => {
   const items = Array.isArray(order?.items) ? order.items : [];
-  if (items.length === 0) {
+  const printifyItems = items.filter((item) => inferLineItemSource(item) === 'printify');
+
+  if (printifyItems.length === 0) {
     missing.push('line_items');
     return [];
   }
@@ -282,6 +284,10 @@ const buildLineItems = async (apiKey: string, order: any, missing: string[]) => 
   const lineItems = [];
 
   for (const [index, item] of items.entries()) {
+    if (inferLineItemSource(item) !== 'printify') {
+      continue;
+    }
+
     const quantity = toPositiveInteger(item?.quantity) || 1;
     const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variant_id']));
     const productIdCandidate = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();

@@ -7,6 +7,7 @@ import { ShoppingBag, Eye, CheckCircle, XCircle, Clock, ChevronLeft, Globe, Land
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { supabase } from '@/lib/supabase';
+import { getOrderItemDetailLines, getOrderItemSummary } from '@/lib/orderItemSummary';
 
 const parsePaymentMethod = (methodStr: string | null | undefined) => {
   if (!methodStr) return { method: 'COD', verified: false, receiptUrl: '', source: 'WEBSITE' };
@@ -410,15 +411,37 @@ export const OrdersPage: React.FC = () => {
                 <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100 flex flex-col h-full">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 text-center">Order Summary</h3>
                   <div className="flex-1 space-y-4 overflow-y-auto max-h-[200px] mb-6 pr-2">
-                    {selectedOrder.items.map((item: any) => (
-                      <div key={`${item.productId}-${item.variantId}`} className="flex justify-between items-center gap-4">
-                        <div className="flex-1">
+                    {selectedOrder.items.map((item: any) => {
+                      const summary = getOrderItemSummary(item);
+                      const detailLines = getOrderItemDetailLines(item);
+
+                      return (
+                      <div key={`${item.productId}-${item.variantId || item.etsyListingId || ''}`} className="flex justify-between items-start gap-4">
+                        <div className="flex-1 space-y-1">
                           <p className="text-[10px] font-black uppercase leading-tight line-clamp-1">{item.name}</p>
+                          {summary && (
+                            <p className="text-[8px] font-bold uppercase tracking-widest text-gray-400">
+                              {summary}
+                            </p>
+                          )}
+                          {detailLines.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {detailLines.map((line) => (
+                                <span
+                                  key={line}
+                                  className="inline-flex items-center rounded-full border border-gray-100 bg-white px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-gray-500"
+                                >
+                                  {line}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">{item.quantity} x {settings.currencySymbol}{item.price}</p>
                         </div>
                         <p className="text-[10px] font-black">{settings.currencySymbol}{(item.price * item.quantity).toFixed(2)}</p>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex justify-between items-center mb-1">

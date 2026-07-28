@@ -1,9 +1,11 @@
 import { Product } from '@/types';
 
-export const isRawPrintifyTemplateProduct = (product?: Pick<Product, 'id' | 'isPrintify' | 'printifyProductId'>) => (
+export const isRawPrintifyTemplateProduct = (
+  product?: Pick<Product, 'slug' | 'isPrintify' | 'printifyProductId'>
+) => (
   !!product?.isPrintify &&
   (
-    product.id.startsWith('printify_template_') ||
+    product.slug?.startsWith('printify-template-') ||
     product.printifyProductId?.startsWith('template_')
   )
 );

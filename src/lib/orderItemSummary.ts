@@ -32,6 +32,45 @@ export const getOrderItemSummary = (item: OrderItem) => {
   return getPrintifyCustomizationSummary(item.customization);
 };
 
+export const getOrderItemDetailLines = (item: OrderItem) => {
+  const lines: string[] = [];
+
+  if (item.color) {
+    lines.push(`Color: ${item.color}`);
+  }
+
+  if (item.size) {
+    lines.push(`Size: ${item.size}`);
+  }
+
+  if (item.source === 'etsy') {
+    const variationLabel = getEtsyVariationLabel(item);
+    if (variationLabel) {
+      lines.push(`Variation: ${variationLabel}`);
+    }
+
+    if (item.etsyPersonalizationAnswers && typeof item.etsyPersonalizationAnswers === 'object') {
+      Object.entries(item.etsyPersonalizationAnswers).forEach(([questionId, answer]) => {
+        const cleanAnswer = String(answer || '').trim();
+        if (cleanAnswer) {
+          lines.push(`Personalization ${questionId}: ${cleanAnswer}`);
+        }
+      });
+    }
+
+    if (item.etsyPersonalizationFiles && typeof item.etsyPersonalizationFiles === 'object') {
+      Object.entries(item.etsyPersonalizationFiles).forEach(([fileKey, fileValue]) => {
+        const fileName = String(fileValue?.name || '').trim();
+        if (fileName) {
+          lines.push(`Upload ${fileKey}: ${fileName}`);
+        }
+      });
+    }
+  }
+
+  return lines;
+};
+
 export const getLineItemMatchOptions = (item: OrderItem) => ({
   source: item.source,
   etsyListingId: item.etsyListingId,
