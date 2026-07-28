@@ -17,6 +17,7 @@ interface PendingWebsiteOrder {
 interface OrderSyncResult {
   success: boolean;
   error?: string;
+  warning?: string;
 }
 
 interface ShopContextType {
@@ -2389,8 +2390,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    const storageWarnings: string[] = [];
+    const persistLocalValue = (label: string, write: () => void) => {
+      try {
+        write();
+      } catch (storageError) {
+        console.warn(`[DevsFolk] Failed to persist ${label} to localStorage.`, storageError);
+        storageWarnings.push(`We placed your order, but your browser could not save a local copy of ${label} because storage is full.`);
+      }
+    };
+
     // Save to local device order history
-    try {
+    persistLocalValue('customer order history', () => {
       const storedHistory = JSON.parse(localStorage.getItem('customer_order_ids') || '[]');
       if (Array.isArray(storedHistory)) {
         if (!storedHistory.includes(newOrder.id)) {
@@ -2399,9 +2410,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         localStorage.setItem('customer_order_ids', JSON.stringify([newOrder.id]));
       }
-    } catch {
-      localStorage.setItem('customer_order_ids', JSON.stringify([newOrder.id]));
-    }
+    });
 
     const updatedOrders = [newOrder, ...orders];
     const updatedProducts = products.map((product) => {
@@ -2415,15 +2424,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setOrders(updatedOrders);
     setProducts(updatedProducts);
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updatedOrders));
-    saveProductsLocally(updatedProducts);
+    persistLocalValue('orders cache', () => {
+      localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updatedOrders));
+    });
+    persistLocalValue('products cache', () => {
+      saveProductsLocally(updatedProducts);
+    });
 
     const pendingOrders = readLocalJson<PendingWebsiteOrder[]>(PENDING_ORDERS_STORAGE_KEY, [])
       .filter((entry) => entry.order.id !== newOrder.id);
     if (mode === 'WHATSAPP') {
       pendingOrders.push({ order: newOrder, paymentMethod: effectivePaymentMethod });
     }
-    localStorage.setItem(PENDING_ORDERS_STORAGE_KEY, JSON.stringify(pendingOrders));
+    persistLocalValue('pending orders cache', () => {
+      localStorage.setItem(PENDING_ORDERS_STORAGE_KEY, JSON.stringify(pendingOrders));
+    });
 
     if (supabase) {
       void flushPendingOrdersToSupabase().then(() => {
@@ -2453,7 +2468,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     clearCart();
-    return { success: true };
+    return {
+      success: true,
+      warning: storageWarnings.length > 0 ? storageWarnings[0] : undefined,
+    };
   };
 
   const value = useMemo(

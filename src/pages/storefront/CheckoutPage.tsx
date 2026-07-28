@@ -38,6 +38,7 @@ export const CheckoutPage: React.FC = () => {
   }, [settings.shopName]);
 
   const [isSuccess, setIsSuccess] = useState(false);
+  const [orderWarning, setOrderWarning] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   
   // Custom states for direct bank transfer and client-side OCR verification
@@ -212,6 +213,7 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const handleSubmit = async (mode: 'WHATSAPP' | 'WEBSITE') => {
+    setOrderWarning('');
     if (!formData.customerName || !formData.customerAddress || !formData.shippingCountry || !formData.shippingCity || !formData.shippingZip) {
       alert('Please fill in all required fields (Name, Shipping Address, Country, City, and ZIP/Postal Code).');
       return;
@@ -328,6 +330,7 @@ export const CheckoutPage: React.FC = () => {
         alert(result.error || 'We could not place your order right now. Please try again.');
         return;
       }
+      setOrderWarning(result.warning || '');
     } else {
       const result = await placeOrder({
         ...formData,
@@ -347,6 +350,7 @@ export const CheckoutPage: React.FC = () => {
         alert(result.error || 'We could not place your order right now. Please try again.');
         return;
       }
+      setOrderWarning(result.warning || '');
     }
     setIsSuccess(true);
   };
@@ -366,6 +370,11 @@ export const CheckoutPage: React.FC = () => {
           <p className="text-gray-600 mb-8">
             Thank you for your purchase. We've received your order and will process it shortly.
           </p>
+          {orderWarning && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+              {orderWarning}
+            </div>
+          )}
           <Link to="/">
             <Button size="lg" className="rounded-full px-8">Return to Home</Button>
           </Link>
