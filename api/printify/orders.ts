@@ -240,6 +240,36 @@ const getPrintAreaPosition = (printAreas: any) => {
   return 'front';
 };
 
+const inferLineItemSource = (item: any): 'printify' | 'etsy' | undefined => {
+  if (!item || typeof item !== 'object') {
+    return undefined;
+  }
+
+  if (
+    item.source === 'etsy' ||
+    item.etsyListingId ||
+    String(item.productId || '').startsWith('etsy_listing_')
+  ) {
+    return 'etsy';
+  }
+
+  if (
+    item.source === 'printify' ||
+    item.isPrintify ||
+    item.printifyProductId ||
+    item.printifyCatalogId ||
+    item.printifyBlueprintId ||
+    item.customization?.printifyBlueprintId ||
+    item.customization?.previewUrl ||
+    item.customization?.customText ||
+    item.customization?.customImageUrl
+  ) {
+    return 'printify';
+  }
+
+  return undefined;
+};
+
 // Builds the print_areas payload for Printify order submission (on-the-fly product creation).
 // Printify's order API uses the simple format: { [position]: artworkUrl }
 // where artworkUrl is a public HTTPS URL (the preview_url returned by the media library upload,
