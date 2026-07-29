@@ -319,7 +319,7 @@ const buildLineItems = async (apiKey: string, order: any, missing: string[]) => 
     }
 
     const quantity = toPositiveInteger(item?.quantity) || 1;
-    const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variant_id']));
+    const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variantId', 'variant_id']));
     const productIdCandidate = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();
     const existingProductId = !isTemplateProductReference(productIdCandidate) && isRealPrintifyProductId(productIdCandidate)
       ? productIdCandidate
