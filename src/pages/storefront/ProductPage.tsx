@@ -35,6 +35,76 @@ const getVariantImages = (variant: any, variantImages: Record<string, string[]>)
   return variantImages[variantId] || [];
 };
 
+const normalizeOptionText = (value: any) => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  if (typeof value === 'object') {
+    return String(value.title || value.name || value.value || value.label || '').trim();
+  }
+
+  return String(value).trim();
+};
+
+const getVariantOptionText = (variant: any, keys: string[]) => {
+  if (!variant || typeof variant !== 'object') {
+    return '';
+  }
+
+  for (const key of keys) {
+    const direct = normalizeOptionText(variant[key]);
+    if (direct) {
+      return direct;
+    }
+  }
+
+  const options = Array.isArray(variant.options) ? variant.options : [];
+  for (const option of options) {
+    const optionName = normalizeOptionText(option?.name || option?.type || option?.key || option?.label).toLowerCase();
+    const optionValue = normalizeOptionText(option?.title || option?.value || option?.name);
+    const hasColorMetadata = !!option?.hex || (Array.isArray(option?.colors) && option.colors.length > 0);
+    const isColorLookup = keys.some((key) => key === 'color' || key === 'colour');
+
+    if ((optionName && keys.some((key) => optionName.includes(key))) || (isColorLookup && hasColorMetadata)) {
+      if (optionValue) {
+        return optionValue;
+      }
+    }
+  }
+
+  if (variant.options && typeof variant.options === 'object' && !Array.isArray(variant.options)) {
+    for (const key of keys) {
+      const direct = normalizeOptionText(variant.options[key]);
+      if (direct) {
+        return direct;
+      }
+    }
+  }
+
+  return '';
+};
+
+const getVariantTitleParts = (variant: any) => (
+  normalizeOptionText(variant?.title || variant?.name)
+    .split(/\s*\/\s*|\s*,\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+);
+
+const isSizeToken = (value: string) => (
+  /^(one size|xs|s|m|l|xl|xxl|xxxl|[2-6]xl|\d+(\.\d+)?|[a-z]*\s?\d+x\d+|[a-z]*\s?\d+oz)$/i.test(value.trim())
+);
+
+const getVariantSize = (variant: any) => {
+  const explicit = getVariantOptionText(variant, ['size']);
+  if (explicit) {
+    return explicit;
+  }
+
+  return getVariantTitleParts(variant).find(isSizeToken) || '';
+};
+
 export const ProductPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { products, settings, addToCart, categories, reviews, addReview, wishlist, toggleWishlist, orders } = useShop();
@@ -129,6 +199,20 @@ export const ProductPage: React.FC = () => {
   }, [colorOptionDetails, selectedColor, showAllColors]);
 
   const hiddenColorCount = Math.max(0, colorOptionDetails.length - visibleColorOptions.length);
+
+  const resolvedVariant = React.useMemo(() => {
+    if (!Array.isArray(product?.variants) || product.variants.length === 0) {
+      return undefined;
+    }
+
+    const matchedVariant = product.variants.find((variant: any) => {
+      const colorMatches = !selectedColor || getVariantColorTitle(variant) === selectedColor;
+      const sizeMatches = !selectedSize || getVariantSize(variant) === selectedSize;
+      return colorMatches && sizeMatches;
+    });
+
+    return matchedVariant || product.variants.find((variant: any) => variant?.id || variant?.variant_id || variant?.printify_variant_id) || product.variants[0];
+  }, [product, selectedColor, selectedSize]);
 
   React.useEffect(() => {
     if (!visibleColorOptions.length) {
@@ -485,7 +569,7 @@ export const ProductPage: React.FC = () => {
                       color: 'var(--primary-foreground)',
                       borderColor: 'var(--primary-border)',
                     }}
-                    onClick={() => addToCart(product, undefined, quantity, { color: selectedColor, size: selectedSize })}
+                    onClick={() => addToCart(product, resolvedVariant, quantity, { color: selectedColor, size: selectedSize })}
                   >
                     <ShoppingBag className="h-3.5 w-3.5 md:h-6 md:w-6" />
                     {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
