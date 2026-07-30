@@ -200,19 +200,24 @@ export const ProductPage: React.FC = () => {
 
   const hiddenColorCount = Math.max(0, colorOptionDetails.length - visibleColorOptions.length);
 
+  const hasProductVariants = Array.isArray(product?.variants) && product.variants.length > 0;
+
   const resolvedVariant = React.useMemo(() => {
-    if (!Array.isArray(product?.variants) || product.variants.length === 0) {
+    if (!hasProductVariants) {
       return undefined;
     }
 
-    const matchedVariant = product.variants.find((variant: any) => {
+    return product.variants.find((variant: any) => {
       const colorMatches = !selectedColor || getVariantColorTitle(variant) === selectedColor;
       const sizeMatches = !selectedSize || getVariantSize(variant) === selectedSize;
       return colorMatches && sizeMatches;
     });
+  }, [hasProductVariants, product, selectedColor, selectedSize]);
 
-    return matchedVariant || product.variants.find((variant: any) => variant?.id || variant?.variant_id || variant?.printify_variant_id) || product.variants[0];
-  }, [product, selectedColor, selectedSize]);
+  const hasExactVariantMatch = !hasProductVariants || Boolean(resolvedVariant);
+  const variantSelectionError = hasProductVariants && !resolvedVariant
+    ? 'This combination is currently unavailable.'
+    : '';
 
   React.useEffect(() => {
     if (!visibleColorOptions.length) {
@@ -562,7 +567,7 @@ export const ProductPage: React.FC = () => {
                 ) : (
                   <Button 
                     size="lg" 
-                    disabled={product.stock <= 0}
+                    disabled={product.stock <= 0 || !hasExactVariantMatch}
                     className={`${isDevsFolk && device === 'mobile' ? 'h-10 text-[10px]' : 'h-14 text-lg'} flex-1 rounded-xl md:rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2`}
                     style={{
                       backgroundColor: settings.primaryColor,
@@ -572,7 +577,9 @@ export const ProductPage: React.FC = () => {
                     onClick={() => addToCart(product, resolvedVariant, quantity, { color: selectedColor, size: selectedSize })}
                   >
                     <ShoppingBag className="h-3.5 w-3.5 md:h-6 md:w-6" />
-                    {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                    {product.stock > 0
+                      ? (hasExactVariantMatch ? 'Add to Cart' : 'Unavailable')
+                      : 'Out of Stock'}
                   </Button>
                 )}
                   <Button
@@ -593,6 +600,11 @@ export const ProductPage: React.FC = () => {
                   </Button>
                 </div>
                 {shareMessage && <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{shareMessage}</p>}
+                {variantSelectionError && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-500">
+                    {variantSelectionError}
+                  </p>
+                )}
             </div>
           </div>
 

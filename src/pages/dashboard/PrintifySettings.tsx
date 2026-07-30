@@ -177,6 +177,12 @@ export const PrintifySettings: React.FC = () => {
     // Fetch and select primary print provider
     const providerData = await fetchPrintifyBlueprintProviders(apiKey, template.blueprintId);
     const providers = normalizePrintifyList(providerData, ['print_providers', 'providers']);
+    if (providers.length === 0) {
+      setSyncLogs(prev => [
+        ...prev,
+        `[WARNING] No print providers were returned for ${template.title} (blueprint ${template.blueprintId}). This template will remain provider-empty until it is re-synced after provider data exists.`,
+      ]);
+    }
     const productProviderId = Number(shopProductDetail?.print_provider_id || shopProductDetail?.printProviderId);
     const primaryProvider = providers.find((provider: any) => Number(provider?.id || provider?.print_provider_id) === productProviderId) || providers[0];
     const primaryProviderId = Number(primaryProvider?.id || primaryProvider?.print_provider_id || template.printProviderId || 0);
