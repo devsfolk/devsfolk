@@ -496,6 +496,17 @@ const updateOrderFulfillmentStatusInDatabase = async (
   });
 };
 
+const updateOrderFulfillmentStatusSafely = async (
+  orderId: string,
+  updates: { printifyOrderId?: string | null; printifySyncStatus: string; printifyErrorLog?: string | null }
+) => {
+  try {
+    await updateOrderFulfillmentStatusInDatabase(orderId, updates);
+  } catch (error) {
+    console.error('[Printify Orders] Failed to persist fulfillment status update:', error);
+  }
+};
+
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -561,7 +572,7 @@ export default async function handler(request: any, response: any) {
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
     if (orderId) {
-      await updateOrderFulfillmentStatusInDatabase(orderId, {
+      await updateOrderFulfillmentStatusSafely(orderId, {
         printifySyncStatus: 'FAILED',
         printifyErrorLog: errorMessage,
       });
@@ -576,7 +587,7 @@ export default async function handler(request: any, response: any) {
   if (missing.length > 0) {
     const missingMessage = `Order is missing Printify fulfillment metadata: ${missing.join(', ')}`;
     if (orderId) {
-      await updateOrderFulfillmentStatusInDatabase(orderId, {
+      await updateOrderFulfillmentStatusSafely(orderId, {
         printifySyncStatus: 'FAILED',
         printifyErrorLog: missingMessage,
       });
@@ -601,11 +612,17 @@ export default async function handler(request: any, response: any) {
     });
 
     const data = await parsePrintifyResponse(printifyResponse);
+    const rejectionDetails = data?.errors?.reason
+      || data?.details
+      || data?.reason
+      || data?.message
+      || data?.error
+      || `Printify rejected the order with status ${printifyResponse.status}.`;
     
     if (printifyResponse.ok) {
       const printifyOrderId = data?.id || data?.data?.id || null;
       if (orderId) {
-        await updateOrderFulfillmentStatusInDatabase(orderId, {
+        await updateOrderFulfillmentStatusSafely(orderId, {
           printifySyncStatus: 'SYNCED',
           printifyOrderId,
           printifyErrorLog: null,
@@ -613,21 +630,24 @@ export default async function handler(request: any, response: any) {
       }
     } else {
       const errorMessage = data?.message || data?.error || 'Printify order submission failed.';
-      const reason = data?.errors?.reason ? ` ${data.errors.reason}` : '';
       if (orderId) {
-        await updateOrderFulfillmentStatusInDatabase(orderId, {
+        await updateOrderFulfillmentStatusSafely(orderId, {
           printifySyncStatus: 'FAILED',
-          printifyOrderId: request.body?.order?.printifyOrderId || null,
-          printifyErrorLog: `${errorMessage}${reason}`,
+          printifyOrderId: null,
+          printifyErrorLog: rejectionDetails,
         });
       }
     }
 
-    sendJson(response, printifyResponse.status, data || { status: printifyResponse.status });
+    sendJson(response, printifyResponse.status, data || {
+      error: 'Printify order submission failed.',
+      details: rejectionDetails,
+      status: printifyResponse.status,
+    });
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
     if (orderId) {
-      await updateOrderFulfillmentStatusInDatabase(orderId, {
+      await updateOrderFulfillmentStatusSafely(orderId, {
         printifySyncStatus: 'FAILED',
         printifyErrorLog: errorMessage,
       });
