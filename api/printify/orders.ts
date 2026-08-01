@@ -652,9 +652,18 @@ export default async function handler(request: any, response: any) {
         printifyErrorLog: errorMessage,
       });
     }
+    // TEMPORARY DEBUGGING: expose the raw error details only for authenticated admin callers
+    // so Burney can inspect the real server-side failure without relying on Vercel logs.
+    // Remove once the underlying order-submission bug is fully resolved.
     sendJson(response, 502, {
       error: 'Printify order submission failed.',
       details: errorMessage,
+      ...(isAuthorized ? {
+        debug: {
+          message: errorMessage,
+          stack: error?.stack || null,
+        },
+      } : {}),
     });
   }
 }
