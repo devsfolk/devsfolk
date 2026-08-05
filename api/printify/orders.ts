@@ -514,156 +514,166 @@ export default async function handler(request: any, response: any) {
     return;
   }
 
-  const isAuthorized = await isAuthorizedAdminRequest(request);
-  const orderId = String(request.body?.orderId || request.body?.order?.id || '').trim();
+  try {
+    const orderId = String(request.body?.orderId || request.body?.order?.id || '').trim();
+    const isAuthorized = await isAuthorizedAdminRequest(request);
+    let orderData = request.body?.order;
 
-  let orderData = request.body?.order;
+    if (!isAuthorized) {
+      if (!orderId) {
+        sendJson(response, 401, { error: 'Admin authentication or a valid Order ID is required.' });
+        return;
+      }
 
-  if (!isAuthorized) {
-    if (!orderId) {
-      sendJson(response, 401, { error: 'Admin authentication or a valid Order ID is required.' });
+      try {
+        const fetchedOrder = await getOrderFromDatabase(orderId);
+        if (!fetchedOrder) {
+          sendJson(response, 404, { error: `Order ${orderId} not found.` });
+          return;
+        }
+
+        if (fetchedOrder.printifySyncStatus === 'SYNCED') {
+          sendJson(response, 200, {
+            id: fetchedOrder.printifyOrderId,
+            status: 'ALREADY_SYNCED',
+            message: 'Order has already been fulfilled on Printify.',
+          });
+          return;
+        }
+
+        orderData = fetchedOrder;
+      } catch (dbError: any) {
+        sendJson(response, 500, {
+          error: 'Failed to retrieve order for validation.',
+          details: dbError?.message || String(dbError),
+        });
+        return;
+      }
+    }
+
+    const apiKey = normalizeApiKey(request.body?.apiKey) || await getSavedPrintifyApiKey();
+    if (!apiKey) {
+      sendJson(response, 400, { error: 'Printify API Access Token is required.' });
+      return;
+    }
+
+    const shopId = String(request.body?.shopId || '').trim();
+    if (!/^\d+$/.test(shopId)) {
+      sendJson(response, 400, { error: 'A valid numeric Printify Shop ID is required.' });
+      return;
+    }
+
+    let missing: string[] = [];
+    let payload: any = null;
+    try {
+      const built = await buildOrderPayload(apiKey, orderData);
+      missing = built.missing;
+      payload = built.payload;
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      if (orderId) {
+        await updateOrderFulfillmentStatusSafely(orderId, {
+          printifySyncStatus: 'FAILED',
+          printifyErrorLog: errorMessage,
+        });
+      }
+      sendJson(response, 422, {
+        error: 'Printify fulfillment artwork preparation failed.',
+        details: errorMessage,
+      });
+      return;
+    }
+
+    if (missing.length > 0) {
+      const missingMessage = `Order is missing Printify fulfillment metadata: ${missing.join(', ')}`;
+      if (orderId) {
+        await updateOrderFulfillmentStatusSafely(orderId, {
+          printifySyncStatus: 'FAILED',
+          printifyErrorLog: missingMessage,
+        });
+      }
+      sendJson(response, 422, {
+        error: 'Order is missing Printify fulfillment metadata.',
+        missing,
+        details: 'Existing Printify products require a real Printify product_id and variant_id. Custom template orders require blueprint_id, print_provider_id, variant_id, uploaded artwork/public artwork URL, generated print_areas, and structured shipping address fields.',
+      });
       return;
     }
 
     try {
-      const fetchedOrder = await getOrderFromDatabase(orderId);
-      if (!fetchedOrder) {
-        sendJson(response, 404, { error: `Order ${orderId} not found.` });
-        return;
+      const printifyResponse = await fetch(`${PRINTIFY_API_BASE}/shops/${shopId}/orders.json`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json;charset=utf-8',
+          'User-Agent': 'devsfolk-app/1.0',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await parsePrintifyResponse(printifyResponse);
+      const rejectionDetails = data?.errors?.reason
+        || data?.details
+        || data?.reason
+        || data?.message
+        || data?.error
+        || `Printify rejected the order with status ${printifyResponse.status}.`;
+      
+      if (printifyResponse.ok) {
+        const printifyOrderId = data?.id || data?.data?.id || null;
+        if (orderId) {
+          await updateOrderFulfillmentStatusSafely(orderId, {
+            printifySyncStatus: 'SYNCED',
+            printifyOrderId,
+            printifyErrorLog: null,
+          });
+        }
+      } else {
+        if (orderId) {
+          await updateOrderFulfillmentStatusSafely(orderId, {
+            printifySyncStatus: 'FAILED',
+            printifyOrderId: null,
+            printifyErrorLog: rejectionDetails,
+          });
+        }
       }
 
-      if (fetchedOrder.printifySyncStatus === 'SYNCED') {
-        sendJson(response, 200, {
-          id: fetchedOrder.printifyOrderId,
-          status: 'ALREADY_SYNCED',
-          message: 'Order has already been fulfilled on Printify.',
-        });
-        return;
-      }
-
-      orderData = fetchedOrder;
-    } catch (dbError: any) {
-      sendJson(response, 500, {
-        error: 'Failed to retrieve order for validation.',
-        details: dbError?.message || String(dbError),
+      sendJson(response, printifyResponse.status, data || {
+        error: 'Printify order submission failed.',
+        details: rejectionDetails,
+        status: printifyResponse.status,
       });
-      return;
-    }
-  }
-
-  const apiKey = normalizeApiKey(request.body?.apiKey) || await getSavedPrintifyApiKey();
-  if (!apiKey) {
-    sendJson(response, 400, { error: 'Printify API Access Token is required.' });
-    return;
-  }
-
-  const shopId = String(request.body?.shopId || '').trim();
-  if (!/^\d+$/.test(shopId)) {
-    sendJson(response, 400, { error: 'A valid numeric Printify Shop ID is required.' });
-    return;
-  }
-
-  let missing: string[] = [];
-  let payload: any = null;
-  try {
-    const built = await buildOrderPayload(apiKey, orderData);
-    missing = built.missing;
-    payload = built.payload;
-  } catch (error: any) {
-    const errorMessage = error?.message || String(error);
-    if (orderId) {
-      await updateOrderFulfillmentStatusSafely(orderId, {
-        printifySyncStatus: 'FAILED',
-        printifyErrorLog: errorMessage,
-      });
-    }
-    sendJson(response, 422, {
-      error: 'Printify fulfillment artwork preparation failed.',
-      details: errorMessage,
-    });
-    return;
-  }
-
-  if (missing.length > 0) {
-    const missingMessage = `Order is missing Printify fulfillment metadata: ${missing.join(', ')}`;
-    if (orderId) {
-      await updateOrderFulfillmentStatusSafely(orderId, {
-        printifySyncStatus: 'FAILED',
-        printifyErrorLog: missingMessage,
-      });
-    }
-    sendJson(response, 422, {
-      error: 'Order is missing Printify fulfillment metadata.',
-      missing,
-      details: 'Existing Printify products require a real Printify product_id and variant_id. Custom template orders require blueprint_id, print_provider_id, variant_id, uploaded artwork/public artwork URL, generated print_areas, and structured shipping address fields.',
-    });
-    return;
-  }
-
-  try {
-    const printifyResponse = await fetch(`${PRINTIFY_API_BASE}/shops/${shopId}/orders.json`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json;charset=utf-8',
-        'User-Agent': 'devsfolk-app/1.0',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await parsePrintifyResponse(printifyResponse);
-    const rejectionDetails = data?.errors?.reason
-      || data?.details
-      || data?.reason
-      || data?.message
-      || data?.error
-      || `Printify rejected the order with status ${printifyResponse.status}.`;
-    
-    if (printifyResponse.ok) {
-      const printifyOrderId = data?.id || data?.data?.id || null;
-      if (orderId) {
-        await updateOrderFulfillmentStatusSafely(orderId, {
-          printifySyncStatus: 'SYNCED',
-          printifyOrderId,
-          printifyErrorLog: null,
-        });
-      }
-    } else {
-      const errorMessage = data?.message || data?.error || 'Printify order submission failed.';
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
       if (orderId) {
         await updateOrderFulfillmentStatusSafely(orderId, {
           printifySyncStatus: 'FAILED',
-          printifyOrderId: null,
-          printifyErrorLog: rejectionDetails,
+          printifyErrorLog: errorMessage,
         });
       }
-    }
-
-    sendJson(response, printifyResponse.status, data || {
-      error: 'Printify order submission failed.',
-      details: rejectionDetails,
-      status: printifyResponse.status,
-    });
-  } catch (error: any) {
-    const errorMessage = error?.message || String(error);
-    if (orderId) {
-      await updateOrderFulfillmentStatusSafely(orderId, {
-        printifySyncStatus: 'FAILED',
-        printifyErrorLog: errorMessage,
+      // TEMPORARY DEBUGGING: expose the raw error details only for authenticated admin callers
+      // so Burney can inspect the real server-side failure without relying on Vercel logs.
+      // Remove once the underlying order-submission bug is fully resolved.
+      sendJson(response, 502, {
+        error: 'Printify order submission failed.',
+        details: errorMessage,
+        ...(isAuthorized ? {
+          debug: {
+            message: errorMessage,
+            stack: error?.stack || null,
+          },
+        } : {}),
       });
     }
-    // TEMPORARY DEBUGGING: expose the raw error details only for authenticated admin callers
-    // so Burney can inspect the real server-side failure without relying on Vercel logs.
-    // Remove once the underlying order-submission bug is fully resolved.
-    sendJson(response, 502, {
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    sendJson(response, 500, {
       error: 'Printify order submission failed.',
       details: errorMessage,
-      ...(isAuthorized ? {
-        debug: {
-          message: errorMessage,
-          stack: error?.stack || null,
-        },
-      } : {}),
+      debug: {
+        message: errorMessage,
+        stack: error?.stack || null,
+      },
     });
   }
 }
