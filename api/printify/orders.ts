@@ -10,8 +10,31 @@ const getSupabaseConfig = () => {
 };
 
 const sendJson = (response: any, status: number, payload: unknown) => {
-  response.status(status).json(payload);
+  try {
+    const body = JSON.stringify(payload);
+    response.status(status).setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.end(body);
+  } catch (serializationError: any) {
+    const fallbackPayload = {
+      error: 'Printify order submission failed.',
+      details: 'The server could not serialize the response payload.',
+      debug: {
+        message: serializationError?.message || String(serializationError),
+        name: serializationError?.name || 'SerializationError',
+        stack: typeof serializationError?.stack === 'string' ? serializationError.stack : null,
+      },
+    };
+
+    response.status(500).setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.end(JSON.stringify(fallbackPayload));
+  }
 };
+
+const buildSafeErrorDebug = (error: any) => ({
+  message: typeof error?.message === 'string' && error.message ? error.message : String(error || 'Unknown error'),
+  name: typeof error?.name === 'string' && error.name ? error.name : 'Error',
+  stack: typeof error?.stack === 'string' ? error.stack : null,
+});
 
 const parsePrintifyResponse = async (printifyResponse: any) => {
   const text = await printifyResponse.text();
@@ -645,6 +668,7 @@ export default async function handler(request: any, response: any) {
       });
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
+      const debug = buildSafeErrorDebug(error);
       if (orderId) {
         await updateOrderFulfillmentStatusSafely(orderId, {
           printifySyncStatus: 'FAILED',
@@ -657,23 +681,16 @@ export default async function handler(request: any, response: any) {
       sendJson(response, 502, {
         error: 'Printify order submission failed.',
         details: errorMessage,
-        ...(isAuthorized ? {
-          debug: {
-            message: errorMessage,
-            stack: error?.stack || null,
-          },
-        } : {}),
+        ...(isAuthorized ? { debug } : {}),
       });
     }
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
+    const debug = buildSafeErrorDebug(error);
     sendJson(response, 500, {
       error: 'Printify order submission failed.',
       details: errorMessage,
-      debug: {
-        message: errorMessage,
-        stack: error?.stack || null,
-      },
+      debug,
     });
   }
 }
