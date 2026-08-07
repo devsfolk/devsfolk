@@ -33,7 +33,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const PREVIEW_RENDER_SIZE = 1200;
   const PREVIEW_EXPORT_MULTIPLIER = 2;
   const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
-  const TEMPORARILY_DISABLED_BLUEPRINT_IDS = new Set(['68']);
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
@@ -70,41 +69,17 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     };
   };
 
-  const getSyncedVariantId = (variant: any) => (
-    Number(variant?.id || variant?.variant_id || variant?.printify_variant_id) || 0
-  );
-
-  const isTemporarilyDisabledBlueprint = (blueprintId?: string | number | null) => (
-    blueprintId !== undefined &&
-    blueprintId !== null &&
-    TEMPORARILY_DISABLED_BLUEPRINT_IDS.has(String(blueprintId))
-  );
-
-  const templateHasCheckoutMetadata = (template?: PrintifyCatalogTemplate) => (
-    !!template &&
-    Array.isArray(template.providers) &&
-    template.providers.length > 0 &&
-    Array.isArray(template.variants) &&
-    template.variants.some((variant: any) => getSyncedVariantId(variant) > 0)
-  );
-
   // Filter raw Printify templates only. Admin-created Printify shop products remain storefront products.
   const customProducts = useMemo(() => {
     const syncedTemplateProducts = products.filter((product) => (
       isRawPrintifyTemplateProduct(product) &&
-      !isTemporarilyDisabledBlueprint(product.printifyCatalogId) &&
       (
-        product.variants?.some((variant: any) => getSyncedVariantId(variant) > 0 && variant.stock !== 0) ||
-        templateHasCheckoutMetadata(editorReadyTemplates.find((template) => (
-          String(template.blueprintId) === product.printifyCatalogId &&
-          !isTemporarilyDisabledBlueprint(template.blueprintId)
-        )))
+        product.variants?.some((variant: any) => Number(variant?.id || variant?.variant_id || variant?.printify_variant_id) > 0 && variant.stock !== 0) ||
+        editorReadyTemplates.some((template) => String(template.blueprintId) === product.printifyCatalogId)
       )
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
     const catalogTemplateProducts = editorReadyTemplates
-      .filter(templateHasCheckoutMetadata)
-      .filter((template) => !isTemporarilyDisabledBlueprint(template.blueprintId))
       .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
       .map(templateToEditorProduct);
 
