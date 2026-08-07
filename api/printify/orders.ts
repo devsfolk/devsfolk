@@ -15,6 +15,7 @@ const sendJson = (response: any, status: number, payload: unknown) => {
     response.status(status).setHeader('Content-Type', 'application/json; charset=utf-8');
     response.end(body);
   } catch (serializationError: any) {
+    console.error('[Printify Orders] Failed to write JSON response:', serializationError);
     const fallbackPayload = {
       error: 'Printify order submission failed.',
       details: 'The server could not serialize the response payload.',
@@ -26,7 +27,12 @@ const sendJson = (response: any, status: number, payload: unknown) => {
     };
 
     response.status(500).setHeader('Content-Type', 'application/json; charset=utf-8');
-    response.end(JSON.stringify(fallbackPayload));
+    try {
+      response.end(JSON.stringify(fallbackPayload));
+    } catch (fallbackError: any) {
+      console.error('[Printify Orders] Failed to write fallback JSON response:', fallbackError);
+      throw fallbackError;
+    }
   }
 };
 
@@ -624,6 +630,11 @@ export default async function handler(request: any, response: any) {
     }
 
     try {
+      console.log('[Printify Orders] Creating Printify order:', {
+        orderId,
+        shopId,
+        lineItemCount: Array.isArray(payload?.line_items) ? payload.line_items.length : 0,
+      });
       const printifyResponse = await fetch(`${PRINTIFY_API_BASE}/shops/${shopId}/orders.json`, {
         method: 'POST',
         headers: {
@@ -633,8 +644,19 @@ export default async function handler(request: any, response: any) {
         },
         body: JSON.stringify(payload),
       });
+      console.log('[Printify Orders] Printify order response received:', {
+        orderId,
+        status: printifyResponse.status,
+        ok: printifyResponse.ok,
+      });
 
       const data = await parsePrintifyResponse(printifyResponse);
+      console.log('[Printify Orders] Printify order response parsed:', {
+        orderId,
+        status: printifyResponse.status,
+        hasData: !!data,
+        keys: data && typeof data === 'object' ? Object.keys(data).slice(0, 10) : [],
+      });
       const rejectionDetails = data?.errors?.reason
         || data?.details
         || data?.reason
@@ -645,31 +667,54 @@ export default async function handler(request: any, response: any) {
       if (printifyResponse.ok) {
         const printifyOrderId = data?.id || data?.data?.id || null;
         if (orderId) {
+          console.log('[Printify Orders] Updating fulfillment status to SYNCED:', {
+            orderId,
+            printifyOrderId,
+          });
           await updateOrderFulfillmentStatusSafely(orderId, {
             printifySyncStatus: 'SYNCED',
             printifyOrderId,
             printifyErrorLog: null,
           });
+          console.log('[Printify Orders] Fulfillment status update to SYNCED completed:', { orderId });
         }
       } else {
         if (orderId) {
+          console.log('[Printify Orders] Updating fulfillment status to FAILED:', {
+            orderId,
+            rejectionDetails,
+          });
           await updateOrderFulfillmentStatusSafely(orderId, {
             printifySyncStatus: 'FAILED',
             printifyOrderId: null,
             printifyErrorLog: rejectionDetails,
           });
+          console.log('[Printify Orders] Fulfillment status update to FAILED completed:', { orderId });
         }
       }
 
+      console.log('[Printify Orders] Sending Printify response to client:', {
+        orderId,
+        responseStatus: printifyResponse.status,
+      });
       sendJson(response, printifyResponse.status, data || {
         error: 'Printify order submission failed.',
         details: rejectionDetails,
         status: printifyResponse.status,
       });
+      console.log('[Printify Orders] Response sent to client:', {
+        orderId,
+        responseStatus: printifyResponse.status,
+      });
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
       const debug = buildSafeErrorDebug(error);
+      console.error('[Printify Orders] Unhandled error during Printify order submission:', error);
       if (orderId) {
+        console.log('[Printify Orders] Updating fulfillment status to FAILED from catch block:', {
+          orderId,
+          errorMessage,
+        });
         await updateOrderFulfillmentStatusSafely(orderId, {
           printifySyncStatus: 'FAILED',
           printifyErrorLog: errorMessage,
@@ -683,10 +728,15 @@ export default async function handler(request: any, response: any) {
         details: errorMessage,
         ...(isAuthorized ? { debug } : {}),
       });
+      console.log('[Printify Orders] 502 response sent from catch block:', {
+        orderId,
+        isAuthorized,
+      });
     }
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
     const debug = buildSafeErrorDebug(error);
+    console.error('[Printify Orders] Unhandled outer error before Printify submission:', error);
     sendJson(response, 500, {
       error: 'Printify order submission failed.',
       details: errorMessage,
