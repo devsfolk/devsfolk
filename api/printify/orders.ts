@@ -790,7 +790,6 @@ export default async function handler(request: any, response: any) {
       });
       sendJson(response, 422, {
         error: availabilityMessage,
-        details,
       });
       return;
     }
