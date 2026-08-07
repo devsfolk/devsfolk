@@ -42,6 +42,14 @@ const buildSafeErrorDebug = (error: any) => ({
   stack: typeof error?.stack === 'string' ? error.stack : null,
 });
 
+const formatForLog = (value: any) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch (error) {
+    return `[Unserializable value: ${String(error)}]`;
+  }
+};
+
 const parsePrintifyResponse = async (printifyResponse: any) => {
   const text = await printifyResponse.text();
   if (!text) {
@@ -635,6 +643,7 @@ export default async function handler(request: any, response: any) {
         shopId,
         lineItemCount: Array.isArray(payload?.line_items) ? payload.line_items.length : 0,
       });
+      console.log('[Printify Orders] Printify order payload:', formatForLog(payload));
       const printifyResponse = await fetch(`${PRINTIFY_API_BASE}/shops/${shopId}/orders.json`, {
         method: 'POST',
         headers: {
@@ -651,6 +660,7 @@ export default async function handler(request: any, response: any) {
       });
 
       const data = await parsePrintifyResponse(printifyResponse);
+      console.log('[Printify Orders] Printify order parsed response body:', formatForLog(data));
       console.log('[Printify Orders] Printify order response parsed:', {
         orderId,
         status: printifyResponse.status,
