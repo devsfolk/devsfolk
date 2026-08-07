@@ -33,7 +33,7 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const PREVIEW_RENDER_SIZE = 1200;
   const PREVIEW_EXPORT_MULTIPLIER = 2;
   const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
-  const TEMPORARILY_DISABLED_BLUEPRINT_IDS = new Set(['68']);
+  const TEMPORARILY_DISABLED_BLUEPRINT_IDS = new Set(['68', '77', '95']);
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
