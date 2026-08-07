@@ -17,6 +17,10 @@ const buildTemplateDetailPath = (body: any) => {
     return `/shops/${shopId}/products.json`;
   }
 
+  if (mode === 'shop-products-summary' && /^\d+$/.test(shopId)) {
+    return `/shops/${shopId}/products.json`;
+  }
+
   if (!/^\d+$/.test(blueprintId)) {
     return null;
   }
@@ -93,6 +97,26 @@ export default async function handler(request: any, response: any) {
         matchedProductId: String(matchedProduct.id),
         matchedProduct,
         detail: detail.payload,
+        requiredScopes: REQUIRED_SCOPES,
+      });
+      return;
+    }
+
+    if (String(request.body?.mode || '').trim() === 'shop-products-summary') {
+      const products = Array.isArray(result.payload?.data)
+        ? result.payload.data
+        : Array.isArray(result.payload)
+          ? result.payload
+          : [];
+
+      sendJson(response, result.status, {
+        shopId: String(request.body?.shopId || '').trim(),
+        count: products.length,
+        products: products.map((product: any) => ({
+          id: product?.id ?? null,
+          title: product?.title || product?.name || '',
+          blueprint_id: product?.blueprint_id ?? product?.blueprintId ?? null,
+        })),
         requiredScopes: REQUIRED_SCOPES,
       });
       return;
