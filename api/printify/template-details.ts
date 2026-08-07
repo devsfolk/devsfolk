@@ -13,6 +13,10 @@ const buildTemplateDetailPath = (body: any) => {
     return `/shops/${shopId}/products/${encodeURIComponent(productId)}.json`;
   }
 
+  if (mode === 'shop-product-by-blueprint' && /^\d+$/.test(shopId) && /^\d+$/.test(blueprintId)) {
+    return `/shops/${shopId}/products.json`;
+  }
+
   if (!/^\d+$/.test(blueprintId)) {
     return null;
   }
@@ -55,6 +59,45 @@ export default async function handler(request: any, response: any) {
 
   try {
     const result = await callPrintify(apiKey, path);
+
+    if (String(request.body?.mode || '').trim() === 'shop-product-by-blueprint') {
+      const requestedBlueprintId = Number(request.body?.blueprintId || 0);
+      const products = Array.isArray(result.payload?.data)
+        ? result.payload.data
+        : Array.isArray(result.payload)
+          ? result.payload
+          : [];
+      const matchedProduct = products.find((product: any) => (
+        Number(product?.blueprint_id || product?.blueprintId || 0) === requestedBlueprintId
+      ));
+
+      if (!matchedProduct?.id) {
+        sendJson(response, 404, {
+          error: 'No Printify shop product matched the requested blueprint.',
+          shopId: String(request.body?.shopId || '').trim(),
+          blueprintId: requestedBlueprintId,
+          products: products.map((product: any) => ({
+            id: product?.id,
+            blueprint_id: product?.blueprint_id ?? product?.blueprintId ?? null,
+            title: product?.title || product?.name || '',
+          })),
+          requiredScopes: REQUIRED_SCOPES,
+        });
+        return;
+      }
+
+      const detail = await callPrintify(apiKey, `/shops/${String(request.body?.shopId || '').trim()}/products/${encodeURIComponent(String(matchedProduct.id))}.json`);
+      sendJson(response, detail.status, {
+        shopId: String(request.body?.shopId || '').trim(),
+        blueprintId: requestedBlueprintId,
+        matchedProductId: String(matchedProduct.id),
+        matchedProduct,
+        detail: detail.payload,
+        requiredScopes: REQUIRED_SCOPES,
+      });
+      return;
+    }
+
     sendPrintifyResult(response, result.status, result.payload, 'Printify template detail lookup failed.', REQUIRED_SCOPES);
   } catch (error: any) {
     sendJson(response, 502, {

@@ -1,7 +1,7 @@
 import { Order, PrintifyCatalogTemplate } from '@/types';
 import { supabase } from '@/lib/supabase';
 
-type PrintifyRequestMode = 'shops' | 'shop-products' | 'shop-product' | 'blueprints' | 'blueprint' | 'providers' | 'variants' | 'shipping';
+type PrintifyRequestMode = 'shops' | 'shop-products' | 'shop-product' | 'shop-product-by-blueprint' | 'blueprints' | 'blueprint' | 'providers' | 'variants' | 'shipping';
 
 interface PrintifyGatewayRequest {
   apiKey: string;
@@ -63,6 +63,10 @@ export const fetchPrintifyShopProducts = (apiKey: string, shopId: string) => {
 
 export const fetchPrintifyShopProduct = (apiKey: string, shopId: string, productId: string) => {
   return callPrintifyGateway<any>({ apiKey, mode: 'shop-product', shopId, productId });
+};
+
+export const fetchPrintifyShopProductByBlueprint = (apiKey: string, shopId: string, blueprintId: number) => {
+  return callPrintifyGateway<any>({ apiKey, mode: 'shop-product-by-blueprint', shopId, blueprintId });
 };
 
 export const submitPrintifyOrder = async (shopId: string, order: Order, apiKey = '') => {
