@@ -12,7 +12,7 @@ import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
 import { Product, PrintifyCatalogTemplate, PrintifyViewCustomization, PrintifyViewKey } from '@/types';
-import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
+import { isPurchasablePrintifyTemplate, isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 import { getPrintifyViewLabel, hasPrintifyViewCustomization } from '@/lib/printifyCustomizationSummary';
 
 interface BespokeCustomizerProps {
@@ -33,7 +33,6 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
   const PREVIEW_RENDER_SIZE = 1200;
   const PREVIEW_EXPORT_MULTIPLIER = 2;
   const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
-  const TEMPORARILY_DISABLED_BLUEPRINT_IDS = new Set(['12', '68', '77', '95']);
 
   const normalizeTemplateImage = (image: any) => {
     if (!image) return '';
@@ -75,8 +74,11 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     const syncedTemplateProducts = products.filter((product) => (
       isRawPrintifyTemplateProduct(product) &&
       (
-        product.variants?.some((variant: any) => Number(variant?.id || variant?.variant_id || variant?.printify_variant_id) > 0 && variant.stock !== 0) ||
-        editorReadyTemplates.some((template) => String(template.blueprintId) === product.printifyCatalogId)
+        product.variants?.some((variant: any) => Number(variant?.id || variant?.variant_id || variant?.printify_variant_id) > 0 && variant.stock !== 0) &&
+        editorReadyTemplates.some((template) => (
+          String(template.blueprintId) === product.printifyCatalogId &&
+          isPurchasablePrintifyTemplate(template, products)
+        ))
       )
     ));
     const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
