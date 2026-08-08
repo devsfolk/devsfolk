@@ -160,6 +160,7 @@ export const PrintifySettings: React.FC = () => {
   ): Promise<PrintifyCatalogTemplate> => {
     const shopId = printifySettings.providerSettings.shopId?.trim();
     const matchedShopProduct = shopProductsByBlueprintId?.get(template.blueprintId);
+    const hasLinkedShopProduct = Boolean(matchedShopProduct?.id);
     let shopProductDetail = matchedShopProduct;
 
     // Fetch full shop product detail if available (includes variants, images, pricing)
@@ -181,6 +182,12 @@ export const PrintifySettings: React.FC = () => {
       setSyncLogs(prev => [
         ...prev,
         `[WARNING] No print providers were returned for ${template.title} (blueprint ${template.blueprintId}). This template will remain provider-empty until it is re-synced after provider data exists.`,
+      ]);
+    }
+    if (!hasLinkedShopProduct) {
+      setSyncLogs(prev => [
+        ...prev,
+        `[WARNING] No live shop product matched ${template.title} (blueprint ${template.blueprintId}). This template will be marked unavailable until the shop product exists again.`,
       ]);
     }
     const productProviderId = Number(shopProductDetail?.print_provider_id || shopProductDetail?.printProviderId);
@@ -312,10 +319,10 @@ export const PrintifySettings: React.FC = () => {
     const colors = extractOptionTitles(variants, 'color');
     const sizes = extractOptionTitles(variants, 'size');
 
-    return {
+      return {
       ...template,
       id: `bp_${template.blueprintId}`,
-      productId: shopProductDetail?.id ? String(shopProductDetail.id) : template.productId,
+      productId: hasLinkedShopProduct ? String(matchedShopProduct.id) : template.productId,
       title: shopProductDetail?.title || blueprintDetail?.title || template.title,
       category: shopProductDetail?.category || blueprintDetail?.category || template.category || 'Catalog Blueprint',
       brand: blueprintDetail?.brand || template.brand,
@@ -348,6 +355,8 @@ export const PrintifySettings: React.FC = () => {
       syncDetails: {
         blueprint: blueprintDetail || template.syncDetails?.blueprint || null,
         shopProduct: shopProductDetail || null,
+        shopProductLinked: hasLinkedShopProduct,
+        shopProductId: hasLinkedShopProduct ? String(matchedShopProduct.id) : template.syncDetails?.shopProductId || null,
         provider: primaryProvider || null,
         colorCodes: extractOptionHexes(variants),
         providerLocation: primaryProvider?.location || null,
@@ -364,7 +373,7 @@ export const PrintifySettings: React.FC = () => {
         syncedAt: new Date().toISOString(),
       },
       syncStatus: template.syncStatus || 'raw',
-      isEnabled: template.isEnabled && template.syncStatus === 'published',
+      isEnabled: template.isEnabled && template.syncStatus === 'published' && hasLinkedShopProduct,
       lastSynced: new Date().toISOString(),
     };
   };
