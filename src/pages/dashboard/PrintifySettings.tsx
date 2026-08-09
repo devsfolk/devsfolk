@@ -2055,6 +2055,23 @@ export const PrintifySettings: React.FC = () => {
                   </Button>
                 </div>
 
+                <div className="bg-gray-50 border p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-gray-600">Sync &amp; Link Raw Templates</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 leading-normal max-w-lg">
+                      Refreshes raw blueprint templates from Printify and links them to the live shop product record that matches the same blueprint.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={runReliableTemplateCatalogSync}
+                    disabled={syncingTemplates}
+                    className="rounded-xl h-10 px-4 text-[10px] font-black uppercase bg-black text-white hover:bg-neutral-800 self-stretch md:self-auto shrink-0"
+                  >
+                    {syncingTemplates ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Layers className="h-3 w-3 mr-2" />}
+                    Sync &amp; Link to Shop Product
+                  </Button>
+                </div>
+
                 {/* Sync Status */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="p-3 bg-gray-50 rounded-xl border">
