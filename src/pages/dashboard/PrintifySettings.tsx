@@ -143,12 +143,16 @@ export const PrintifySettings: React.FC = () => {
   };
 
   const mapShopProductsByBlueprint = (shopProducts: any[]) => {
-    const byBlueprintId = new Map<number, any>();
+    const byBlueprintId = new Map<number, any[]>();
     shopProducts.forEach((product) => {
       const blueprintId = Number(product?.blueprint_id || product?.blueprintId);
-      if (blueprintId && !byBlueprintId.has(blueprintId)) {
-        byBlueprintId.set(blueprintId, product);
+      if (!blueprintId) {
+        return;
       }
+
+      const existing = byBlueprintId.get(blueprintId) || [];
+      existing.push(product);
+      byBlueprintId.set(blueprintId, existing);
     });
     return byBlueprintId;
   };
@@ -156,10 +160,11 @@ export const PrintifySettings: React.FC = () => {
   const buildSyncedTemplate = async (
     apiKey: string,
     template: PrintifyCatalogTemplate,
-    shopProductsByBlueprintId?: Map<number, any>,
+    shopProductsByBlueprintId?: Map<number, any[]>,
   ): Promise<PrintifyCatalogTemplate> => {
     const shopId = printifySettings.providerSettings.shopId?.trim();
-    const matchedShopProduct = shopProductsByBlueprintId?.get(template.blueprintId);
+    const matchedShopProducts = shopProductsByBlueprintId?.get(template.blueprintId) || [];
+    const matchedShopProduct = matchedShopProducts.length === 1 ? matchedShopProducts[0] : null;
     const hasLinkedShopProduct = Boolean(matchedShopProduct?.id);
     let shopProductDetail = matchedShopProduct;
 
@@ -184,10 +189,15 @@ export const PrintifySettings: React.FC = () => {
         `[WARNING] No print providers were returned for ${template.title} (blueprint ${template.blueprintId}). This template will remain provider-empty until it is re-synced after provider data exists.`,
       ]);
     }
-    if (!hasLinkedShopProduct) {
+    if (matchedShopProducts.length === 0) {
       setSyncLogs(prev => [
         ...prev,
         `[WARNING] No live shop product matched ${template.title} (blueprint ${template.blueprintId}). This template will be marked unavailable until the shop product exists again.`,
+      ]);
+    } else if (matchedShopProducts.length > 1) {
+      setSyncLogs(prev => [
+        ...prev,
+        `[WARNING] Multiple live shop products matched ${template.title} (blueprint ${template.blueprintId}). Leaving product_id NULL for manual resolution.`,
       ]);
     }
     const productProviderId = Number(shopProductDetail?.print_provider_id || shopProductDetail?.printProviderId);
