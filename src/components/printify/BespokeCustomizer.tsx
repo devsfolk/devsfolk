@@ -12,7 +12,6 @@ import { optimizeImage } from '@/lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePrintifyCatalog } from '@/hooks/usePrintifyCatalog';
 import { Product, PrintifyCatalogTemplate, PrintifyViewCustomization, PrintifyViewKey } from '@/types';
-import { isPurchasablePrintifyTemplate, isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 import { getPrintifyViewLabel, hasPrintifyViewCustomization } from '@/lib/printifyCustomizationSummary';
 
 interface BespokeCustomizerProps {
@@ -22,7 +21,7 @@ interface BespokeCustomizerProps {
 
 export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlug, showHeader = true }) => {
   const navigate = useNavigate();
-  const { products, settings, addToCart } = useShop();
+  const { settings, addToCart } = useShop();
   const { editorReadyTemplates } = usePrintifyCatalog();
   const [templateSearch, setTemplateSearch] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -69,25 +68,9 @@ export const BespokeCustomizer: React.FC<BespokeCustomizerProps> = ({ productSlu
     };
   };
 
-  // Filter raw Printify templates only. Admin-created Printify shop products remain storefront products.
   const customProducts = useMemo(() => {
-    const syncedTemplateProducts = products.filter((product) => (
-      isRawPrintifyTemplateProduct(product) &&
-      (
-        product.variants?.some((variant: any) => Number(variant?.id || variant?.variant_id || variant?.printify_variant_id) > 0 && variant.stock !== 0) &&
-        editorReadyTemplates.some((template) => (
-          String(template.blueprintId) === product.printifyCatalogId &&
-          isPurchasablePrintifyTemplate(template, products)
-        ))
-      )
-    ));
-    const syncedTemplateIds = new Set(syncedTemplateProducts.map((product) => product.printifyCatalogId).filter(Boolean));
-    const catalogTemplateProducts = editorReadyTemplates
-      .filter((template) => !syncedTemplateIds.has(String(template.blueprintId)))
-      .map(templateToEditorProduct);
-
-    return [...syncedTemplateProducts, ...catalogTemplateProducts];
-  }, [products, editorReadyTemplates, settings.printifySettings?.charges]);
+    return editorReadyTemplates.map(templateToEditorProduct);
+  }, [editorReadyTemplates]);
 
   const filteredProducts = useMemo(() => {
     const query = templateSearch.trim().toLowerCase();

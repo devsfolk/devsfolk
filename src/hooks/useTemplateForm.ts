@@ -48,6 +48,7 @@ export interface TemplateFormData {
   sizes: SizePrice[];
   printAreas: PrintArea[];
   providers: any[];
+  printProviderId?: number;
   colorMockups: Record<string, {
     front?: string;
     back?: string;
@@ -67,6 +68,7 @@ const getDefaultFormData = (): TemplateFormData => ({
   sizes: [],
   printAreas: [],
   providers: [],
+  printProviderId: undefined,
   colorMockups: {},
 });
 

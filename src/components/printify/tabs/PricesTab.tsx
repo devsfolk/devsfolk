@@ -69,6 +69,10 @@ export const PricesTab: React.FC<PricesTabProps> = ({
           const firstProvider = providersList[0];
           const providerId = String(firstProvider.id || firstProvider.print_provider_id || '');
           setSelectedProvider(providerId);
+          setFormData((prev) => ({
+            ...prev,
+            printProviderId: Number(providerId) || prev.printProviderId,
+          }));
         }
       }
     } catch (err) {
@@ -250,6 +254,10 @@ export const PricesTab: React.FC<PricesTabProps> = ({
 
   const handleProviderChange = (value: string) => {
     setSelectedProvider(value);
+    setFormData((prev) => ({
+      ...prev,
+      printProviderId: Number(value) || prev.printProviderId,
+    }));
     if (value) {
       fetchPricesForProvider(value);
     }

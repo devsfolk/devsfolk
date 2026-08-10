@@ -1,3 +1,5 @@
+import { findLiveVariantById, isPrintifyVariantSelectable } from '../../src/lib/printifyVariantValidation';
+
 const PRINTIFY_API_BASE = 'https://api.printify.com/v1';
 
 const getSupabaseConfig = () => {
@@ -367,7 +369,39 @@ const buildPrintAreasForItem = async (apiKey: string, item: any, index: number, 
   return { [position]: artworkUrl };
 };
 
-const getCurrentPrintifyShopProductLinkIssues = async (order: any) => {
+const normalizePrintifyVariantList = (payload: any) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.variants)) {
+    return payload.variants;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+};
+
+const fetchLivePrintifyVariants = async (apiKey: string, blueprintId: number, printProviderId: number) => {
+  const response = await fetch(`${PRINTIFY_API_BASE}/catalog/blueprints/${blueprintId}/print_providers/${printProviderId}/variants.json?show-out-of-stock=1`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json;charset=utf-8',
+      'User-Agent': 'devsfolk-app/1.0',
+    },
+  });
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data: await parsePrintifyResponse(response),
+  };
+};
+
+const getLivePrintifyVariantIssues = async (apiKey: string, order: any) => {
   const items = Array.isArray(order?.items) ? order.items : [];
   const printifyItems = items.filter((item) => inferLineItemSource(item) === 'printify');
 
@@ -375,107 +409,40 @@ const getCurrentPrintifyShopProductLinkIssues = async (order: any) => {
     return [];
   }
 
-  const templateBlueprintIds = new Set<number>();
-  const currentShopProductIds = new Set<string>();
+  const issues: string[] = [];
 
-  for (const item of printifyItems) {
-    const productId = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();
+  for (const [index, item] of printifyItems.entries()) {
     const blueprintId = toPositiveInteger(getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id', 'printifyCatalogId', 'printify_catalog_id']));
     const printProviderId = toPositiveInteger(getItemMetaValue(item, ['printifyPrintProviderId', 'print_provider_id']));
-    const isTemplateOrderItem =
-      !!printProviderId ||
-      !!getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id']) ||
-      isTemplateProductReference(productId);
+    const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variantId', 'variant_id']));
 
-    if (isTemplateOrderItem) {
-      if (blueprintId) {
-        templateBlueprintIds.add(blueprintId);
-      }
+    if (!blueprintId || !printProviderId || !variantId) {
       continue;
     }
 
-    if (isRealPrintifyProductId(productId)) {
-      currentShopProductIds.add(productId);
+    try {
+      const liveVariantsResponse = await fetchLivePrintifyVariants(apiKey, blueprintId, printProviderId);
+      const liveVariants = normalizePrintifyVariantList(liveVariantsResponse.data);
+
+      if (!liveVariantsResponse.ok) {
+        issues.push(`line_items[${index}] blueprint ${blueprintId} / provider ${printProviderId} could not be validated against Printify's live variants catalog (status ${liveVariantsResponse.status}).`);
+        continue;
+      }
+
+      const liveVariant = findLiveVariantById(liveVariants, variantId);
+
+      if (!liveVariant) {
+        issues.push(`line_items[${index}] variant ${variantId} is no longer available from blueprint ${blueprintId} and provider ${printProviderId}.`);
+        continue;
+      }
+
+      if (!isPrintifyVariantSelectable(liveVariant)) {
+        issues.push(`line_items[${index}] variant ${variantId} from blueprint ${blueprintId} and provider ${printProviderId} is disabled or out of stock.`);
+      }
+    } catch (error: any) {
+      issues.push(`line_items[${index}] blueprint ${blueprintId} / provider ${printProviderId} could not be validated against Printify's live variants catalog: ${error?.message || String(error)}.`);
     }
   }
-
-  const catalogRows = templateBlueprintIds.size > 0
-    ? await fetchSupabaseRows(
-        'printify_catalog',
-        'blueprint_id,product_id',
-        { 'blueprint_id': `in.(${Array.from(templateBlueprintIds).join(',')})` },
-      )
-    : [];
-
-  const linkedProductIds = new Set(
-    (Array.isArray(catalogRows) ? catalogRows : [])
-      .map((row: any) => String(row?.product_id || '').trim())
-      .filter(Boolean),
-  );
-
-  const productIdsToCheck = new Set<string>([
-    ...Array.from(currentShopProductIds),
-    ...Array.from(linkedProductIds),
-  ]);
-
-  const productRows = productIdsToCheck.size > 0
-    ? await fetchSupabaseRows(
-        'products',
-        'id,printify_product_id,printify_catalog_id,is_printify',
-        { 'printify_product_id': `in.(${Array.from(productIdsToCheck).join(',')})` },
-      )
-    : [];
-
-  const catalogByBlueprint = new Map<string, any>(
-    (Array.isArray(catalogRows) ? catalogRows : []).map((row: any) => [String(row?.blueprint_id ?? ''), row]),
-  );
-  const currentProductIds = new Set(
-    (Array.isArray(productRows) ? productRows : [])
-      .map((row: any) => String(row?.printify_product_id || '').trim())
-      .filter(Boolean),
-  );
-
-  const issues: string[] = [];
-
-  printifyItems.forEach((item, index) => {
-    const productId = String(getItemMetaValue(item, ['printifyProductId', 'product_id']) || '').trim();
-    const blueprintId = toPositiveInteger(getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id', 'printifyCatalogId', 'printify_catalog_id']));
-    const printProviderId = toPositiveInteger(getItemMetaValue(item, ['printifyPrintProviderId', 'print_provider_id']));
-    const isTemplateOrderItem =
-      !!printProviderId ||
-      !!getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id']) ||
-      isTemplateProductReference(productId);
-
-    if (isTemplateOrderItem) {
-      if (!blueprintId) {
-        issues.push(`line_items[${index}] is missing a blueprint reference for a customized template order item.`);
-        return;
-      }
-
-      const catalogRow = catalogByBlueprint.get(String(blueprintId));
-      const linkedProductId = String(catalogRow?.product_id || '').trim();
-
-      if (!linkedProductId) {
-        issues.push(`line_items[${index}] blueprint ${blueprintId} is no longer linked to a live shop product.`);
-        return;
-      }
-
-      if (!currentProductIds.has(linkedProductId)) {
-        issues.push(`line_items[${index}] blueprint ${blueprintId} points to shop product ${linkedProductId}, but that product is no longer present.`);
-      }
-
-      return;
-    }
-
-    if (!isRealPrintifyProductId(productId)) {
-      issues.push(`line_items[${index}] is missing a valid current shop product reference.`);
-      return;
-    }
-
-    if (!currentProductIds.has(productId)) {
-      issues.push(`line_items[${index}] Printify product ${productId} is no longer present in the live shop products table.`);
-    }
-  });
 
   return issues;
 };
@@ -547,7 +514,7 @@ const buildOrderPayload = async (apiKey: string, order: any) => {
     missing.push('order.id');
   }
 
-  const availabilityIssues = await getCurrentPrintifyShopProductLinkIssues(order);
+  const availabilityIssues = await getLivePrintifyVariantIssues(apiKey, order);
   if (availabilityIssues.length > 0) {
     return {
       missing,

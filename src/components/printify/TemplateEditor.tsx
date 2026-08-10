@@ -10,6 +10,12 @@ import { PricesTab } from './tabs/PricesTab';
 import { PrintAreasTab } from './tabs/PrintAreasTab';
 import { PrintifyCatalogTemplate } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { fetchPrintifyBlueprintVariants } from '@/lib/printifyApi';
+import {
+  getPrintifyVariantId,
+  getPrintifyVariantSize,
+  matchLivePrintifyVariantsToSizes,
+} from '@/lib/printifyVariantValidation';
 
 interface TemplateEditorProps {
   open: boolean;
@@ -40,6 +46,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         images: Array.isArray(editingTemplate.images) ? editingTemplate.images : [],
         colors: Array.isArray(editingTemplate.colors) ? editingTemplate.colors : [],
         providers: Array.isArray(editingTemplate.providers) ? editingTemplate.providers : [],
+        printProviderId: editingTemplate.printProviderId ?? undefined,
         sizes: Array.isArray(editingTemplate.variants) && editingTemplate.variants.length > 0
           ? (() => {
               // FIXED: Extract sizes with individual prices from variants
@@ -135,6 +142,22 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
     const providersData = await response.json();
     return providersData.data || providersData || [];
+  };
+
+  const normalizeVariantList = (payload: any) => {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if (Array.isArray(payload?.variants)) {
+      return payload.variants;
+    }
+
+    if (Array.isArray(payload?.data)) {
+      return payload.data;
+    }
+
+    return [];
   };
 
   const handleSync = async () => {
@@ -362,9 +385,59 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         throw new Error('No Printify providers were loaded for this blueprint. Please sync from Printify again before publishing.');
       }
 
+      const primaryProvider = providers[0];
+      const primaryProviderId = Number(formData.printProviderId || primaryProvider?.id || primaryProvider?.print_provider_id || 0);
+      let liveVariants: any[] = [];
+      let publishedVariants: any[] = [];
+      let variantSellingPrices: Record<string, number> = {};
+
+      if (formData.blueprintId && primaryProviderId > 0) {
+        const liveVariantsPayload = await fetchPrintifyBlueprintVariants(apiKey, formData.blueprintId, primaryProviderId);
+        liveVariants = normalizeVariantList(liveVariantsPayload);
+
+        if (liveVariants.length === 0) {
+          throw new Error('No live variants were returned for this blueprint/provider combination. Please choose another provider or resync from Printify.');
+        }
+
+        const requestedSizes = formData.sizes.map((s) => String(s.size || '').trim()).filter(Boolean);
+        if (requestedSizes.length === 0) {
+          throw new Error('Please add at least one size before publishing this template.');
+        }
+
+        const liveVariantMatches = matchLivePrintifyVariantsToSizes(liveVariants, requestedSizes);
+        if (liveVariantMatches.missingSizes.length > 0) {
+          throw new Error(`This variant isn't available from this provider: ${liveVariantMatches.missingSizes.join(', ')}.`);
+        }
+
+        const sizePriceByLabel = new Map(
+          formData.sizes.map((size) => [String(size.size || '').trim().toLowerCase(), size]),
+        );
+
+        publishedVariants = liveVariants.map((variant: any) => {
+          const liveVariantId = getPrintifyVariantId(variant);
+          const sizeLabel = getPrintifyVariantSize(variant);
+          const sizePrice = sizePriceByLabel.get(sizeLabel.toLowerCase());
+
+          if (sizePrice && liveVariantId) {
+            variantSellingPrices[String(liveVariantId)] = sizePrice.sellingPrice;
+          }
+
+          return {
+            ...variant,
+            id: liveVariantId || variant.id,
+            title: variant.title || variant.name || sizeLabel || String(liveVariantId || ''),
+            cost: variant.cost ?? variant.price ?? Math.round((sizePrice?.baseCost ?? 0) * 100),
+            price: variant.retail_price ?? variant.price ?? Math.round((sizePrice?.sellingPrice ?? 0) * 100),
+            is_available: variant.is_available !== false,
+            is_enabled: variant.is_enabled !== false,
+          };
+        });
+      }
+
       const templateData: PrintifyCatalogTemplate = {
         id: formData.id || `bp_${formData.blueprintId || Date.now()}`,
         blueprintId: formData.blueprintId || 0,
+        printProviderId: primaryProviderId > 0 ? primaryProviderId : undefined,
         title: formData.title,
         description: formData.description,
         images: formData.images,
@@ -372,14 +445,16 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         colors: formData.colors,
         sizes: formData.sizes.map(s => s.size),
         providers,
-        variants: formData.sizes.map((s, idx) => ({
-          id: idx + 1,
-          title: s.size,
-          cost: Math.round(s.baseCost * 100),
-          price: Math.round(s.sellingPrice * 100),
-          is_available: true,
-          is_enabled: true,
-        })),
+        variants: formData.blueprintId && publishedVariants.length > 0
+          ? publishedVariants
+          : formData.sizes.map((s, idx) => ({
+              id: idx + 1,
+              title: s.size,
+              cost: Math.round(s.baseCost * 100),
+              price: Math.round(s.sellingPrice * 100),
+              is_available: true,
+              is_enabled: true,
+            })),
         printAreas: formData.printAreas,
         shipping: [],
         baseCost: formData.sizes.length > 0 
@@ -391,10 +466,12 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         sellingPrice: formData.sizes.length > 0
           ? Math.min(...formData.sizes.map(s => s.sellingPrice))
           : 0,
-        variantSellingPrices: formData.sizes.reduce((acc, s, idx) => ({
-          ...acc,
-          [idx + 1]: s.sellingPrice,
-        }), {}),
+        variantSellingPrices: formData.blueprintId && Object.keys(variantSellingPrices).length > 0
+          ? variantSellingPrices
+          : formData.sizes.reduce((acc, s, idx) => ({
+              ...acc,
+              [idx + 1]: s.sellingPrice,
+            }), {}),
         colorMockups: formData.colorMockups,
         syncStatus: 'published',
         isEnabled: true,
