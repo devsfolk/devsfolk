@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 import { useShop } from '@/context/ShopContext';
-import { isPurchasablePrintifyTemplate } from '@/lib/printifyProductGuards';
 
 export const usePrintifyCatalog = () => {
-  const { printifyCatalog, settings, products } = useShop();
+  const { printifyCatalog, settings } = useShop();
 
   return useMemo(() => {
     const enabledTemplates = printifyCatalog.filter((template) => (
       template.isEnabled && (template.syncStatus || 'published') === 'published'
     ));
     const providerReadyTemplates = enabledTemplates.filter((template) => template.providers.length > 0);
-    const editorReadyTemplates = printifyCatalog.filter((template) => isPurchasablePrintifyTemplate(template, products));
+    const editorReadyTemplates = printifyCatalog.filter((template) => (
+      template.isEnabled && template.syncStatus === 'published'
+    ));
 
     return {
       templates: printifyCatalog,
@@ -22,5 +23,5 @@ export const usePrintifyCatalog = () => {
       hasProviderReadyTemplates: providerReadyTemplates.length > 0,
       hasEditorReadyTemplates: editorReadyTemplates.length > 0,
     };
-  }, [printifyCatalog, products, settings.printifySettings?.enabled]);
+  }, [printifyCatalog, settings.printifySettings?.enabled]);
 };
