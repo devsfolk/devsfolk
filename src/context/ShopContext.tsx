@@ -1873,43 +1873,63 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deletePrintifyCatalogTemplate = async (templateId: string) => {
-    const updatedCatalog = printifyCatalog.filter((t) => t.id !== templateId);
-    setPrintifyCatalog(updatedCatalog);
-    savePrintifyCatalogLocally(updatedCatalog);
-
     const template = printifyCatalog.find((t) => t.id === templateId);
     const blueprintId = template?.blueprintId;
-    
-    const updatedProducts = products.filter((p) => 
-      p.id !== `printify_template_${templateId}` && 
-      !(blueprintId && (p.printifyCatalogId === String(blueprintId) || p.printifyProductId === `template_${blueprintId}`))
+    const templateProductIds = new Set([
+      templateId,
+      `printify_template_${templateId}`,
+      blueprintId ? `printify_template_bp_${blueprintId}` : null,
+    ].filter(Boolean) as string[]);
+
+    const productShouldBeDeleted = (product: Product) => (
+      templateProductIds.has(product.id) ||
+      (blueprintId && (
+        product.printifyCatalogId === String(blueprintId) ||
+        product.printifyProductId === `template_${blueprintId}` ||
+        product.slug === `printify-template-${blueprintId}`
+      ))
     );
-    setProducts(updatedProducts);
-    saveProductsLocally(updatedProducts);
 
     if (supabase) {
       const { error: catalogErr } = await supabase.from('printify_catalog').delete().eq('id', templateId);
       if (catalogErr) {
-        reportSyncError(`Failed to delete template ${templateId} from printify_catalog.`, catalogErr.message);
+        throw new Error(`Failed to delete template ${templateId} from printify_catalog. ${catalogErr.message}`);
       }
       
-      const obsoleteIds = [
-        `printify_template_${templateId}`,
-        blueprintId ? `printify_template_bp_${blueprintId}` : null
-      ].filter(Boolean) as string[];
+      const obsoleteIds = Array.from(templateProductIds);
       
-      const { error: prodErr } = await supabase.from('products').delete().in('id', obsoleteIds);
-      if (prodErr) {
-        reportSyncError(`Failed to delete fallback products for template ${templateId}.`, prodErr.message);
+      if (obsoleteIds.length > 0) {
+        const { error: prodErr } = await supabase.from('products').delete().in('id', obsoleteIds);
+        if (prodErr) {
+          throw new Error(`Failed to delete fallback products for template ${templateId}. ${prodErr.message}`);
+        }
       }
-      
+
       if (blueprintId) {
         const { error: prodErr2 } = await supabase.from('products').delete().eq('printify_catalog_id', String(blueprintId));
         if (prodErr2) {
-          reportSyncError(`Failed to delete catalog matched products for blueprint ${blueprintId}.`, prodErr2.message);
+          throw new Error(`Failed to delete catalog matched products for blueprint ${blueprintId}. ${prodErr2.message}`);
+        }
+
+        const { error: prodErr3 } = await supabase.from('products').delete().eq('printify_product_id', `template_${blueprintId}`);
+        if (prodErr3) {
+          throw new Error(`Failed to delete linked template products for blueprint ${blueprintId}. ${prodErr3.message}`);
+        }
+
+        const { error: prodErr4 } = await supabase.from('products').delete().eq('slug', `printify-template-${blueprintId}`);
+        if (prodErr4) {
+          throw new Error(`Failed to delete slug-matched products for blueprint ${blueprintId}. ${prodErr4.message}`);
         }
       }
     }
+
+    const updatedCatalog = printifyCatalog.filter((t) => t.id !== templateId);
+    setPrintifyCatalog(updatedCatalog);
+    savePrintifyCatalogLocally(updatedCatalog);
+
+    const updatedProducts = products.filter((p) => !productShouldBeDeleted(p));
+    setProducts(updatedProducts);
+    saveProductsLocally(updatedProducts);
   };
 
   const clearPrintifyCatalog = async () => {
