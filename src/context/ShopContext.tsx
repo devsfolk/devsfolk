@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Review, StoreFeature, SocialLink, PrintifyCustomization, PrintifyCatalogTemplate, StoreSection } from '../types';
 import { TEMPLATES } from '../lib/templates';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
+import { normalizePrintifyPrintAreas } from '../lib/printifyPrintAreas';
 
 interface CartItem extends OrderItem {
   image: string;
@@ -651,8 +652,8 @@ const migratePrintArea = (area: any): any => {
 
 const mapPrintifyCatalogRow = (row: any): PrintifyCatalogTemplate => {
   const rawPrintAreas = row.print_areas || [];
-  const migratedPrintAreas = Array.isArray(rawPrintAreas) 
-    ? rawPrintAreas.map(migratePrintArea) 
+  const migratedPrintAreas = Array.isArray(rawPrintAreas)
+    ? normalizePrintifyPrintAreas(rawPrintAreas.map(migratePrintArea))
     : [];
 
   return {

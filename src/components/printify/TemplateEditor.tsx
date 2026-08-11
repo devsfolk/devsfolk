@@ -11,6 +11,7 @@ import { PrintAreasTab } from './tabs/PrintAreasTab';
 import { PrintifyCatalogTemplate } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { fetchPrintifyBlueprintVariants } from '@/lib/printifyApi';
+import { normalizePrintifyPrintAreas } from '@/lib/printifyPrintAreas';
 import {
   getPrintifyVariantId,
   getPrintifyVariantSize,
@@ -92,7 +93,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
             })()
           : [],
         printAreas: Array.isArray(editingTemplate.printAreas)
-          ? editingTemplate.printAreas.map((pa: any) => ({
+          ? normalizePrintifyPrintAreas(editingTemplate.printAreas.map((pa: any) => ({
               name: pa.position || pa.name || '',
               position: pa.position || '',
               width: pa.width || pa.pixel_width || 0,
@@ -100,7 +101,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
               x: pa.offset_x || pa.x || 0,
               y: pa.offset_y || pa.y || 0,
               dpi: pa.dpi || 300,
-            }))
+              view: pa.view || pa.position || '',
+            })))
           : [],
         colorMockups: editingTemplate.colorMockups || {},
       }
@@ -249,7 +251,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       if (variantsResponse.ok) {
         const variantsData = await variantsResponse.json();
         variants = variantsData.variants || variantsData.data || [];
-        printAreas = variantsData.print_areas || blueprintData.print_areas || [];
+        printAreas = normalizePrintifyPrintAreas(variantsData.print_areas || blueprintData.print_areas || []);
         
         console.log('[Sync Debug] Variants fetched:', variants.length);
         console.log('[Sync Debug] Sample variant:', variants[0]);
@@ -342,15 +344,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         colors: extractedColors.length > 0 ? extractedColors : prev.colors,
         sizes: extractedSizes.length > 0 ? extractedSizes : prev.sizes,
         printAreas: printAreas.length > 0
-          ? printAreas.map((pa: any) => ({
-              name: pa.position || pa.name || 'Print Area',
-              position: pa.position || '',
-              width: pa.width || pa.pixel_width || 0,
-              height: pa.height || pa.pixel_height || 0,
-              x: pa.offset_x || 0,
-              y: pa.offset_y || 0,
-              dpi: pa.dpi || 300,
-            }))
+          ? printAreas
           : prev.printAreas,
       }));
 
