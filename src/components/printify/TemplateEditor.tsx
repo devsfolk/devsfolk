@@ -58,6 +58,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
               return editingTemplate.variants.map((v: any) => {
                 const baseCostCents = Number(v.cost || 0);
                 const baseCostDollars = baseCostCents / 100; // Variants store in cents
+                const resolvedSize = getPrintifyVariantSize(v) || v.size || v.name || String(v.id);
                 
                 // Check variantPrices first (already in dollars), then v.price (in cents)
                 let sellingPriceDollars = 0;
@@ -75,7 +76,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
                 console.log(`[Template Load] Size ${v.title}: baseCost=$${baseCostDollars}, sellingPrice=$${sellingPriceDollars}`);
                 
                 return {
-                  size: v.title || v.name || String(v.id),
+                  size: resolvedSize,
                   baseCost: baseCostDollars,
                   sellingPrice: sellingPriceDollars,
                 };
@@ -419,6 +420,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
           return {
             ...variant,
             id: liveVariantId || variant.id,
+            size: sizeLabel,
             title: variant.title || variant.name || sizeLabel || String(liveVariantId || ''),
             cost: variant.cost ?? variant.price ?? Math.round((sizePrice?.baseCost ?? 0) * 100),
             price: variant.retail_price ?? variant.price ?? Math.round((sizePrice?.sellingPrice ?? 0) * 100),
