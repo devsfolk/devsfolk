@@ -402,49 +402,55 @@ const fetchLivePrintifyVariants = async (apiKey: string, blueprintId: number, pr
 };
 
 const getLivePrintifyVariantIssues = async (apiKey: string, order: any) => {
-  const items = Array.isArray(order?.items) ? order.items : [];
-  const printifyItems = items.filter((item) => inferLineItemSource(item) === 'printify');
+  try {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    const printifyItems = items.filter((item) => inferLineItemSource(item) === 'printify');
 
-  if (printifyItems.length === 0) {
-    return [];
-  }
-
-  const issues: string[] = [];
-
-  for (const [index, item] of printifyItems.entries()) {
-    const blueprintId = toPositiveInteger(getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id', 'printifyCatalogId', 'printify_catalog_id']));
-    const printProviderId = toPositiveInteger(getItemMetaValue(item, ['printifyPrintProviderId', 'print_provider_id']));
-    const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variantId', 'variant_id']));
-
-    if (!blueprintId || !printProviderId || !variantId) {
-      continue;
+    if (printifyItems.length === 0) {
+      return [];
     }
 
-    try {
-      const liveVariantsResponse = await fetchLivePrintifyVariants(apiKey, blueprintId, printProviderId);
-      const liveVariants = normalizePrintifyVariantList(liveVariantsResponse.data);
+    const issues: string[] = [];
 
-      if (!liveVariantsResponse.ok) {
-        issues.push(`line_items[${index}] blueprint ${blueprintId} / provider ${printProviderId} could not be validated against Printify's live variants catalog (status ${liveVariantsResponse.status}).`);
+    for (const [index, item] of printifyItems.entries()) {
+      const blueprintId = toPositiveInteger(getItemMetaValue(item, ['printifyBlueprintId', 'blueprint_id', 'printifyCatalogId', 'printify_catalog_id']));
+      const printProviderId = toPositiveInteger(getItemMetaValue(item, ['printifyPrintProviderId', 'print_provider_id']));
+      const variantId = toPositiveInteger(getItemMetaValue(item, ['printifyVariantId', 'variantId', 'variant_id']));
+
+      if (!blueprintId || !printProviderId || !variantId) {
         continue;
       }
 
-      const liveVariant = findLiveVariantById(liveVariants, variantId);
+      try {
+        const liveVariantsResponse = await fetchLivePrintifyVariants(apiKey, blueprintId, printProviderId);
+        const liveVariants = normalizePrintifyVariantList(liveVariantsResponse.data);
 
-      if (!liveVariant) {
-        issues.push(`line_items[${index}] variant ${variantId} is no longer available from blueprint ${blueprintId} and provider ${printProviderId}.`);
-        continue;
-      }
+        if (!liveVariantsResponse.ok) {
+          issues.push(`line_items[${index}] blueprint ${blueprintId} / provider ${printProviderId} could not be validated against Printify's live variants catalog (status ${liveVariantsResponse.status}).`);
+          continue;
+        }
 
-      if (!isPrintifyVariantSelectable(liveVariant)) {
-        issues.push(`line_items[${index}] variant ${variantId} from blueprint ${blueprintId} and provider ${printProviderId} is disabled or out of stock.`);
+        const liveVariant = findLiveVariantById(liveVariants, variantId);
+
+        if (!liveVariant) {
+          issues.push(`line_items[${index}] variant ${variantId} is no longer available from blueprint ${blueprintId} and provider ${printProviderId}.`);
+          continue;
+        }
+
+        if (!isPrintifyVariantSelectable(liveVariant)) {
+          issues.push(`line_items[${index}] variant ${variantId} from blueprint ${blueprintId} and provider ${printProviderId} is disabled or out of stock.`);
+        }
+      } catch (error: any) {
+        issues.push(`line_items[${index}] blueprint ${blueprintId} / provider ${printProviderId} could not be validated against Printify's live variants catalog: ${error?.message || String(error)}.`);
       }
-    } catch (error: any) {
-      issues.push(`line_items[${index}] blueprint ${blueprintId} / provider ${printProviderId} could not be validated against Printify's live variants catalog: ${error?.message || String(error)}.`);
     }
-  }
 
-  return issues;
+    return issues;
+  } catch (error: any) {
+    return [
+      `Printify fulfillment could not be validated against Printify's live variants catalog: ${error?.message || String(error)}.`,
+    ];
+  }
 };
 
 const buildLineItems = async (apiKey: string, order: any, missing: string[]) => {
