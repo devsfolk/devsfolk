@@ -605,47 +605,13 @@ const updateOrderFulfillmentStatusInDatabase = async (
     return;
   }
 
-  const orderResponse = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=items`, {
-    headers: {
-      apikey: supabaseServiceRoleKey,
-      Authorization: `Bearer ${supabaseServiceRoleKey}`,
-    },
-  });
-
-  let updatedItems = [];
-  if (orderResponse.ok) {
-    const rows = await orderResponse.json().catch(() => []);
-    const rawItems = rows?.[0]?.items || [];
-    const items = Array.isArray(rawItems)
-      ? rawItems.filter((item: any) => item?.productId !== '__printify_sync_meta')
-      : [];
-
-    const syncMetaItem = {
-      productId: '__printify_sync_meta',
-      name: 'Printify Sync Metadata',
-      price: 0,
-      quantity: 0,
-      printifySync: {
-        printifyOrderId: updates.printifyOrderId || null,
-        printifySyncStatus: updates.printifySyncStatus,
-        printifyErrorLog: updates.printifyErrorLog || null,
-      },
-    };
-
-    updatedItems = [...items, syncMetaItem];
-  }
-
   const updateBody: any = {
     printify_sync_status: updates.printifySyncStatus,
     printify_order_id: updates.printifyOrderId || null,
     printify_error_log: updates.printifyErrorLog || null,
   };
 
-  if (updatedItems.length > 0) {
-    updateBody.items = updatedItems;
-  }
-
-  await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}`, {
+  const updateResponse = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}`, {
     method: 'PATCH',
     headers: {
       apikey: supabaseServiceRoleKey,
@@ -655,6 +621,11 @@ const updateOrderFulfillmentStatusInDatabase = async (
     },
     body: JSON.stringify(updateBody),
   });
+
+  if (!updateResponse.ok) {
+    const errText = await updateResponse.text().catch(() => '');
+    throw new Error(`Database update failed for order ${orderId}: ${errText || updateResponse.statusText}`);
+  }
 };
 
 const updateOrderFulfillmentStatusSafely = async (
