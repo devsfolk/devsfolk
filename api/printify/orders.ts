@@ -1,4 +1,4 @@
-import { findLiveVariantById, isPrintifyVariantSelectable } from '../../src/lib/printifyVariantValidation';
+import { findLiveVariantById, isPrintifyVariantSelectable } from '../../src/lib/printifyVariantValidation.js';
 
 const PRINTIFY_API_BASE = 'https://api.printify.com/v1';
 
