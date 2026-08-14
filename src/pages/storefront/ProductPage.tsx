@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { isRawPrintifyTemplateProduct } from '@/lib/printifyProductGuards';
 import { EtsyProductDetail } from '@/components/etsy/EtsyProductDetail';
+import { resolvePrintifyProductVariant } from '@/lib/printifyVariantSelection';
 
 const TEMPLATE_COLOR_VISIBLE_COUNT = 6;
 
@@ -33,76 +34,6 @@ const getVariantId = (variant: any) => String(variant?.id || variant?.variant_id
 const getVariantImages = (variant: any, variantImages: Record<string, string[]>) => {
   const variantId = getVariantId(variant);
   return variantImages[variantId] || [];
-};
-
-const normalizeOptionText = (value: any) => {
-  if (value === undefined || value === null) {
-    return '';
-  }
-
-  if (typeof value === 'object') {
-    return String(value.title || value.name || value.value || value.label || '').trim();
-  }
-
-  return String(value).trim();
-};
-
-const getVariantOptionText = (variant: any, keys: string[]) => {
-  if (!variant || typeof variant !== 'object') {
-    return '';
-  }
-
-  for (const key of keys) {
-    const direct = normalizeOptionText(variant[key]);
-    if (direct) {
-      return direct;
-    }
-  }
-
-  const options = Array.isArray(variant.options) ? variant.options : [];
-  for (const option of options) {
-    const optionName = normalizeOptionText(option?.name || option?.type || option?.key || option?.label).toLowerCase();
-    const optionValue = normalizeOptionText(option?.title || option?.value || option?.name);
-    const hasColorMetadata = !!option?.hex || (Array.isArray(option?.colors) && option.colors.length > 0);
-    const isColorLookup = keys.some((key) => key === 'color' || key === 'colour');
-
-    if ((optionName && keys.some((key) => optionName.includes(key))) || (isColorLookup && hasColorMetadata)) {
-      if (optionValue) {
-        return optionValue;
-      }
-    }
-  }
-
-  if (variant.options && typeof variant.options === 'object' && !Array.isArray(variant.options)) {
-    for (const key of keys) {
-      const direct = normalizeOptionText(variant.options[key]);
-      if (direct) {
-        return direct;
-      }
-    }
-  }
-
-  return '';
-};
-
-const getVariantTitleParts = (variant: any) => (
-  normalizeOptionText(variant?.title || variant?.name)
-    .split(/\s*\/\s*|\s*,\s*/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-);
-
-const isSizeToken = (value: string) => (
-  /^(one size|xs|s|m|l|xl|xxl|xxxl|[2-6]xl|\d+(\.\d+)?|[a-z]*\s?\d+x\d+|[a-z]*\s?\d+oz)$/i.test(value.trim())
-);
-
-const getVariantSize = (variant: any) => {
-  const explicit = getVariantOptionText(variant, ['size']);
-  if (explicit) {
-    return explicit;
-  }
-
-  return getVariantTitleParts(variant).find(isSizeToken) || '';
 };
 
 export const ProductPage: React.FC = () => {
@@ -207,17 +138,15 @@ export const ProductPage: React.FC = () => {
       return undefined;
     }
 
-    return product.variants.find((variant: any) => {
-      const colorMatches = !selectedColor || getVariantColorTitle(variant) === selectedColor;
-      const sizeMatches = !selectedSize || getVariantSize(variant) === selectedSize;
-      return colorMatches && sizeMatches;
+    return resolvePrintifyProductVariant(product, {
+      color: selectedColor,
+      size: selectedSize,
+      allowFallback: true,
     });
   }, [hasProductVariants, product, selectedColor, selectedSize]);
 
   const hasExactVariantMatch = !hasProductVariants || Boolean(resolvedVariant);
-  const variantSelectionError = hasProductVariants && !resolvedVariant
-    ? 'This combination is currently unavailable.'
-    : '';
+  const variantSelectionError = '';
 
   React.useEffect(() => {
     if (!visibleColorOptions.length) {
@@ -470,7 +399,7 @@ export const ProductPage: React.FC = () => {
                     const handleSelectColor = () => {
                       setSelectedColor(title);
 
-                      const nextImageIndex = colorDetail.imageUrls
+                    const nextImageIndex = colorDetail.imageUrls
                         .map((url) => product.images.findIndex((image) => image === url))
                         .find((index) => index >= 0);
 

@@ -3,6 +3,7 @@ import { ThemeSettings, Product, Category, Order, OrderItem, ProductVariant, Rev
 import { TEMPLATES } from '../lib/templates';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 import { normalizePrintifyPrintAreas } from '../lib/printifyPrintAreas';
+import { resolvePrintifyProductVariant } from '../lib/printifyVariantSelection';
 
 interface CartItem extends OrderItem {
   image: string;
@@ -2121,19 +2122,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : undefined
     );
     const lineItemSource = inferredProductSource;
+    const resolvedVariant = variant || (
+      lineItemSource === 'printify'
+        ? resolvePrintifyProductVariant(product, {
+            color: options?.color,
+            size: options?.size,
+            allowFallback: true,
+          })
+        : undefined
+    );
     const etsyListingId = options?.etsyListingId ?? (lineItemSource === 'etsy' ? product.id.replace(/^etsy_listing_/, '') : undefined);
     const etsySelectedVariation = lineItemSource === 'etsy' ? options?.etsySelectedVariation : undefined;
     const etsyPersonalizationAnswers = lineItemSource === 'etsy' ? options?.etsyPersonalizationAnswers : undefined;
     const etsyPersonalizationFiles = lineItemSource === 'etsy' ? options?.etsyPersonalizationFiles : undefined;
 
     setCart((current) => {
-      const existingIndex = current.findIndex(
-        (item) =>
-          item.productId === product.id &&
-          item.variantId === variant?.id &&
-          item.color === options?.color &&
-          item.size === options?.size &&
-          (!item.source || item.source === lineItemSource) &&
+        const existingIndex = current.findIndex(
+          (item) =>
+            item.productId === product.id &&
+            item.variantId === resolvedVariant?.id &&
+            item.color === options?.color &&
+            item.size === options?.size &&
+            (!item.source || item.source === lineItemSource) &&
           JSON.stringify(item.customization || null) === JSON.stringify(options?.customization || null) &&
           JSON.stringify(item.etsySelectedVariation || null) === JSON.stringify(etsySelectedVariation || null) &&
           JSON.stringify(item.etsyPersonalizationAnswers || null) === JSON.stringify(etsyPersonalizationAnswers || null) &&
@@ -2150,15 +2160,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         const cartItem = {
           productId: product.id,
-          variantId: variant?.id,
+          variantId: resolvedVariant?.id,
           name: product.name
-            + (variant?.name ? ` - ${variant.name}` : '')
+            + (resolvedVariant?.name ? ` - ${resolvedVariant.name}` : '')
             + (options?.color ? ` (${options.color})` : '')
             + (options?.size ? ` - ${options.size}` : '')
           + (etsySelectedVariation?.title || etsySelectedVariation?.name ? ` - ${etsySelectedVariation.title || etsySelectedVariation.name}` : '')
           + (options?.customization ? ' (Customized)' : '')
           + (lineItemSource === 'etsy' && etsyPersonalizationAnswers && Object.keys(etsyPersonalizationAnswers).length > 0 ? ' (Personalized)' : ''),
-          price: variant?.price || product.discountPrice || product.price,
+          price: resolvedVariant?.price || product.discountPrice || product.price,
           quantity,
           image: options?.customization?.previewUrl || product.images[0],
           color: options?.color,
