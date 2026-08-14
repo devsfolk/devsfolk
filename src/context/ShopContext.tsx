@@ -2127,10 +2127,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? resolvePrintifyProductVariant(product, {
             color: options?.color,
             size: options?.size,
-            allowFallback: true,
           })
         : undefined
     );
+    if (lineItemSource === 'printify' && Array.isArray(product.variants) && product.variants.length > 0 && !resolvedVariant) {
+      console.warn('[DevsFolk] Skipping printify cart add because the selected variant could not be resolved.', {
+        productId: product.id,
+        color: options?.color,
+        size: options?.size,
+      });
+      return;
+    }
     const etsyListingId = options?.etsyListingId ?? (lineItemSource === 'etsy' ? product.id.replace(/^etsy_listing_/, '') : undefined);
     const etsySelectedVariation = lineItemSource === 'etsy' ? options?.etsySelectedVariation : undefined;
     const etsyPersonalizationAnswers = lineItemSource === 'etsy' ? options?.etsyPersonalizationAnswers : undefined;

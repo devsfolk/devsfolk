@@ -141,12 +141,13 @@ export const ProductPage: React.FC = () => {
     return resolvePrintifyProductVariant(product, {
       color: selectedColor,
       size: selectedSize,
-      allowFallback: true,
     });
   }, [hasProductVariants, product, selectedColor, selectedSize]);
 
   const hasExactVariantMatch = !hasProductVariants || Boolean(resolvedVariant);
-  const variantSelectionError = '';
+  const variantSelectionError = hasProductVariants && !resolvedVariant
+    ? 'This combination is currently unavailable.'
+    : '';
 
   React.useEffect(() => {
     if (!visibleColorOptions.length) {

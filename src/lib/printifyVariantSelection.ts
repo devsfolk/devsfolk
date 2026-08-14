@@ -81,7 +81,7 @@ export const getPrintifyVariantSize = (variant: any) => {
 
 export const resolvePrintifyProductVariant = (
   product: Pick<Product, 'variants'> | null | undefined,
-  options?: { color?: string; size?: string; allowFallback?: boolean },
+  options?: { color?: string; size?: string },
 ) => {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const selectableVariants = variants.filter((variant: any) => String(variant?.id || variant?.variant_id || variant?.printify_variant_id || '').trim());
@@ -105,7 +105,8 @@ export const resolvePrintifyProductVariant = (
     return exactMatch;
   }
 
-  if (options?.allowFallback) {
+  const hasNoRequestedSelection = !normalizeText(options?.color) && !normalizeText(options?.size);
+  if (hasNoRequestedSelection && selectableVariants.length === 1) {
     return selectableVariants[0];
   }
 
